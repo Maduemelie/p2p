@@ -1,0 +1,118 @@
+/**
+ * View: Modals Component (Bank Accounts & Wallet Transfers)
+ */
+export function renderModalsView() {
+  return `
+    <!-- Modal: Add Bank Account -->
+    <div class="modal-backdrop hidden" id="modal-bank-backdrop">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Add Bank Account</h3>
+          <button class="btn-icon" id="btn-close-bank-modal" aria-label="Close">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <form id="form-add-bank" class="modal-body">
+          <div class="form-group mb-3">
+            <label for="bank-name-input" class="form-label">Bank Name</label>
+            <input type="text" id="bank-name-input" class="form-input" placeholder="e.g. OPay, GTBank, Kuda, Moniepoint" required>
+          </div>
+          <div class="form-group mb-3">
+            <label for="bank-account-last4" class="form-label">Account Number (Last 4 Digits or Full)</label>
+            <input type="text" id="bank-account-last4" class="form-input font-mono" placeholder="e.g. 5678" maxlength="10" required>
+          </div>
+          <div class="form-group mb-3">
+            <label for="bank-alias-input" class="form-label">Account Label / Alias (Optional)</label>
+            <input type="text" id="bank-alias-input" class="form-input" placeholder="e.g. Main Trading Account">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-bank-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Account</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Log Wallet Transfer -->
+    <div class="modal-backdrop hidden" id="modal-transfer-backdrop">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Log Wallet Transfer</h3>
+          <button class="btn-icon" id="btn-close-transfer-modal" aria-label="Close">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <form id="form-log-transfer" class="modal-body">
+          <div class="form-group mb-3">
+            <label for="transfer-date" class="form-label">
+              <i data-lucide="calendar"></i> Date & Time
+            </label>
+            <input type="datetime-local" id="transfer-date" class="form-input" required>
+          </div>
+
+          <div class="form-grid mb-3">
+            <div class="form-group col-12 col-md-6">
+              <label for="transfer-from" class="form-label">
+                <i data-lucide="arrow-up-right"></i> From Wallet
+              </label>
+              <select id="transfer-from" class="form-select" required>
+                <option value="Bybit Funding" selected>Bybit Funding</option>
+                <option value="Bybit Unified Trading">Bybit Unified Trading</option>
+                <option value="Bybit Spot">Bybit Spot</option>
+                <option value="External / On-chain">External Wallet</option>
+              </select>
+            </div>
+
+            <div class="form-group col-12 col-md-6">
+              <label for="transfer-to" class="form-label">
+                <i data-lucide="arrow-down-left"></i> To Wallet
+              </label>
+              <select id="transfer-to" class="form-select" required>
+                <option value="Bybit Unified Trading" selected>Bybit Unified Trading</option>
+                <option value="Bybit Funding">Bybit Funding</option>
+                <option value="Bybit Spot">Bybit Spot</option>
+                <option value="External / On-chain">External Wallet</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-grid mb-3">
+            <div class="form-group col-12 col-md-6">
+              <label for="transfer-amount" class="form-label">
+                <i data-lucide="coins"></i> USDT Amount
+              </label>
+              <div class="input-affix-wrapper">
+                <span class="input-prefix">$</span>
+                <input type="number" step="0.0001" min="0.0001" id="transfer-amount" class="form-input font-mono" placeholder="100.00" required>
+                <span class="input-suffix">USDT</span>
+              </div>
+            </div>
+
+            <div class="form-group col-12 col-md-6">
+              <label for="transfer-fee" class="form-label">
+                <i data-lucide="receipt"></i> Gas / Network Fee (USDT)
+              </label>
+              <div class="input-affix-wrapper">
+                <span class="input-prefix">$</span>
+                <input type="number" step="0.0001" min="0" id="transfer-fee" class="form-input font-mono" placeholder="0.00" value="0.00">
+                <span class="input-suffix">USDT</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group mb-3">
+            <label for="transfer-notes" class="form-label">
+              <i data-lucide="file-text"></i> Notes / TxHash (Optional)
+            </label>
+            <input type="text" id="transfer-notes" class="form-input" placeholder="e.g. TRC20 transfer to hot wallet">
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-transfer-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Transfer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
