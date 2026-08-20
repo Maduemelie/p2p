@@ -28,7 +28,8 @@ function getBybitHeaders(timestamp, recvWindow, signature) {
     'X-BAPI-TIMESTAMP': timestamp.toString(),
     'X-BAPI-SIGN': signature,
     'X-BAPI-RECV-WINDOW': recvWindow.toString(),
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
   };
 }
 

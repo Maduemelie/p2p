@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "regions": ["fra1", "lhr1"],
   "routes": [
     {
       "src": "/api/(.*)",
