@@ -122,6 +122,84 @@ export function initSettings() {
   });
 
   // 2. Import Completed Bybit P2P Orders
+  const modalAssign = document.getElementById('modal-assign-banks-backdrop');
+  const btnCloseAssign = document.getElementById('btn-close-assign-banks-modal');
+  const btnCancelAssign = document.getElementById('btn-cancel-assign-banks');
+  const formAssign = document.getElementById('form-assign-banks');
+  const assignList = document.getElementById('assign-banks-items-list');
+
+  let pendingImportOrders = [];
+
+  function closeAssignModal() {
+    if (modalAssign) modalAssign.classList.add('hidden');
+    pendingImportOrders = [];
+  }
+
+  btnCloseAssign?.addEventListener('click', closeAssignModal);
+  btnCancelAssign?.addEventListener('click', closeAssignModal);
+
+  formAssign?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!pendingImportOrders || pendingImportOrders.length === 0) {
+      closeAssignModal();
+      return;
+    }
+
+    const selectElements = assignList?.querySelectorAll('.assign-bank-select') || [];
+    const selectedBankMap = new Map();
+    selectElements.forEach(sel => {
+      selectedBankMap.set(sel.getAttribute('data-order-id'), sel.value);
+    });
+
+    const banks = store.getBankAccounts();
+    const defaultBankId = banks[0]?.id || 'bank_opay_default';
+    let importedCount = 0;
+
+    pendingImportOrders.forEach(order => {
+      const orderId = String(order.id);
+      const direction = Number(order.side) === 0 ? 'BUY' : 'SELL';
+      const rate = parseFloat(order.price) || 0;
+      const ngnAmount = parseFloat(order.amount) || 0;
+      const usdtAmount = parseFloat(order.notifyTokenQuantity || order.quantity || (rate > 0 ? (ngnAmount / rate).toFixed(4) : 0)) || 0;
+      
+      const counterparty = order.targetNickName || order.buyerRealName || order.sellerRealName || '';
+      const rawDate = order.createDate ? Number(order.createDate) : Date.now();
+      const date = new Date(rawDate).toISOString();
+
+      // Get assigned bank for this trade
+      const assignedBankId = selectedBankMap.get(orderId) || defaultBankId;
+
+      // Calculate automated Fintech fees (₦50 EMTL + ₦10 transfer fee)
+      const fees = calculateFintechTradeFees(direction, ngnAmount, false);
+      const totalFees = fees.reduce((sum, f) => sum + f.amount, 0);
+      const { netAmount, effectiveRate } = calculateTradeBreakdown(direction, ngnAmount, usdtAmount, totalFees);
+
+      store.addTrade({
+        refId: orderId,
+        type: direction,
+        date,
+        bankAccountId: assignedBankId,
+        rate,
+        ngnAmount,
+        usdtAmount,
+        fees,
+        totalFees,
+        netAmount,
+        effectiveRate,
+        counterparty,
+        paymentMethod: 'Bybit P2P',
+        notes: `Auto-imported Bybit P2P Order #${orderId}`
+      });
+
+      importedCount++;
+    });
+
+    closeAssignModal();
+    if (window.showToast) {
+      window.showToast(`Successfully imported & assigned ${importedCount} trades!`, 'success');
+    }
+  });
+
   btnImportTrades?.addEventListener('click', async () => {
     try {
       btnImportTrades.disabled = true;
@@ -138,29 +216,86 @@ export function initSettings() {
 
       const banks = store.getBankAccounts();
       const defaultBankId = banks[0]?.id || 'bank_opay_default';
+      const balanceMap = store.getComputedBankBalances ? store.getComputedBankBalances() : new Map();
 
       const existingTrades = store.getTrades();
       const existingRefIds = new Set(existingTrades.map(t => t.refId).filter(Boolean));
 
-      let importedCount = 0;
+      // Filter for new completed orders
+      const newOrders = items.filter(order => Number(order.status) === 50 && !existingRefIds.has(String(order.id)));
 
-      items.forEach(order => {
-        // Status 50 = Order Finished / Completed in Bybit P2P
-        const isFinished = Number(order.status) === 50;
-        const orderId = String(order.id);
+      if (newOrders.length === 0) {
+        if (window.showToast) {
+          window.showToast('All finished Bybit P2P orders are already in your journal.', 'info');
+        }
+        return;
+      }
 
-        if (isFinished && !existingRefIds.has(orderId)) {
-          // side: 0 is Buy, 1 is Sell
-          const direction = Number(order.side) === 0 ? 'BUY' : 'SELL';
+      const buyOrders = newOrders.filter(o => Number(o.side) === 0);
+      const sellOrders = newOrders.filter(o => Number(o.side) === 1);
+
+      // If there are BUY orders, open the Assign Banks modal so user can pick the source bank
+      if (buyOrders.length > 0 && assignList && modalAssign) {
+        pendingImportOrders = newOrders;
+
+        const bankOptionsHtml = banks.map(bank => {
+          const bal = balanceMap.get(bank.id)?.currentBalance ?? 0;
+          return `<option value="${escapeHtml(bank.id)}">${escapeHtml(bank.name)} (•••• ${escapeHtml(bank.last4)}) — ₦${bal.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</option>`;
+        }).join('');
+
+        assignList.innerHTML = buyOrders.map(order => {
+          const ngnAmount = parseFloat(order.amount) || 0;
+          const usdtAmount = parseFloat(order.notifyTokenQuantity || order.quantity || 0);
+          const rate = parseFloat(order.price) || 0;
+          const counterparty = order.targetNickName || order.sellerRealName || 'Seller';
+          const orderDateStr = order.createDate ? new Date(Number(order.createDate)).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+
+          return `
+            <div class="card p-3" style="background: rgba(10, 16, 28, 0.6); border: 1px solid rgba(255, 255, 255, 0.08);">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                  <span class="brand-tag" style="background: rgba(59, 130, 246, 0.15); color: var(--primary-light);">BUY USDT</span>
+                  <strong class="ms-2 font-mono">₦${ngnAmount.toLocaleString('en-NG', { minimumFractionDigits: 2 })}</strong>
+                  <span class="text-muted small">(${usdtAmount.toFixed(2)} USDT @ ₦${rate.toFixed(2)})</span>
+                </div>
+                <span class="text-muted small">${orderDateStr}</span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted small">To: <strong>${escapeHtml(counterparty)}</strong></span>
+              </div>
+              <div class="form-group">
+                <label class="form-label small text-muted mb-1">Paid From Bank Account:</label>
+                <select class="form-select form-select-sm assign-bank-select" data-order-id="${escapeHtml(String(order.id))}">
+                  ${bankOptionsHtml}
+                </select>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        if (sellOrders.length > 0) {
+          assignList.innerHTML += `
+            <p class="text-muted small mt-2">
+              <i data-lucide="info"></i> Plus ${sellOrders.length} SELL order(s) will be automatically credited to your primary account.
+            </p>
+          `;
+        }
+
+        modalAssign.classList.remove('hidden');
+        if (window.lucide) window.lucide.createIcons();
+      } else {
+        // Only SELL orders exist, import directly
+        let importedCount = 0;
+        newOrders.forEach(order => {
+          const orderId = String(order.id);
+          const direction = 'SELL';
           const rate = parseFloat(order.price) || 0;
           const ngnAmount = parseFloat(order.amount) || 0;
           const usdtAmount = parseFloat(order.notifyTokenQuantity || order.quantity || (rate > 0 ? (ngnAmount / rate).toFixed(4) : 0)) || 0;
-          
-          const counterparty = order.targetNickName || order.buyerRealName || order.sellerRealName || '';
+          const counterparty = order.targetNickName || order.buyerRealName || '';
           const rawDate = order.createDate ? Number(order.createDate) : Date.now();
           const date = new Date(rawDate).toISOString();
 
-          // Calculate automated Fintech fees (₦50 EMTL + ₦10 transfer fee)
           const fees = calculateFintechTradeFees(direction, ngnAmount, false);
           const totalFees = fees.reduce((sum, f) => sum + f.amount, 0);
           const { netAmount, effectiveRate } = calculateTradeBreakdown(direction, ngnAmount, usdtAmount, totalFees);
@@ -181,19 +316,11 @@ export function initSettings() {
             paymentMethod: 'Bybit P2P',
             notes: `Auto-imported Bybit P2P Order #${orderId}`
           });
-
-          existingRefIds.add(orderId);
           importedCount++;
-        }
-      });
+        });
 
-      if (importedCount > 0) {
         if (window.showToast) {
           window.showToast(`Successfully imported ${importedCount} completed Bybit P2P trades!`, 'success');
-        }
-      } else {
-        if (window.showToast) {
-          window.showToast('All finished Bybit P2P orders are already in your journal.', 'info');
         }
       }
     } catch (err) {

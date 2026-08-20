@@ -122,5 +122,31 @@ export function renderModalsView() {
         </form>
       </div>
     </div>
+
+    <!-- Modal: Assign Banks for Imported Buy Orders -->
+    <div class="modal-backdrop hidden" id="modal-assign-banks-backdrop">
+      <div class="modal-card" style="max-width: 600px;">
+        <div class="modal-header">
+          <div>
+            <h3 class="modal-title">Assign Bank for Buy Orders</h3>
+            <p class="modal-subtitle text-muted small mt-1">Select which bank you used to send Naira for each trade</p>
+          </div>
+          <button class="btn-icon" id="btn-close-assign-banks-modal" aria-label="Close">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <form id="form-assign-banks" class="modal-body">
+          <div id="assign-banks-items-list" class="d-flex flex-column gap-3 mb-3" style="max-height: 380px; overflow-y: auto; padding-right: 4px;">
+            <!-- Dynamic order rows injected here -->
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-assign-banks">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-confirm-assign-banks">
+              <i data-lucide="check"></i> Confirm & Save Trades
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   `;
 }
