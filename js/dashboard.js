@@ -81,8 +81,8 @@ export async function syncAndRenderActiveAd(showToast = false) {
           const balResult = await bybitService.fetchFundingBalance('USDT');
           const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
           if (usdtItem) {
-            // Use walletBalance (which is the total available P2P balance, e.g. 103.01 USDT)
-            totalP2P = parseFloat(usdtItem.walletBalance) || parseFloat(usdtItem.transferBalance) || 0;
+            // Use transferBalance strictly (which is the P2P available balance, e.g. 103.01 USDT)
+            totalP2P = parseFloat(usdtItem.transferBalance) || 0;
           }
         } catch (balErr) {
           console.warn('[Ad Auto-Sync] Could not fetch wallet balance:', balErr.message);
@@ -187,7 +187,7 @@ export async function syncBybitLiveInventory() {
       const balResult = await bybitService.fetchFundingBalance('USDT');
       const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
       if (usdtItem) {
-        totalP2P = parseFloat(usdtItem.walletBalance) || parseFloat(usdtItem.transferBalance) || 0;
+        totalP2P = parseFloat(usdtItem.transferBalance) || 0;
       }
     } catch (e) {
       console.warn('[Dashboard] Could not fetch wallet balance:', e.message);

@@ -111,7 +111,7 @@ export function initSettings() {
         const balResult = await bybitService.fetchFundingBalance('USDT');
         const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
         if (usdtItem) {
-          totalP2P = parseFloat(usdtItem.walletBalance) || parseFloat(usdtItem.transferBalance) || 0;
+          totalP2P = parseFloat(usdtItem.transferBalance) || 0;
         }
       } catch (e) {
         console.warn('[Settings] Could not fetch wallet balance:', e.message);
