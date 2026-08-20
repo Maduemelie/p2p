@@ -182,21 +182,33 @@ export async function syncBybitLiveInventory() {
 
   try {
     let totalP2P = 0;
-    let freeForBuyback = 0;
 
     try {
       const balResult = await bybitService.fetchFundingBalance('USDT');
       const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
       if (usdtItem) {
         totalP2P = parseFloat(usdtItem.walletBalance) || parseFloat(usdtItem.transferBalance) || 0;
-        freeForBuyback = parseFloat(usdtItem.transferBalance) || 0;
       }
     } catch (e) {
       console.warn('[Dashboard] Could not fetch wallet balance:', e.message);
     }
 
-    // Active ad allocation is the difference between total and free balance
-    const adAllocation = Math.max(0, totalP2P - freeForBuyback);
+    // 2. Query active ads directly to determine ad allocation
+    let adAllocation = 0;
+    try {
+      const ads = await bybitService.fetchActiveAds('1', 'USDT');
+      const activeAd = ads.find(a => Number(a.side) === 1 && Number(a.status) === 10)
+        || ads.find(a => Number(a.side) === 1 && (Number(a.status) === 20 || Number(a.status) === 2))
+        || null;
+      if (activeAd) {
+        adAllocation = (parseFloat(activeAd.lastQuantity) || 0) + (parseFloat(activeAd.frozenQuantity) || 0);
+      }
+    } catch (e) {
+      console.warn('[Dashboard] Could not fetch active ads for live inventory:', e.message);
+    }
+
+    // 3. Free for Buyback = Total P2P - Ad Allocation
+    const freeForBuyback = Math.max(0, totalP2P - adAllocation);
 
     console.log('[Bybit Inventory Debug]', { totalP2P, adAllocation, freeForBuyback });
 
