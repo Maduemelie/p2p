@@ -111,12 +111,76 @@ app.get('/api/balance', async (req, res) => {
 
   try {
     const coin = req.query.coin || 'USDT';
-    const accountType = req.query.accountType || 'FUND'; // FUND is used for P2P/Funding
-    const queryString = `accountType=${accountType}&coin=${coin}`;
-    const endpointPath = `/v5/asset/transfer/query-account-coins-balance?${queryString}`;
+    const accountType = req.query.accountType || 'FUND';
 
-    const response = await executeWithFailover('GET', endpointPath, queryString);
-    res.json(response.data);
+    // 1. Fetch free/available balance in Funding Wallet
+    const queryString = `accountType=${accountType}&coin=${coin}`;
+    const balanceEndpoint = `/v5/asset/transfer/query-account-coins-balance?${queryString}`;
+    let freeBalance = 0;
+    let rawBalanceData = null;
+
+    try {
+      const balanceRes = await executeWithFailover('GET', balanceEndpoint, queryString);
+      rawBalanceData = balanceRes.data;
+      if (rawBalanceData?.result?.balance) {
+        const item = rawBalanceData.result.balance.find(b => b.coin === coin) || rawBalanceData.result.balance[0];
+        freeBalance = parseFloat(item?.transferBalance ?? item?.walletBalance ?? 0) || 0;
+      }
+    } catch (balErr) {
+      console.warn('[Proxy] Wallet balance query warning:', balErr.message);
+    }
+
+    // 2. Fetch coins locked in Active P2P Sell Ads (POST /v5/p2p/item/personal/list)
+    let lockedInAds = 0;
+    let activeAdsList = [];
+
+    try {
+      const adPayload = { side: '1', tokenId: coin };
+      const adJsonString = JSON.stringify(adPayload);
+      const adEndpoint = `/v5/p2p/item/personal/list`;
+
+      const adRes = await executeWithFailover('POST', adEndpoint, adJsonString, adPayload);
+      const adData = adRes.data;
+
+      if (adData?.result?.items && Array.isArray(adData.result.items)) {
+        adData.result.items.forEach(ad => {
+          const status = Number(ad.status);
+          const isSell = Number(ad.side) === 1;
+          if (isSell && status !== 30) {
+            const lastQty = parseFloat(ad.lastQuantity) || 0;
+            const frozenQty = parseFloat(ad.frozenQuantity) || 0;
+            const adTotal = lastQty + frozenQty;
+            lockedInAds += adTotal;
+
+            activeAdsList.push({
+              id: ad.id,
+              price: ad.price,
+              lastQuantity: lastQty,
+              frozenQuantity: frozenQty,
+              totalInAd: adTotal,
+              status: ad.status
+            });
+          }
+        });
+      }
+    } catch (adErr) {
+      console.warn('[Proxy] Active Ads query warning:', adErr.message);
+    }
+
+    const totalBalance = freeBalance + lockedInAds;
+
+    res.json({
+      retCode: 0,
+      retMsg: 'SUCCESS',
+      result: {
+        coin,
+        freeBalance,
+        lockedInAds,
+        totalBalance,
+        activeAds: activeAdsList,
+        rawBalance: rawBalanceData?.result
+      }
+    });
   } catch (error) {
     console.error('[Proxy] Error fetching balance:', error.response?.data || error.message);
     const statusCode = error.response ? error.response.status : 500;
@@ -163,6 +227,36 @@ app.post('/api/orders', async (req, res) => {
     res.json(response.data);
   } catch (error) {
     console.error('[Proxy] Error fetching P2P orders:', error.response?.data || error.message);
+    const statusCode = error.response ? error.response.status : 500;
+    const errorData = error.response ? error.response.data : { retCode: -1, retMsg: error.message };
+    res.status(statusCode).json(errorData);
+  }
+});
+
+/**
+ * Route: Get Active P2P Advertisements
+ * Proxies: POST /v5/p2p/item/personal/list
+ */
+app.all('/api/ads', async (req, res) => {
+  if (!API_KEY || !API_SECRET) {
+    return res.status(500).json({ retCode: -1, retMsg: 'Bybit API credentials not configured in proxy .env file' });
+  }
+
+  try {
+    const payload = {
+      side: '1', // 1 is SELL ad
+      tokenId: 'USDT',
+      page: '1',
+      size: '10'
+    };
+
+    const jsonBodyString = JSON.stringify(payload);
+    const endpointPath = `/v5/p2p/item/personal/list`;
+
+    const response = await executeWithFailover('POST', endpointPath, jsonBodyString, payload);
+    res.json(response.data);
+  } catch (error) {
+    console.error('[Proxy] Error fetching active ads:', error.response?.data || error.message);
     const statusCode = error.response ? error.response.status : 500;
     const errorData = error.response ? error.response.data : { retCode: -1, retMsg: error.message };
     res.status(statusCode).json(errorData);

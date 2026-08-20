@@ -15,6 +15,53 @@ export function renderDashboardView() {
         </button>
       </div>
 
+      <!-- Active Bybit Sell Ad & Live Spread Monitor -->
+      <div class="card mb-4" id="card-active-ad-spread" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.85)); border: 1px solid rgba(59, 130, 246, 0.25);">
+        <div class="card-header-flex mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <span class="brand-tag" id="active-ad-badge" style="background: rgba(16, 185, 129, 0.15); color: var(--profit); border-color: transparent;">
+              ● Active Sell Ad
+            </span>
+            <h3 class="card-title mb-0" id="active-ad-title">Bybit P2P Sell Ad</h3>
+          </div>
+          <button class="btn btn-sm btn-outline py-1 px-2" id="btn-sync-active-ad" title="Refresh Live Bybit Ad">
+            <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+            <span>Refresh Ad</span>
+          </button>
+        </div>
+
+        <div class="row g-3" id="active-ad-content">
+          <div class="col-12 col-md-3">
+            <div class="p-3" style="background: rgba(10, 16, 28, 0.6); border-radius: var(--radius-md); border: 1px solid rgba(255, 255, 255, 0.06);">
+              <span class="text-muted small d-block mb-1">Your Live Ad Price</span>
+              <span class="font-mono fw-bold fs-5 text-profit" id="metric-ad-sell-price">₦0.00</span>
+              <span class="text-muted small d-block mt-1" id="metric-ad-qty-stock">0.00 USDT in ad</span>
+            </div>
+          </div>
+          <div class="col-12 col-md-3">
+            <div class="p-3" style="background: rgba(10, 16, 28, 0.6); border-radius: var(--radius-md); border: 1px solid rgba(255, 255, 255, 0.06);">
+              <span class="text-muted small d-block mb-1">Weighted Buy Cost</span>
+              <span class="font-mono fw-bold fs-5 text-accent" id="metric-ad-avg-buy-cost">₦0.00</span>
+              <span class="text-muted small d-block mt-1" id="metric-ad-total-bought">From your buy orders</span>
+            </div>
+          </div>
+          <div class="col-12 col-md-3">
+            <div class="p-3" style="background: rgba(10, 16, 28, 0.6); border-radius: var(--radius-md); border: 1px solid rgba(255, 255, 255, 0.06);">
+              <span class="text-muted small d-block mb-1">Live Ad Spread</span>
+              <span class="font-mono fw-bold fs-5 text-profit" id="metric-ad-spread-usdt">+₦0.00</span>
+              <span class="text-profit small d-block mt-1" id="metric-ad-margin-pct">+0.00% margin</span>
+            </div>
+          </div>
+          <div class="col-12 col-md-3">
+            <div class="p-3" style="background: rgba(10, 16, 28, 0.6); border-radius: var(--radius-md); border: 1px solid rgba(255, 255, 255, 0.06);">
+              <span class="text-muted small d-block mb-1">Projected Net Profit</span>
+              <span class="font-mono fw-bold fs-5 text-profit" id="metric-ad-projected-pnl">+₦0.00</span>
+              <span class="text-muted small d-block mt-1" id="metric-ad-emtl-deduction">On current ad batch</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Metric Summary Cards Grid -->
       <div class="metrics-grid">
         <!-- 1. Realized P&L -->

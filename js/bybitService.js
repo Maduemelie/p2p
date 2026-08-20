@@ -94,5 +94,27 @@ export const bybitService = {
       console.error('[Bybit Service] Error fetching P2P orders:', e.message);
       throw e;
     }
+  },
+
+  /**
+   * Fetch Active Bybit P2P Advertisements (POST /v5/p2p/item/personal/list)
+   */
+  async fetchActiveAds(side = '1', tokenId = 'USDT') {
+    try {
+      const baseUrl = getProxyUrl();
+      const response = await fetch(`${baseUrl}/api/ads`);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.retMsg || `HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.retCode !== 0 && data.ret_code !== 0) {
+        throw new Error(data.retMsg || `Error code: ${data.retCode}`);
+      }
+      return data.result?.items || [];
+    } catch (e) {
+      console.warn('[Bybit Service] Error fetching active ads:', e.message);
+      return [];
+    }
   }
 };

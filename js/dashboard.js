@@ -5,15 +5,23 @@
 
 import { store } from './store.js';
 import { formatNGN, formatUSDT, formatRate, formatDateTime, calculateFIFOInventoryAndPnL, escapeHtml } from './utils.js';
+import { bybitService } from './bybitService.js';
 
 let chartInstance = null;
 let currentChartPeriod = 'all';
+let latestActiveAd = null;
 
 export function initDashboard() {
   renderDashboardMetrics();
   renderRecentTradesList();
   initDashboardChart();
   setupPeriodFilters();
+  syncAndRenderActiveAd();
+
+  const btnSyncAd = document.getElementById('btn-sync-active-ad');
+  btnSyncAd?.addEventListener('click', () => {
+    syncAndRenderActiveAd(true);
+  });
 
   // Listen for store updates
   window.addEventListener('store:updated', (e) => {
@@ -21,8 +29,99 @@ export function initDashboard() {
       renderDashboardMetrics();
       renderRecentTradesList();
       updateDashboardChart();
+      syncAndRenderActiveAd();
     }
   });
+}
+
+/**
+ * Fetch and render Active Bybit Sell Ad & Live Spread Monitor
+ */
+export async function syncAndRenderActiveAd(showToast = false) {
+  const adBadge = document.getElementById('active-ad-badge');
+  const adTitle = document.getElementById('active-ad-title');
+  const metricAdPrice = document.getElementById('metric-ad-sell-price');
+  const metricAdQty = document.getElementById('metric-ad-qty-stock');
+  const metricAvgBuy = document.getElementById('metric-ad-avg-buy-cost');
+  const metricTotalBought = document.getElementById('metric-ad-total-bought');
+  const metricSpread = document.getElementById('metric-ad-spread-usdt');
+  const metricMarginPct = document.getElementById('metric-ad-margin-pct');
+  const metricProjectedPnl = document.getElementById('metric-ad-projected-pnl');
+
+  if (!metricAdPrice) return;
+
+  try {
+    const ads = await bybitService.fetchActiveAds('1', 'USDT');
+    const activeSellAd = ads.find(a => Number(a.side) === 1 && (Number(a.status) === 10 || Number(a.status) === 20 || Number(a.status) === 2)) || ads[0];
+
+    latestActiveAd = activeSellAd;
+
+    const trades = store.getTrades();
+    const openingInventory = store.getOpeningInventory();
+    const fifoResult = calculateFIFOInventoryAndPnL(trades, openingInventory);
+    const avgBuyCost = fifoResult.avgHoldingCostPerUSDT || openingInventory.defaultCostBasis || 0;
+
+    if (activeSellAd) {
+      const adPrice = parseFloat(activeSellAd.price) || 0;
+      const lastQty = parseFloat(activeSellAd.lastQuantity) || 0;
+      const frozenQty = parseFloat(activeSellAd.frozenQuantity) || 0;
+      const totalInAd = lastQty + frozenQty;
+
+      const spreadPerUsdt = avgBuyCost > 0 ? (adPrice - avgBuyCost) : 0;
+      const marginPct = avgBuyCost > 0 ? (spreadPerUsdt / avgBuyCost) * 100 : 0;
+      const volumeToUse = totalInAd > 0 ? totalInAd : fifoResult.remainingInventoryUSDT;
+      const projectedGross = spreadPerUsdt * volumeToUse;
+      const projectedNet = Math.max(0, projectedGross - 50);
+
+      if (adBadge) {
+        adBadge.style.background = 'rgba(16, 185, 129, 0.15)';
+        adBadge.style.color = 'var(--profit)';
+        adBadge.textContent = '● Active Sell Ad';
+      }
+      if (adTitle) adTitle.textContent = `Bybit Sell Ad #${activeSellAd.id}`;
+      if (metricAdPrice) metricAdPrice.textContent = `₦${adPrice.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+      if (metricAdQty) metricAdQty.textContent = `${totalInAd.toFixed(2)} USDT in ad`;
+
+      if (metricAvgBuy) metricAvgBuy.textContent = `₦${avgBuyCost.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+      if (metricTotalBought) metricTotalBought.textContent = `${fifoResult.remainingInventoryUSDT.toFixed(2)} USDT in stock`;
+
+      if (metricSpread) {
+        metricSpread.textContent = `${spreadPerUsdt >= 0 ? '+' : ''}₦${spreadPerUsdt.toFixed(2)} / USDT`;
+        metricSpread.className = `font-mono fw-bold fs-5 ${spreadPerUsdt >= 0 ? 'text-profit' : 'text-loss'}`;
+      }
+      if (metricMarginPct) {
+        metricMarginPct.textContent = `${marginPct >= 0 ? '+' : ''}${marginPct.toFixed(2)}% margin`;
+        metricMarginPct.className = `small d-block mt-1 ${marginPct >= 0 ? 'text-profit' : 'text-loss'}`;
+      }
+      if (metricProjectedPnl) {
+        metricProjectedPnl.textContent = `${projectedNet >= 0 ? '+' : ''}₦${projectedNet.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+      }
+
+      if (showToast && window.showToast) {
+        window.showToast(`Synced Live Bybit Ad @ ₦${adPrice.toFixed(2)} (+₦${spreadPerUsdt.toFixed(2)}/USDT spread)!`, 'success');
+      }
+    } else {
+      if (adBadge) {
+        adBadge.style.background = 'rgba(255, 255, 255, 0.08)';
+        adBadge.style.color = 'var(--text-muted)';
+        adBadge.textContent = '○ No Active Ad';
+      }
+      if (adTitle) adTitle.textContent = 'No Live Sell Ad on Bybit';
+      if (metricAdPrice) metricAdPrice.textContent = '—';
+      if (metricAdQty) metricAdQty.textContent = 'Post a Sell Ad on Bybit';
+      if (metricAvgBuy) metricAvgBuy.textContent = `₦${avgBuyCost.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+      if (metricTotalBought) metricTotalBought.textContent = `${fifoResult.remainingInventoryUSDT.toFixed(2)} USDT in stock`;
+      if (metricSpread) metricSpread.textContent = '—';
+      if (metricMarginPct) metricMarginPct.textContent = 'Waiting for active ad';
+      if (metricProjectedPnl) metricProjectedPnl.textContent = '₦0.00';
+
+      if (showToast && window.showToast) {
+        window.showToast('No active Bybit sell advertisements found.', 'info');
+      }
+    }
+  } catch (e) {
+    console.warn('[Dashboard] Could not sync active ad:', e.message);
+  }
 }
 
 /**
