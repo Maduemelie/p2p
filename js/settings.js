@@ -170,9 +170,10 @@ export function initSettings() {
 
       // Get assigned bank for this trade
       const assignedBankId = selectedBankMap.get(orderId) || defaultBankId;
+      const isSameBank = formAssign.querySelector(`.assign-same-bank-check[data-order-id="${orderId}"]`)?.checked ?? false;
 
-      // Calculate automated Fintech fees (₦50 EMTL + ₦10 transfer fee)
-      const fees = calculateFintechTradeFees(direction, ngnAmount, false);
+      // Calculate automated Fintech fees (OPay-to-OPay is free under ₦10k)
+      const fees = calculateFintechTradeFees(direction, ngnAmount, isSameBank);
       const totalFees = fees.reduce((sum, f) => sum + f.amount, 0);
       const { netAmount, effectiveRate } = calculateTradeBreakdown(direction, ngnAmount, usdtAmount, totalFees);
 
@@ -265,11 +266,17 @@ export function initSettings() {
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <span class="text-muted small">To: <strong>${escapeHtml(counterparty)}</strong></span>
               </div>
-              <div class="form-group">
+              <div class="form-group mb-2">
                 <label class="form-label small text-muted mb-1">Paid From Bank Account:</label>
                 <select class="form-select form-select-sm assign-bank-select" data-order-id="${escapeHtml(String(order.id))}">
                   ${bankOptionsHtml}
                 </select>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <input type="checkbox" class="form-check-input assign-same-bank-check" id="same-bank-${escapeHtml(String(order.id))}" data-order-id="${escapeHtml(String(order.id))}" checked>
+                <label for="same-bank-${escapeHtml(String(order.id))}" class="small text-muted mb-0" style="cursor: pointer;">
+                  Same-Bank Transfer (OPay, PalmPay, Moniepoint, Kuda — Free under ₦10k)
+                </label>
               </div>
             </div>
           `;
