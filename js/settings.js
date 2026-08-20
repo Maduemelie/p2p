@@ -90,8 +90,7 @@ export function initSettings() {
     }
   }
 
-  // Initial check on load and periodically
-  checkProxyConnection();
+
 
   // 1. Sync Live Bybit Holdings (read-only, does NOT overwrite Starting USDT)
   //
@@ -164,6 +163,9 @@ export function initSettings() {
       btnSyncBalance.disabled = false;
     }
   });
+
+  // Check proxy and populate settings grid on load
+  checkProxyConnection();
 
   // 2. Import Completed Bybit P2P Orders
   const modalAssign = document.getElementById('modal-assign-banks-backdrop');

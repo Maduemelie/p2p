@@ -73,6 +73,33 @@ export async function syncAndRenderActiveAd(showToast = false) {
       const frozenQty = parseFloat(activeSellAd.frozenQuantity) || 0;
       const totalInAd = lastQty + frozenQty;
 
+      // Auto-Sync starting inventory and cost basis when a new ad ID is detected
+      const savedAdId = localStorage.getItem('bybit_last_synced_ad_id');
+      if (activeSellAd.id && savedAdId !== activeSellAd.id) {
+        let totalP2P = 0;
+        try {
+          const balResult = await bybitService.fetchFundingBalance('USDT');
+          const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
+          if (usdtItem) {
+            totalP2P = parseFloat(usdtItem.transferBalance) || 0;
+          }
+        } catch (balErr) {
+          console.warn('[Ad Auto-Sync] Could not fetch wallet balance:', balErr.message);
+        }
+
+        if (totalP2P > 0) {
+          store.setOpeningInventory({
+            startingUsdtBalance: totalP2P,
+            defaultCostBasis: avgBuyCost
+          });
+          localStorage.setItem('bybit_last_synced_ad_id', activeSellAd.id);
+
+          if (window.showToast) {
+            window.showToast(`📢 New Sell Ad #${activeSellAd.id} detected! Auto-updated Starting Inventory to ${totalP2P.toFixed(2)} USDT @ ₦${avgBuyCost.toFixed(2)}.`, 'success');
+          }
+        }
+      }
+
       // Spread and margin based on THIS ad's price vs actual buy cost
       const spreadPerUsdt = avgBuyCost > 0 ? (adPrice - avgBuyCost) : 0;
       const marginPct = avgBuyCost > 0 ? (spreadPerUsdt / avgBuyCost) * 100 : 0;
