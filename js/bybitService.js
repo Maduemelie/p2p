@@ -1,9 +1,23 @@
 /**
  * Frontend Service: Bybit P2P Integration Client
  * Interacts with the local Node.js proxy server to get balances and sync history.
+ * Automatically adapts to the host domain (localhost, local network IP, or custom proxy).
  */
 
-const PROXY_URL = 'http://localhost:3000';
+function getProxyUrl() {
+  if (typeof window !== 'undefined' && window.location) {
+    // Allow custom override in localStorage if configured
+    const customUrl = localStorage.getItem('bybit_p2p_proxy_url');
+    if (customUrl && customUrl.trim()) {
+      return customUrl.trim().replace(/\/$/, '');
+    }
+    // Default to current browser origin when served over HTTP/HTTPS
+    if (window.location.protocol.startsWith('http')) {
+      return window.location.origin;
+    }
+  }
+  return 'http://localhost:3000';
+}
 
 export const bybitService = {
   /**
@@ -11,7 +25,8 @@ export const bybitService = {
    */
   async checkStatus() {
     try {
-      const response = await fetch(`${PROXY_URL}/api/status`);
+      const baseUrl = getProxyUrl();
+      const response = await fetch(`${baseUrl}/api/status`);
       if (!response.ok) throw new Error('Proxy status error');
       return await response.json();
     } catch (e) {
@@ -25,7 +40,8 @@ export const bybitService = {
    */
   async fetchFundingBalance(coin = 'USDT') {
     try {
-      const response = await fetch(`${PROXY_URL}/api/balance?coin=${coin}&accountType=FUND`);
+      const baseUrl = getProxyUrl();
+      const response = await fetch(`${baseUrl}/api/balance?coin=${coin}&accountType=FUND`);
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.retMsg || `HTTP ${response.status}`);
@@ -46,6 +62,7 @@ export const bybitService = {
    */
   async fetchP2POrders(page = 1, size = 30, status = null) {
     try {
+      const baseUrl = getProxyUrl();
       const payload = {
         page: Number(page),
         size: Number(size)
@@ -54,7 +71,7 @@ export const bybitService = {
         payload.status = Number(status);
       }
 
-      const response = await fetch(`${PROXY_URL}/api/orders`, {
+      const response = await fetch(`${baseUrl}/api/orders`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
