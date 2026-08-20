@@ -78,7 +78,7 @@ export function renderDashboardView() {
           </div>
         </div>
 
-        <!-- 2. Current USDT Inventory Holding -->
+        <!-- 2. Current USDT Inventory Holding (Dual View) -->
         <div class="card metric-card">
           <div class="metric-header">
             <span class="metric-label">USDT Inventory</span>
@@ -89,6 +89,21 @@ export function renderDashboardView() {
           <div class="metric-value font-mono text-accent" id="stat-inventory-holding">0.00 USDT</div>
           <div class="metric-footer text-muted" id="stat-inventory-cost">
             Holding cost: ₦0.00
+          </div>
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06);">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="text-muted small">Bybit Live:</span>
+              <span class="font-mono small fw-bold" id="stat-bybit-live-total" style="color: var(--primary-light);">— USDT</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-1" style="font-size: 0.72rem;">
+              <span class="text-muted">Free in Wallet:</span>
+              <span class="font-mono text-muted" id="stat-bybit-free">—</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center" style="font-size: 0.72rem;">
+              <span class="text-muted">Locked in Ad:</span>
+              <span class="font-mono text-muted" id="stat-bybit-locked">—</span>
+            </div>
+            <div id="stat-inventory-diff" class="small mt-1" style="display: none;"></div>
           </div>
         </div>
 

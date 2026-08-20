@@ -110,21 +110,34 @@ export function renderSettingsView() {
         </div>
 
         <p class="text-muted small mb-3">
-          Synchronize your live Bybit Funding Wallet balance directly into your inventory, and import your completed Bybit P2P orders automatically.
+          Live Bybit holdings — read-only view of your wallet and active ads.
         </p>
 
-        <div class="d-flex align-items-center justify-content-between p-3 mb-3" style="background: rgba(10, 16, 28, 0.6); border-radius: var(--radius-md); border: 1px solid rgba(255, 255, 255, 0.06);">
-          <div class="d-flex align-items-center gap-2">
-            <i data-lucide="wallet" style="color: var(--primary-light);"></i>
-            <span class="text-muted small">Live Funding Balance:</span>
+        <div class="row g-2 mb-3">
+          <div class="col-4">
+            <div class="p-2 text-center" style="background: rgba(10, 16, 28, 0.6); border-radius: var(--radius-md); border: 1px solid rgba(255, 255, 255, 0.06);">
+              <span class="text-muted small d-block mb-1">Free in Wallet</span>
+              <span class="font-mono fw-bold text-accent" id="settings-free-usdt">— USDT</span>
+            </div>
           </div>
-          <span class="font-mono fw-bold" id="live-funding-balance-text" style="color: var(--text-main);">0.00 USDT</span>
+          <div class="col-4">
+            <div class="p-2 text-center" style="background: rgba(10, 16, 28, 0.6); border-radius: var(--radius-md); border: 1px solid rgba(255, 255, 255, 0.06);">
+              <span class="text-muted small d-block mb-1">Locked in Ad</span>
+              <span class="font-mono fw-bold text-profit" id="settings-locked-usdt">— USDT</span>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="p-2 text-center" style="background: rgba(10, 16, 28, 0.6); border-radius: var(--radius-md); border: 1px solid rgba(255, 255, 255, 0.06);">
+              <span class="text-muted small d-block mb-1">Total Bybit</span>
+              <span class="font-mono fw-bold" style="color: var(--primary-light);" id="settings-total-usdt">— USDT</span>
+            </div>
+          </div>
         </div>
 
         <div class="d-flex flex-wrap gap-2">
           <button class="btn btn-sm btn-outline" id="btn-sync-balance" disabled>
             <i data-lucide="refresh-cw"></i>
-            <span>Sync Funding Balance</span>
+            <span>Sync Bybit Holdings</span>
           </button>
           <button class="btn btn-sm btn-primary" id="btn-import-bybit-trades" disabled>
             <i data-lucide="download-cloud"></i>

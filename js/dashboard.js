@@ -17,10 +17,12 @@ export function initDashboard() {
   initDashboardChart();
   setupPeriodFilters();
   syncAndRenderActiveAd();
+  syncBybitLiveInventory();
 
   const btnSyncAd = document.getElementById('btn-sync-active-ad');
   btnSyncAd?.addEventListener('click', () => {
     syncAndRenderActiveAd(true);
+    syncBybitLiveInventory();
   });
 
   // Listen for store updates
@@ -30,6 +32,7 @@ export function initDashboard() {
       renderRecentTradesList();
       updateDashboardChart();
       syncAndRenderActiveAd();
+      syncBybitLiveInventory();
     }
   });
 }
@@ -121,6 +124,74 @@ export async function syncAndRenderActiveAd(showToast = false) {
     }
   } catch (e) {
     console.warn('[Dashboard] Could not sync active ad:', e.message);
+  }
+}
+
+/**
+ * Fetch live Bybit wallet balance + ad locked volume and compare against FIFO inventory
+ */
+export async function syncBybitLiveInventory() {
+  const elTotal = document.getElementById('stat-bybit-live-total');
+  const elFree = document.getElementById('stat-bybit-free');
+  const elLocked = document.getElementById('stat-bybit-locked');
+  const elDiff = document.getElementById('stat-inventory-diff');
+
+  if (!elTotal) return;
+
+  try {
+    // 1. Fetch free wallet balance from GET /v5/asset/transfer/query-account-coins-balance
+    let freeBalance = 0;
+    try {
+      const balResult = await bybitService.fetchFundingBalance('USDT');
+      const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
+      if (usdtItem) {
+        freeBalance = parseFloat(usdtItem.transferBalance) || 0;
+      }
+    } catch (e) {
+      console.warn('[Dashboard] Could not fetch wallet balance:', e.message);
+    }
+
+    // 2. Fetch locked in ads from POST /v5/p2p/item/personal/list
+    let lockedInAds = 0;
+    try {
+      const ads = await bybitService.fetchActiveAds('1', 'USDT');
+      if (Array.isArray(ads)) {
+        ads.forEach(ad => {
+          const status = Number(ad.status);
+          if (status !== 30) { // exclude completed/cancelled
+            lockedInAds += (parseFloat(ad.lastQuantity) || 0) + (parseFloat(ad.frozenQuantity) || 0);
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('[Dashboard] Could not fetch ads for inventory:', e.message);
+    }
+
+    const bybitTotal = freeBalance + lockedInAds;
+
+    // Populate Bybit live numbers
+    elFree.textContent = `${freeBalance.toFixed(2)} USDT`;
+    elLocked.textContent = `${lockedInAds.toFixed(2)} USDT`;
+    elTotal.textContent = `${bybitTotal.toFixed(2)} USDT`;
+
+    // Compare against FIFO tracked inventory
+    const trades = store.getTrades();
+    const openingInventory = store.getOpeningInventory();
+    const fifoResult = calculateFIFOInventoryAndPnL(trades, openingInventory);
+    const fifoInventory = fifoResult.remainingInventoryUSDT;
+    const diff = fifoInventory - bybitTotal;
+
+    if (Math.abs(diff) > 0.01) {
+      elDiff.style.display = 'block';
+      const sign = diff > 0 ? '+' : '';
+      elDiff.innerHTML = `<span style="color: var(--warning, #f59e0b);">⚠ Difference: ${sign}${diff.toFixed(2)} USDT (App ${diff > 0 ? 'shows more' : 'shows less'})</span>`;
+    } else {
+      elDiff.style.display = 'block';
+      elDiff.innerHTML = `<span style="color: var(--profit);">✓ App and Bybit match</span>`;
+    }
+  } catch (e) {
+    console.warn('[Dashboard] Bybit live inventory sync failed:', e.message);
+    elTotal.textContent = 'Offline';
   }
 }
 

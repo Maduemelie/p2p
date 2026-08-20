@@ -70,6 +70,10 @@ export function initSettings() {
         proxyText.textContent = res.apiKeyConfigured ? 'Proxy Online & Ready' : 'Proxy Online (No Keys)';
         if (btnSyncBalance) btnSyncBalance.disabled = !res.apiKeyConfigured;
         if (btnImportTrades) btnImportTrades.disabled = !res.apiKeyConfigured;
+        // Auto-populate holdings grid when proxy is ready
+        if (res.apiKeyConfigured) {
+          syncSettingsLiveHoldings();
+        }
       } else {
         proxyBadge.style.background = 'rgba(244, 63, 94, 0.15)';
         proxyBadge.style.color = 'var(--loss)';
@@ -89,35 +93,63 @@ export function initSettings() {
   // Initial check on load and periodically
   checkProxyConnection();
 
-  // 1. Sync Live Bybit Funding Balance
+  // 1. Sync Live Bybit Holdings (read-only, does NOT overwrite Starting USDT)
+  async function syncSettingsLiveHoldings(showToast = false) {
+    const elFree = document.getElementById('settings-free-usdt');
+    const elLocked = document.getElementById('settings-locked-usdt');
+    const elTotal = document.getElementById('settings-total-usdt');
+
+    try {
+      // A. Fetch free wallet balance: GET /v5/asset/transfer/query-account-coins-balance
+      let freeBalance = 0;
+      try {
+        const balResult = await bybitService.fetchFundingBalance('USDT');
+        const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
+        if (usdtItem) {
+          freeBalance = parseFloat(usdtItem.transferBalance) || 0;
+        }
+      } catch (e) {
+        console.warn('[Settings] Could not fetch wallet balance:', e.message);
+      }
+
+      // B. Fetch locked in ads: POST /v5/p2p/item/personal/list
+      let lockedInAds = 0;
+      try {
+        const ads = await bybitService.fetchActiveAds('1', 'USDT');
+        if (Array.isArray(ads)) {
+          ads.forEach(ad => {
+            const status = Number(ad.status);
+            if (status !== 30) {
+              lockedInAds += (parseFloat(ad.lastQuantity) || 0) + (parseFloat(ad.frozenQuantity) || 0);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('[Settings] Could not fetch ads:', e.message);
+      }
+
+      const totalBybit = freeBalance + lockedInAds;
+
+      if (elFree) elFree.textContent = `${freeBalance.toFixed(2)} USDT`;
+      if (elLocked) elLocked.textContent = `${lockedInAds.toFixed(2)} USDT`;
+      if (elTotal) elTotal.textContent = `${totalBybit.toFixed(2)} USDT`;
+
+      if (showToast && window.showToast) {
+        window.showToast(`Bybit Holdings: ${totalBybit.toFixed(2)} USDT (${freeBalance.toFixed(2)} Free + ${lockedInAds.toFixed(2)} in Ad)`, 'success');
+      }
+    } catch (err) {
+      console.error('[Settings] Bybit holdings sync error:', err);
+      if (showToast && window.showToast) {
+        window.showToast(`Failed to sync: ${err.message}`, 'error');
+      }
+    }
+  }
+
   btnSyncBalance?.addEventListener('click', async () => {
     try {
       btnSyncBalance.disabled = true;
-      if (window.showToast) window.showToast('Fetching Funding balance from Bybit...', 'info');
-
-      const result = await bybitService.fetchFundingBalance('USDT');
-      const usdtItem = result.balance?.find(b => b.coin === 'USDT') || result.balance?.[0];
-      
-      const balance = parseFloat(usdtItem?.transferBalance ?? usdtItem?.walletBalance ?? 0);
-      
-      const currentOpening = store.getOpeningInventory();
-      store.setOpeningInventory({
-        startingUsdtBalance: balance,
-        defaultCostBasis: currentOpening.defaultCostBasis || 0
-      });
-
-      if (inputOpeningUsdt) inputOpeningUsdt.value = balance;
-      const liveFundingText = document.getElementById('live-funding-balance-text');
-      if (liveFundingText) liveFundingText.textContent = `${balance.toFixed(4)} USDT`;
-
-      if (window.showToast) {
-        window.showToast(`Funding Balance synced: ${balance.toFixed(4)} USDT!`, 'success');
-      }
-    } catch (err) {
-      console.error('[Bybit Sync] Balance error:', err);
-      if (window.showToast) {
-        window.showToast(`Failed to sync balance: ${err.message}`, 'error');
-      }
+      if (window.showToast) window.showToast('Fetching live Bybit holdings...', 'info');
+      await syncSettingsLiveHoldings(true);
     } finally {
       btnSyncBalance.disabled = false;
     }
