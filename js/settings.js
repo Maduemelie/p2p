@@ -7,7 +7,7 @@
 import { store } from './store.js';
 import { exportTradesToCSV, exportFullBackupJSON, importBackupJSON } from './export.js';
 import { bybitService } from './bybitService.js';
-import { calculateTradeBreakdown, escapeHtml, formatNGN, formatUSDT } from './utils.js';
+import { calculateTradeBreakdown, calculateFIFOInventoryAndPnL, escapeHtml, formatNGN, formatUSDT } from './utils.js';
 import { calculateFintechTradeFees } from './fees.js';
 
 export function initSettings() {
@@ -92,13 +92,12 @@ export function initSettings() {
 
 
 
-  // 1. Sync Live Bybit Holdings (read-only, does NOT overwrite Starting USDT)
+  // 1. Sync Live Bybit Holdings (Manual sync also updates Starting USDT inputs)
   //
   // ACCOUNTING MODEL:
-  //   walletBalance ALREADY INCLUDES coins locked in P2P ads.
-  //   Active ad allocation is a SUBSET, not an addition.
-  //   Total P2P = walletBalance
-  //   Free for Buyback = walletBalance − active ad allocation
+  //   walletBalance = Total P2P balance (e.g. 103.01 USDT, includes ad coins)
+  //   transferBalance = Free P2P balance for buyback (e.g. 71.31 USDT, excludes ad coins)
+  //   Active ad allocation = walletBalance − transferBalance (e.g. 31.70 USDT)
   //
   async function syncSettingsLiveHoldings(showToast = false) {
     const elFree = document.getElementById('settings-free-usdt');
@@ -106,45 +105,58 @@ export function initSettings() {
     const elTotal = document.getElementById('settings-total-usdt');
 
     try {
-      // A. Total P2P USDT = transferBalance from GET /v5/asset/transfer/query-account-coins-balance
-      //    This is the active available P2P pool, excluding locked Earn/Savings.
       let totalP2P = 0;
+      let freeForBuyback = 0;
+
       try {
         const balResult = await bybitService.fetchFundingBalance('USDT');
         const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
         if (usdtItem) {
-          totalP2P = parseFloat(usdtItem.transferBalance) || 0;
+          totalP2P = parseFloat(usdtItem.walletBalance) || parseFloat(usdtItem.transferBalance) || 0;
+          freeForBuyback = parseFloat(usdtItem.transferBalance) || 0;
         }
       } catch (e) {
         console.warn('[Settings] Could not fetch wallet balance:', e.message);
       }
 
-      // B. Active Ad Allocation = from the specific ONLINE sell ad only
-      //    Do NOT sum all ads — only the tracked active sell ad
-      let adAllocation = 0;
-      try {
-        const ads = await bybitService.fetchActiveAds('1', 'USDT');
-        if (Array.isArray(ads)) {
-          const activeAd = ads.find(a => Number(a.side) === 1 && Number(a.status) === 10)
-            || ads.find(a => Number(a.side) === 1 && (Number(a.status) === 20 || Number(a.status) === 2))
-            || null;
-          if (activeAd) {
-            adAllocation = (parseFloat(activeAd.lastQuantity) || 0) + (parseFloat(activeAd.frozenQuantity) || 0);
-          }
-        }
-      } catch (e) {
-        console.warn('[Settings] Could not fetch ads:', e.message);
-      }
-
-      // C. Free for Buyback = Total − Ad Allocation
-      const freeForBuyback = Math.max(0, totalP2P - adAllocation);
+      const adAllocation = Math.max(0, totalP2P - freeForBuyback);
 
       if (elTotal) elTotal.textContent = `${totalP2P.toFixed(2)} USDT`;
       if (elLocked) elLocked.textContent = `${adAllocation.toFixed(2)} USDT`;
       if (elFree) elFree.textContent = `${freeForBuyback.toFixed(2)} USDT`;
 
-      if (showToast && window.showToast) {
-        window.showToast(`P2P Balance: ${totalP2P.toFixed(2)} USDT (${adAllocation.toFixed(2)} in Ad + ${freeForBuyback.toFixed(2)} Free)`, 'success');
+      if (showToast) {
+        // Find active ad's original quantity to set as Starting Inventory
+        let adOriginalQty = totalP2P;
+        try {
+          const ads = await bybitService.fetchActiveAds('1', 'USDT');
+          const activeAd = ads.find(a => Number(a.side) === 1 && Number(a.status) === 10)
+            || ads.find(a => Number(a.side) === 1 && (Number(a.status) === 20 || Number(a.status) === 2))
+            || null;
+          if (activeAd) {
+            adOriginalQty = parseFloat(activeAd.quantity) || totalP2P;
+          }
+        } catch (adErr) {
+          console.warn('[Settings Sync] Could not fetch active ads:', adErr.message);
+        }
+
+        // Calculate current FIFO average buy cost
+        const trades = store.getTrades();
+        const currentOpening = store.getOpeningInventory();
+        const fifoResult = calculateFIFOInventoryAndPnL(trades, currentOpening);
+        const avgBuyCost = fifoResult.avgHoldingCostPerUSDT || currentOpening.defaultCostBasis || 0;
+
+        store.setOpeningInventory({
+          startingUsdtBalance: adOriginalQty,
+          defaultCostBasis: avgBuyCost
+        });
+
+        if (inputOpeningUsdt) inputOpeningUsdt.value = adOriginalQty;
+        if (inputOpeningCost) inputOpeningCost.value = avgBuyCost;
+
+        if (window.showToast) {
+          window.showToast(`P2P Balance Synced: ${adOriginalQty.toFixed(2)} USDT saved as Starting USDT @ ₦${avgBuyCost.toFixed(2)}!`, 'success');
+        }
       }
     } catch (err) {
       console.error('[Settings] Bybit holdings sync error:', err);

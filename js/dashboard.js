@@ -81,21 +81,23 @@ export async function syncAndRenderActiveAd(showToast = false) {
           const balResult = await bybitService.fetchFundingBalance('USDT');
           const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
           if (usdtItem) {
-            totalP2P = parseFloat(usdtItem.transferBalance) || 0;
+            // Use walletBalance (which is the total available P2P balance, e.g. 103.01 USDT)
+            totalP2P = parseFloat(usdtItem.walletBalance) || parseFloat(usdtItem.transferBalance) || 0;
           }
         } catch (balErr) {
           console.warn('[Ad Auto-Sync] Could not fetch wallet balance:', balErr.message);
         }
 
-        if (totalP2P > 0) {
+        const adOriginalQty = parseFloat(activeSellAd.quantity) || totalP2P;
+        if (adOriginalQty > 0) {
           store.setOpeningInventory({
-            startingUsdtBalance: totalP2P,
+            startingUsdtBalance: adOriginalQty,
             defaultCostBasis: avgBuyCost
           });
           localStorage.setItem('bybit_last_synced_ad_id', activeSellAd.id);
 
           if (window.showToast) {
-            window.showToast(`📢 New Sell Ad #${activeSellAd.id} detected! Auto-updated Starting Inventory to ${totalP2P.toFixed(2)} USDT @ ₦${avgBuyCost.toFixed(2)}.`, 'success');
+            window.showToast(`📢 New Sell Ad #${activeSellAd.id} detected! Auto-updated Starting Inventory to ${adOriginalQty.toFixed(2)} USDT @ ₦${avgBuyCost.toFixed(2)}.`, 'success');
           }
         }
       }
@@ -166,15 +168,9 @@ export async function syncAndRenderActiveAd(showToast = false) {
  * Fetch live Bybit wallet balance and compare against FIFO inventory.
  * 
  * CRITICAL ACCOUNTING MODEL:
- *   walletBalance from GET /v5/asset/transfer/query-account-coins-balance
- *   ALREADY INCLUDES coins locked in P2P ads.
- *   The active ad allocation is a SUBSET, not an addition.
- * 
- *   Total P2P USDT = walletBalance (e.g. 103.01)
- *   Active Ad Allocation = ad.lastQuantity + ad.frozenQuantity (e.g. 31.70)  
- *   Free for Buyback = walletBalance − Active Ad (e.g. 71.31)
- *   
- *   103.01 = 31.70 + 71.31  ✓
+ *   walletBalance = Total P2P balance (e.g. 103.01 USDT, includes ad coins)
+ *   transferBalance = Free P2P balance for buyback (e.g. 71.31 USDT, excludes ad coins)
+ *   Active ad allocation = walletBalance − transferBalance (e.g. 31.70 USDT)
  */
 export async function syncBybitLiveInventory() {
   const elTotal = document.getElementById('stat-bybit-live-total');
@@ -185,35 +181,22 @@ export async function syncBybitLiveInventory() {
   if (!elTotal) return;
 
   try {
-    // 1. Total P2P USDT = transferBalance from Bybit Funding account (e.g. 103.01 USDT)
-    //    We use transferBalance because walletBalance includes locked assets (like Flexible Savings) not used for P2P trading.
     let totalP2P = 0;
+    let freeForBuyback = 0;
+
     try {
       const balResult = await bybitService.fetchFundingBalance('USDT');
       const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
       if (usdtItem) {
-        totalP2P = parseFloat(usdtItem.transferBalance) || 0;
+        totalP2P = parseFloat(usdtItem.walletBalance) || parseFloat(usdtItem.transferBalance) || 0;
+        freeForBuyback = parseFloat(usdtItem.transferBalance) || 0;
       }
     } catch (e) {
       console.warn('[Dashboard] Could not fetch wallet balance:', e.message);
     }
 
-    // 2. Active Ad Allocation = Fetch live ad directly to avoid race conditions
-    let adAllocation = 0;
-    try {
-      const ads = await bybitService.fetchActiveAds('1', 'USDT');
-      const activeAd = ads.find(a => Number(a.side) === 1 && Number(a.status) === 10)
-        || ads.find(a => Number(a.side) === 1 && (Number(a.status) === 20 || Number(a.status) === 2))
-        || null;
-      if (activeAd) {
-        adAllocation = (parseFloat(activeAd.lastQuantity) || 0) + (parseFloat(activeAd.frozenQuantity) || 0);
-      }
-    } catch (e) {
-      console.warn('[Dashboard] Could not fetch active ads for live inventory:', e.message);
-    }
-
-    // 3. Free for Buyback = Total P2P − Ad Allocation (e.g. 103.01 - 31.70 = 71.31)
-    const freeForBuyback = Math.max(0, totalP2P - adAllocation);
+    // Active ad allocation is the difference between total and free balance
+    const adAllocation = Math.max(0, totalP2P - freeForBuyback);
 
     console.log('[Bybit Inventory Debug]', { totalP2P, adAllocation, freeForBuyback });
 
@@ -259,6 +242,32 @@ export function renderDashboardMetrics() {
     inventoryCostBasisNGN,
     avgHoldingCostPerUSDT
   } = fifoResult;
+
+  // Dynamically determine inventory display values based on active Sell Ad campaign state
+  let displayInventoryUSDT = remainingInventoryUSDT;
+  let displayInventoryCostNGN = inventoryCostBasisNGN;
+  let displayAvgCostPerUSDT = avgHoldingCostPerUSDT;
+
+  if (latestActiveAd) {
+    const adCreateTime = Number(latestActiveAd.createDate) || 0;
+    let buybackUSDT = 0;
+    let buybackNGN = 0;
+
+    trades.forEach(t => {
+      if (t.type === 'BUY') {
+        const tradeTime = new Date(t.date).getTime();
+        // Sum only buybacks that occurred after the active ad was created
+        if (tradeTime >= adCreateTime) {
+          buybackUSDT += Number(t.usdtAmount) || 0;
+          buybackNGN += Number(t.ngnAmount) || 0;
+        }
+      }
+    });
+
+    displayInventoryUSDT = buybackUSDT;
+    displayInventoryCostNGN = buybackNGN;
+    displayAvgCostPerUSDT = buybackUSDT > 0 ? (buybackNGN / buybackUSDT) : (openingInventory.defaultCostBasis || 0);
+  }
 
   // Calculate gross buy/sell totals
   let totalInvestedNGN = 0;
@@ -313,13 +322,13 @@ export function renderDashboardMetrics() {
 
   // 2. USDT Inventory
   if (statInventoryHolding) {
-    statInventoryHolding.textContent = formatUSDT(remainingInventoryUSDT);
+    statInventoryHolding.textContent = formatUSDT(displayInventoryUSDT);
   }
   if (statInventoryCost) {
-    if (remainingInventoryUSDT > 0) {
-      statInventoryCost.textContent = `Avg: ${formatRate(avgHoldingCostPerUSDT)} • ${formatNGN(inventoryCostBasisNGN)}`;
+    if (displayInventoryUSDT > 0) {
+      statInventoryCost.textContent = `Avg: ${formatRate(displayAvgCostPerUSDT)} • ${formatNGN(displayInventoryCostNGN)}`;
     } else {
-      statInventoryCost.textContent = 'No unsold inventory';
+      statInventoryCost.textContent = latestActiveAd ? 'No buybacks in this campaign yet' : 'No unsold inventory';
     }
   }
 
