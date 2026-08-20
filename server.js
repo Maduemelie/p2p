@@ -238,6 +238,7 @@ app.post('/api/orders', async (req, res) => {
  * Proxies: POST /v5/p2p/item/personal/list
  */
 app.all('/api/ads', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
   if (!API_KEY || !API_SECRET) {
     return res.status(500).json({ retCode: -1, retMsg: 'Bybit API credentials not configured in proxy .env file' });
   }
@@ -246,6 +247,7 @@ app.all('/api/ads', async (req, res) => {
     const payload = {
       side: '1', // 1 is SELL ad
       tokenId: 'USDT',
+      status: '2', // 2 is AVAILABLE (excludes completed/removed)
       page: '1',
       size: '10'
     };
