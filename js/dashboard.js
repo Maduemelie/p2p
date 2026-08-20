@@ -202,18 +202,6 @@ export async function syncBybitLiveInventory() {
     const fifoInventory = fifoResult.remainingInventoryUSDT;
     const diff = fifoInventory - totalP2P;
 
-    // Populate Bybit live numbers
-    elTotal.textContent = `${totalP2P.toFixed(2)} USDT`;
-    elLocked.textContent = `${adAllocation.toFixed(2)} USDT`;
-    elFree.textContent = `${freeForBuyback.toFixed(2)} USDT`;
-
-    // Compare FIFO tracked inventory against actual Bybit total
-    const trades = store.getTrades();
-    const openingInventory = store.getOpeningInventory();
-    const fifoResult = calculateFIFOInventoryAndPnL(trades, openingInventory);
-    const fifoInventory = fifoResult.remainingInventoryUSDT;
-    const diff = fifoInventory - totalP2P;
-
     if (Math.abs(diff) > 0.5) {
       elDiff.style.display = 'block';
       const sign = diff > 0 ? '+' : '';
