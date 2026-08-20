@@ -175,3 +175,52 @@ export function resetFees(onChangeCallback = () => {}) {
   addFeeRow(container, { type: 'Bank Transfer Fee', amount: 0, label: '' }, onChangeCallback);
   updateFeeSummaryDisplay();
 }
+
+/**
+ * Calculate automated Nigerian Fintech banking fees (OPay, PalmPay, Moniepoint)
+ * @param {'BUY'|'SELL'} direction 
+ * @param {number} ngnAmount 
+ * @param {boolean} [isSameBank=false] - true if sender & recipient are same bank (e.g. OPay to OPay)
+ * @returns {Array<{ type: string, amount: number, label: string }>}
+ */
+export function calculateFintechTradeFees(direction, ngnAmount, isSameBank = false) {
+  const amount = Number(ngnAmount) || 0;
+  const fees = [];
+
+  if (direction === 'BUY') {
+    // 1. Transfer Fee
+    if (!isSameBank) {
+      if (amount >= 5000) {
+        // Inter-bank transfer fee: ₦10 flat for fintechs
+        fees.push({
+          type: 'Bank Transfer Fee',
+          amount: 10,
+          label: 'Inter-Bank Transfer Fee'
+        });
+      }
+      // Below ₦5,000 is free (₦0)
+    }
+
+    // 2. Stamp Duty / EMTL Levy (₦50 for any transaction >= ₦10,000)
+    if (amount >= 10000) {
+      fees.push({
+        type: 'Custom',
+        amount: 50,
+        label: 'Stamp Duty / EMTL Levy'
+      });
+    }
+  } else if (direction === 'SELL') {
+    // On SELL (Receiving Naira):
+    // Inward transfer levy / Stamp Duty is ₦50 on deposits >= ₦10,000
+    if (amount >= 10000) {
+      fees.push({
+        type: 'Custom',
+        amount: 50,
+        label: 'Stamp Duty / EMTL Levy'
+      });
+    }
+  }
+
+  return fees;
+}
+

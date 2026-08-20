@@ -146,6 +146,7 @@ class Store {
     const newBank = {
       id: generateId('bank'),
       createdAt: new Date().toISOString(),
+      initialBalance: Number(bankData.initialBalance) || 0,
       ...bankData
     };
     banks.push(newBank);
@@ -154,12 +155,91 @@ class Store {
     return newBank;
   }
 
+  updateBankAccount(id, updatedFields) {
+    const banks = this.getBankAccounts();
+    const index = banks.findIndex(b => b.id === id);
+    if (index === -1) return null;
+
+    banks[index] = {
+      ...banks[index],
+      ...updatedFields,
+      initialBalance: Number(updatedFields.initialBalance !== undefined ? updatedFields.initialBalance : banks[index].initialBalance) || 0,
+      updatedAt: new Date().toISOString()
+    };
+
+    this.saveItem(STORAGE_KEYS.BANKS, banks);
+    this.notify('banks', banks[index]);
+    return banks[index];
+  }
+
   deleteBankAccount(id) {
     const banks = this.getBankAccounts();
     const filtered = banks.filter(b => b.id !== id);
     this.saveItem(STORAGE_KEYS.BANKS, filtered);
     this.notify('banks', { deletedId: id });
     return true;
+  }
+
+  /**
+   * Compute dynamic ledger balances for all bank accounts
+   * Balance = initialBalance + Sum(SELL netAmount) - Sum(BUY netAmount)
+   * @returns {Map<string, { bank: Object, initialBalance: number, currentBalance: number, totalInflow: number, totalOutflow: number, totalFees: number }>}
+   */
+  getComputedBankBalances() {
+    const banks = this.getBankAccounts();
+    const trades = this.getTrades();
+    const transfers = this.getTransfers();
+
+    const balanceMap = new Map();
+
+    banks.forEach(bank => {
+      const initBal = Number(bank.initialBalance) || 0;
+      balanceMap.set(bank.id, {
+        bank,
+        initialBalance: initBal,
+        currentBalance: initBal,
+        totalInflow: 0,
+        totalOutflow: 0,
+        totalFees: 0
+      });
+    });
+
+    // 1. Process Trades
+    trades.forEach(trade => {
+      const bankId = trade.bankAccountId;
+      if (!balanceMap.has(bankId)) return;
+
+      const record = balanceMap.get(bankId);
+      const ngn = Number(trade.ngnAmount) || 0;
+      const totalFees = Number(trade.totalFees) || 0;
+      const netAmount = Number(trade.netAmount) || (trade.type === 'BUY' ? ngn + totalFees : Math.max(0, ngn - totalFees));
+
+      if (trade.type === 'BUY') {
+        record.currentBalance -= netAmount;
+        record.totalOutflow += netAmount;
+        record.totalFees += totalFees;
+      } else if (trade.type === 'SELL') {
+        record.currentBalance += netAmount;
+        record.totalInflow += netAmount;
+        record.totalFees += totalFees;
+      }
+    });
+
+    // 2. Process Transfers
+    transfers.forEach(transfer => {
+      const fromId = transfer.fromBankId;
+      const toId = transfer.toBankId;
+      const amount = Number(transfer.amount) || 0;
+
+      if (fromId && balanceMap.has(fromId)) {
+        balanceMap.get(fromId).currentBalance -= amount;
+      }
+      if (toId && balanceMap.has(toId)) {
+        balanceMap.get(toId).currentBalance += amount;
+      }
+    });
+
+    return balanceMap;
   }
 
   // --- Transfers CRUD ---

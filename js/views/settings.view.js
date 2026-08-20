@@ -95,6 +95,36 @@ export function renderSettingsView() {
         </div>
       </div>
 
+      <!-- Bybit P2P API Integration Card -->
+      <div class="card mb-4">
+        <div class="card-header-flex">
+          <div>
+            <h3 class="card-title">Bybit P2P Live Sync</h3>
+            <p class="card-subtitle">Connect to Bybit via your local Node.js proxy server</p>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="brand-tag" id="proxy-status-badge" style="background: rgba(244, 63, 94, 0.15); color: var(--loss); border-color: transparent;">
+              ● <span id="proxy-status-text">Proxy Offline</span>
+            </span>
+          </div>
+        </div>
+
+        <p class="text-muted small mb-3">
+          Synchronize your live Bybit Funding Wallet balance directly into your inventory, and import your completed Bybit P2P orders automatically.
+        </p>
+
+        <div class="d-flex flex-wrap gap-2">
+          <button class="btn btn-sm btn-outline" id="btn-sync-balance" disabled>
+            <i data-lucide="refresh-cw"></i>
+            <span>Sync Funding Balance</span>
+          </button>
+          <button class="btn btn-sm btn-primary" id="btn-import-bybit-trades" disabled>
+            <i data-lucide="download-cloud"></i>
+            <span>Import Completed Trades</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Backup & Data Portability -->
       <div class="card mb-4">
         <h3 class="card-title">Data Backup & Restore</h3>

@@ -4,7 +4,7 @@
  */
 
 import { store } from './store.js';
-import { escapeHtml } from './utils.js';
+import { escapeHtml, formatNGN } from './utils.js';
 
 export function initBanks() {
   renderBankDropdowns();
@@ -13,7 +13,7 @@ export function initBanks() {
 
   // Listen for store updates to keep UI in sync
   window.addEventListener('store:updated', (e) => {
-    if (e.detail?.type === 'banks' || e.detail?.type === 'all') {
+    if (e.detail?.type === 'banks' || e.detail?.type === 'trades' || e.detail?.type === 'transfers' || e.detail?.type === 'all') {
       renderBankDropdowns();
       renderBankAccountsSettingsList();
     }
@@ -25,6 +25,7 @@ export function initBanks() {
  */
 export function renderBankDropdowns() {
   const banks = store.getBankAccounts();
+  const balanceMap = store.getComputedBankBalances ? store.getComputedBankBalances() : new Map();
 
   // 1. Trade Form Bank Select
   const tradeBankSelect = document.getElementById('trade-bank-account');
@@ -32,7 +33,10 @@ export function renderBankDropdowns() {
     const selectedVal = tradeBankSelect.value;
     tradeBankSelect.innerHTML = '<option value="" disabled>Select Bank Account</option>' +
       banks.map(bank => {
-        const label = bank.alias ? `${bank.name} (${bank.alias}) •••• ${bank.last4}` : `${bank.name} •••• ${bank.last4}`;
+        const bal = balanceMap.get(bank.id)?.currentBalance ?? 0;
+        const label = bank.alias 
+          ? `${bank.name} (${bank.alias}) •••• ${bank.last4} — ${formatNGN(bal)}`
+          : `${bank.name} •••• ${bank.last4} — ${formatNGN(bal)}`;
         return `<option value="${escapeHtml(bank.id)}">${escapeHtml(label)}</option>`;
       }).join('');
 
@@ -67,6 +71,7 @@ export function renderBankAccountsSettingsList() {
   if (!container) return;
 
   const banks = store.getBankAccounts();
+  const balanceMap = store.getComputedBankBalances ? store.getComputedBankBalances() : new Map();
 
   if (banks.length === 0) {
     container.innerHTML = `
@@ -77,7 +82,9 @@ export function renderBankAccountsSettingsList() {
     return;
   }
 
-  container.innerHTML = banks.map(bank => `
+  container.innerHTML = banks.map(bank => {
+    const record = balanceMap.get(bank.id) || { currentBalance: 0, initialBalance: 0 };
+    return `
     <div class="card mb-2 d-flex align-items-center justify-content-between p-3" style="background: rgba(10, 16, 28, 0.6);">
       <div class="d-flex align-items-center gap-3">
         <div class="metric-icon-box" style="background: rgba(59, 130, 246, 0.12); color: var(--primary-light);">
@@ -87,6 +94,9 @@ export function renderBankAccountsSettingsList() {
           <div class="fw-bold d-flex align-items-center gap-2">
             <span>${escapeHtml(bank.name)}</span>
             <span class="font-mono text-muted small">•••• ${escapeHtml(bank.last4)}</span>
+            <span class="brand-tag font-mono small" style="background: rgba(16, 185, 129, 0.15); color: var(--profit); border-color: transparent;">
+              ${formatNGN(record.currentBalance)}
+            </span>
           </div>
           ${bank.alias ? `<p class="text-muted small">${escapeHtml(bank.alias)}</p>` : ''}
         </div>
@@ -95,7 +105,7 @@ export function renderBankAccountsSettingsList() {
         <i data-lucide="trash-2"></i>
       </button>
     </div>
-  `).join('');
+  `}).join('');
 
   if (window.lucide) window.lucide.createIcons();
 
@@ -126,6 +136,7 @@ function setupBankModalEvents() {
   const bankNameInput = document.getElementById('bank-name-input');
   const bankLast4Input = document.getElementById('bank-account-last4');
   const bankAliasInput = document.getElementById('bank-alias-input');
+  const bankBalanceInput = document.getElementById('bank-balance-input');
 
   function openModal() {
     if (formBank) formBank.reset();
@@ -149,15 +160,16 @@ function setupBankModalEvents() {
     const last4Raw = bankLast4Input?.value?.trim() || '';
     const last4 = last4Raw.slice(-4);
     const alias = bankAliasInput?.value?.trim() || '';
+    const initialBalance = parseFloat(bankBalanceInput?.value) || 0;
 
     if (!name || !last4) {
       if (window.showToast) window.showToast('Please enter bank name and account digits.', 'error');
       return;
     }
 
-    const created = store.addBankAccount({ name, last4, alias });
+    const created = store.addBankAccount({ name, last4, alias, initialBalance });
     closeModal();
-    if (window.showToast) window.showToast(`Added ${name} account!`, 'success');
+    if (window.showToast) window.showToast(`Added ${name} account with ${formatNGN(initialBalance)} starting cash!`, 'success');
 
     // Auto-select the newly added bank in trade form if open
     const tradeBankSelect = document.getElementById('trade-bank-account');

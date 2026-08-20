@@ -105,11 +105,31 @@ export function renderDashboardMetrics() {
     }
   }
 
-  // 3. Gross Buys
+  // 3. Total Bank Cash Balance
+  const computedBankBalances = store.getComputedBankBalances ? store.getComputedBankBalances() : new Map();
+  let totalBankCash = 0;
+  let activeBanksCount = 0;
+  computedBankBalances.forEach(rec => {
+    totalBankCash += rec.currentBalance;
+    activeBanksCount++;
+  });
+
+  const statTotalBankCash = document.getElementById('stat-total-bank-cash');
+  const statBankCashSubtext = document.getElementById('stat-bank-cash-subtext');
+
+  if (statTotalBankCash) {
+    statTotalBankCash.textContent = formatNGN(totalBankCash);
+    statTotalBankCash.className = `metric-value font-mono ${totalBankCash >= 0 ? 'text-profit' : 'text-loss'}`;
+  }
+  if (statBankCashSubtext) {
+    statBankCashSubtext.textContent = `Across ${activeBanksCount} linked ${activeBanksCount === 1 ? 'account' : 'accounts'}`;
+  }
+
+  // 4. Gross Buys
   if (statTotalInvested) statTotalInvested.textContent = formatNGN(totalInvestedNGN);
   if (statBuyVolume) statBuyVolume.textContent = `${formatUSDT(totalBoughtUSDT)} bought`;
 
-  // 4. Gross Sells
+  // 5. Gross Sells
   if (statTotalRealized) statTotalRealized.textContent = formatNGN(totalRealizedNGN);
   if (statSellVolume) statSellVolume.textContent = `${formatUSDT(totalSoldUSDT)} sold`;
 

@@ -45,7 +45,21 @@ export function renderDashboardView() {
           </div>
         </div>
 
-        <!-- 3. Total Invested (Buys) -->
+        <!-- 3. Total Bank Cash Balance -->
+        <div class="card metric-card">
+          <div class="metric-header">
+            <span class="metric-label">Bank Cash Balance</span>
+            <div class="metric-icon-box" style="background: rgba(16, 185, 129, 0.12); color: var(--profit);">
+              <i data-lucide="landmark"></i>
+            </div>
+          </div>
+          <div class="metric-value font-mono text-profit" id="stat-total-bank-cash">₦0.00</div>
+          <div class="metric-footer text-muted" id="stat-bank-cash-subtext">
+            Across linked accounts
+          </div>
+        </div>
+
+        <!-- 4. Total Buys (Cost) -->
         <div class="card metric-card">
           <div class="metric-header">
             <span class="metric-label">Total Buys (Cost)</span>
@@ -59,7 +73,7 @@ export function renderDashboardView() {
           </div>
         </div>
 
-        <!-- 4. Total Realized (Sells) -->
+        <!-- 5. Total Realized (Sells) -->
         <div class="card metric-card">
           <div class="metric-header">
             <span class="metric-label">Total Sells (Revenue)</span>

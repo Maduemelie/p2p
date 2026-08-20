@@ -25,6 +25,14 @@ export function renderModalsView() {
             <label for="bank-alias-input" class="form-label">Account Label / Alias (Optional)</label>
             <input type="text" id="bank-alias-input" class="form-input" placeholder="e.g. Main Trading Account">
           </div>
+          <div class="form-group mb-3">
+            <label for="bank-balance-input" class="form-label">Starting Cash Balance (₦)</label>
+            <div class="input-affix-wrapper">
+              <span class="input-prefix">₦</span>
+              <input type="number" step="0.01" min="0" id="bank-balance-input" class="form-input font-mono" placeholder="0.00">
+            </div>
+            <p class="text-muted small mt-1">Starting cash will automatically update with Bybit P2P buys, sells, and bank fees.</p>
+          </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" id="btn-cancel-bank-modal">Cancel</button>
             <button type="submit" class="btn btn-primary">Save Account</button>
