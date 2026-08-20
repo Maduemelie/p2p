@@ -94,48 +94,58 @@ export function initSettings() {
   checkProxyConnection();
 
   // 1. Sync Live Bybit Holdings (read-only, does NOT overwrite Starting USDT)
+  //
+  // ACCOUNTING MODEL:
+  //   walletBalance ALREADY INCLUDES coins locked in P2P ads.
+  //   Active ad allocation is a SUBSET, not an addition.
+  //   Total P2P = walletBalance
+  //   Free for Buyback = walletBalance − active ad allocation
+  //
   async function syncSettingsLiveHoldings(showToast = false) {
     const elFree = document.getElementById('settings-free-usdt');
     const elLocked = document.getElementById('settings-locked-usdt');
     const elTotal = document.getElementById('settings-total-usdt');
 
     try {
-      // A. Fetch free wallet balance: GET /v5/asset/transfer/query-account-coins-balance
-      let freeBalance = 0;
+      // A. Total P2P USDT = walletBalance from GET /v5/asset/transfer/query-account-coins-balance
+      //    This value INCLUDES coins allocated to P2P ads
+      let totalP2P = 0;
       try {
         const balResult = await bybitService.fetchFundingBalance('USDT');
         const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
         if (usdtItem) {
-          freeBalance = parseFloat(usdtItem.transferBalance) || 0;
+          totalP2P = parseFloat(usdtItem.walletBalance) || parseFloat(usdtItem.transferBalance) || 0;
         }
       } catch (e) {
         console.warn('[Settings] Could not fetch wallet balance:', e.message);
       }
 
-      // B. Fetch locked in ads: POST /v5/p2p/item/personal/list
-      let lockedInAds = 0;
+      // B. Active Ad Allocation = from the specific ONLINE sell ad only
+      //    Do NOT sum all ads — only the tracked active sell ad
+      let adAllocation = 0;
       try {
         const ads = await bybitService.fetchActiveAds('1', 'USDT');
         if (Array.isArray(ads)) {
-          ads.forEach(ad => {
-            const status = Number(ad.status);
-            if (status !== 30) {
-              lockedInAds += (parseFloat(ad.lastQuantity) || 0) + (parseFloat(ad.frozenQuantity) || 0);
-            }
-          });
+          const activeAd = ads.find(a => Number(a.side) === 1 && Number(a.status) === 10)
+            || ads.find(a => Number(a.side) === 1 && (Number(a.status) === 20 || Number(a.status) === 2))
+            || null;
+          if (activeAd) {
+            adAllocation = (parseFloat(activeAd.lastQuantity) || 0) + (parseFloat(activeAd.frozenQuantity) || 0);
+          }
         }
       } catch (e) {
         console.warn('[Settings] Could not fetch ads:', e.message);
       }
 
-      const totalBybit = freeBalance + lockedInAds;
+      // C. Free for Buyback = Total − Ad Allocation
+      const freeForBuyback = Math.max(0, totalP2P - adAllocation);
 
-      if (elFree) elFree.textContent = `${freeBalance.toFixed(2)} USDT`;
-      if (elLocked) elLocked.textContent = `${lockedInAds.toFixed(2)} USDT`;
-      if (elTotal) elTotal.textContent = `${totalBybit.toFixed(2)} USDT`;
+      if (elTotal) elTotal.textContent = `${totalP2P.toFixed(2)} USDT`;
+      if (elLocked) elLocked.textContent = `${adAllocation.toFixed(2)} USDT`;
+      if (elFree) elFree.textContent = `${freeForBuyback.toFixed(2)} USDT`;
 
       if (showToast && window.showToast) {
-        window.showToast(`Bybit Holdings: ${totalBybit.toFixed(2)} USDT (${freeBalance.toFixed(2)} Free + ${lockedInAds.toFixed(2)} in Ad)`, 'success');
+        window.showToast(`P2P Balance: ${totalP2P.toFixed(2)} USDT (${adAllocation.toFixed(2)} in Ad + ${freeForBuyback.toFixed(2)} Free)`, 'success');
       }
     } catch (err) {
       console.error('[Settings] Bybit holdings sync error:', err);

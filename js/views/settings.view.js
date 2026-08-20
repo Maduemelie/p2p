@@ -116,20 +116,20 @@ export function renderSettingsView() {
         <div class="row g-2 mb-3">
           <div class="col-4">
             <div class="p-2 text-center" style="background: rgba(10, 16, 28, 0.6); border-radius: var(--radius-md); border: 1px solid rgba(255, 255, 255, 0.06);">
-              <span class="text-muted small d-block mb-1">Free in Wallet</span>
-              <span class="font-mono fw-bold text-accent" id="settings-free-usdt">— USDT</span>
+              <span class="text-muted small d-block mb-1">P2P Balance</span>
+              <span class="font-mono fw-bold" style="color: var(--primary-light);" id="settings-total-usdt">— USDT</span>
             </div>
           </div>
           <div class="col-4">
             <div class="p-2 text-center" style="background: rgba(10, 16, 28, 0.6); border-radius: var(--radius-md); border: 1px solid rgba(255, 255, 255, 0.06);">
-              <span class="text-muted small d-block mb-1">Locked in Ad</span>
+              <span class="text-muted small d-block mb-1">In Active Ad</span>
               <span class="font-mono fw-bold text-profit" id="settings-locked-usdt">— USDT</span>
             </div>
           </div>
           <div class="col-4">
             <div class="p-2 text-center" style="background: rgba(10, 16, 28, 0.6); border-radius: var(--radius-md); border: 1px solid rgba(255, 255, 255, 0.06);">
-              <span class="text-muted small d-block mb-1">Total Bybit</span>
-              <span class="font-mono fw-bold" style="color: var(--primary-light);" id="settings-total-usdt">— USDT</span>
+              <span class="text-muted small d-block mb-1">Free for Buyback</span>
+              <span class="font-mono fw-bold text-accent" id="settings-free-usdt">— USDT</span>
             </div>
           </div>
         </div>

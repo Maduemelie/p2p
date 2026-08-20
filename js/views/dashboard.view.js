@@ -92,16 +92,16 @@ export function renderDashboardView() {
           </div>
           <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06);">
             <div class="d-flex justify-content-between align-items-center mb-1">
-              <span class="text-muted small">Bybit Live:</span>
+              <span class="text-muted small">Bybit P2P Balance:</span>
               <span class="font-mono small fw-bold" id="stat-bybit-live-total" style="color: var(--primary-light);">— USDT</span>
             </div>
             <div class="d-flex justify-content-between align-items-center mb-1" style="font-size: 0.72rem;">
-              <span class="text-muted">Free in Wallet:</span>
-              <span class="font-mono text-muted" id="stat-bybit-free">—</span>
+              <span class="text-muted">In Active Ad:</span>
+              <span class="font-mono text-muted" id="stat-bybit-locked">—</span>
             </div>
             <div class="d-flex justify-content-between align-items-center" style="font-size: 0.72rem;">
-              <span class="text-muted">Locked in Ad:</span>
-              <span class="font-mono text-muted" id="stat-bybit-locked">—</span>
+              <span class="text-muted">Free for Buyback:</span>
+              <span class="font-mono text-muted" id="stat-bybit-free">—</span>
             </div>
             <div id="stat-inventory-diff" class="small mt-1" style="display: none;"></div>
           </div>

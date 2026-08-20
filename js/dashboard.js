@@ -55,7 +55,10 @@ export async function syncAndRenderActiveAd(showToast = false) {
 
   try {
     const ads = await bybitService.fetchActiveAds('1', 'USDT');
-    const activeSellAd = ads.find(a => Number(a.side) === 1 && (Number(a.status) === 10 || Number(a.status) === 20 || Number(a.status) === 2)) || ads[0];
+    // Pick the ONLINE sell ad (status 10), or ACTIVE (20/2), or first available
+    const activeSellAd = ads.find(a => Number(a.side) === 1 && Number(a.status) === 10)
+      || ads.find(a => Number(a.side) === 1 && (Number(a.status) === 20 || Number(a.status) === 2))
+      || null;
 
     latestActiveAd = activeSellAd;
 
@@ -70,11 +73,16 @@ export async function syncAndRenderActiveAd(showToast = false) {
       const frozenQty = parseFloat(activeSellAd.frozenQuantity) || 0;
       const totalInAd = lastQty + frozenQty;
 
+      // Spread and margin based on THIS ad's price vs actual buy cost
       const spreadPerUsdt = avgBuyCost > 0 ? (adPrice - avgBuyCost) : 0;
       const marginPct = avgBuyCost > 0 ? (spreadPerUsdt / avgBuyCost) * 100 : 0;
-      const volumeToUse = totalInAd > 0 ? totalInAd : fifoResult.remainingInventoryUSDT;
-      const projectedGross = spreadPerUsdt * volumeToUse;
-      const projectedNet = Math.max(0, projectedGross - 50);
+
+      // Projected profit = ONLY this ad's quantity × spread − estimated fees
+      // NOT the FIFO inventory, NOT all ads — just THIS ad batch
+      const projectedGross = spreadPerUsdt * totalInAd;
+      const projectedNet = Math.max(0, projectedGross - 50); // 50 NGN estimated stamp duty
+
+      console.log('[Ad Profit Debug]', { adPrice, avgBuyCost, spreadPerUsdt, totalInAd, projectedGross, projectedNet });
 
       if (adBadge) {
         adBadge.style.background = 'rgba(16, 185, 129, 0.15)';
@@ -128,7 +136,18 @@ export async function syncAndRenderActiveAd(showToast = false) {
 }
 
 /**
- * Fetch live Bybit wallet balance + ad locked volume and compare against FIFO inventory
+ * Fetch live Bybit wallet balance and compare against FIFO inventory.
+ * 
+ * CRITICAL ACCOUNTING MODEL:
+ *   walletBalance from GET /v5/asset/transfer/query-account-coins-balance
+ *   ALREADY INCLUDES coins locked in P2P ads.
+ *   The active ad allocation is a SUBSET, not an addition.
+ * 
+ *   Total P2P USDT = walletBalance (e.g. 103.01)
+ *   Active Ad Allocation = ad.lastQuantity + ad.frozenQuantity (e.g. 31.70)  
+ *   Free for Buyback = walletBalance − Active Ad (e.g. 71.31)
+ *   
+ *   103.01 = 31.70 + 71.31  ✓
  */
 export async function syncBybitLiveInventory() {
   const elTotal = document.getElementById('stat-bybit-live-total');
@@ -139,59 +158,58 @@ export async function syncBybitLiveInventory() {
   if (!elTotal) return;
 
   try {
-    // 1. Fetch free wallet balance from GET /v5/asset/transfer/query-account-coins-balance
-    let freeBalance = 0;
+    // 1. Total P2P USDT = walletBalance from Bybit Funding account
+    //    This number INCLUDES coins allocated to P2P ads
+    let totalP2P = 0;
     try {
       const balResult = await bybitService.fetchFundingBalance('USDT');
       const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
       if (usdtItem) {
-        freeBalance = parseFloat(usdtItem.transferBalance) || 0;
+        // walletBalance = total in funding wallet (includes ad-locked coins)
+        // transferBalance = what can be transferred out (may exclude ad-locked)
+        // Use walletBalance as the authoritative total P2P pool
+        totalP2P = parseFloat(usdtItem.walletBalance) || parseFloat(usdtItem.transferBalance) || 0;
       }
     } catch (e) {
       console.warn('[Dashboard] Could not fetch wallet balance:', e.message);
     }
 
-    // 2. Fetch locked in ads from POST /v5/p2p/item/personal/list
-    let lockedInAds = 0;
-    try {
-      const ads = await bybitService.fetchActiveAds('1', 'USDT');
-      if (Array.isArray(ads)) {
-        ads.forEach(ad => {
-          const status = Number(ad.status);
-          if (status !== 30) { // exclude completed/cancelled
-            lockedInAds += (parseFloat(ad.lastQuantity) || 0) + (parseFloat(ad.frozenQuantity) || 0);
-          }
-        });
-      }
-    } catch (e) {
-      console.warn('[Dashboard] Could not fetch ads for inventory:', e.message);
+    // 2. Active Ad Allocation = from the SAME specific ad displayed in the ad card
+    //    Uses latestActiveAd (set by syncAndRenderActiveAd which runs first)
+    //    Do NOT sum all ads — only the tracked active sell ad matters
+    let adAllocation = 0;
+    if (latestActiveAd) {
+      adAllocation = (parseFloat(latestActiveAd.lastQuantity) || 0) + (parseFloat(latestActiveAd.frozenQuantity) || 0);
     }
 
-    const bybitTotal = freeBalance + lockedInAds;
+    // 3. Free for Buyback = Total − Ad Allocation
+    const freeForBuyback = Math.max(0, totalP2P - adAllocation);
+
+    console.log('[Bybit Inventory Debug]', { totalP2P, adAllocation, freeForBuyback, latestActiveAdId: latestActiveAd?.id });
 
     // Populate Bybit live numbers
-    elFree.textContent = `${freeBalance.toFixed(2)} USDT`;
-    elLocked.textContent = `${lockedInAds.toFixed(2)} USDT`;
-    elTotal.textContent = `${bybitTotal.toFixed(2)} USDT`;
+    elTotal.textContent = `${totalP2P.toFixed(2)} USDT`;
+    elLocked.textContent = `${adAllocation.toFixed(2)} USDT`;
+    elFree.textContent = `${freeForBuyback.toFixed(2)} USDT`;
 
-    // Compare against FIFO tracked inventory
+    // Compare FIFO tracked inventory against actual Bybit total
     const trades = store.getTrades();
     const openingInventory = store.getOpeningInventory();
     const fifoResult = calculateFIFOInventoryAndPnL(trades, openingInventory);
     const fifoInventory = fifoResult.remainingInventoryUSDT;
-    const diff = fifoInventory - bybitTotal;
+    const diff = fifoInventory - totalP2P;
 
-    if (Math.abs(diff) > 0.01) {
+    if (Math.abs(diff) > 0.5) {
       elDiff.style.display = 'block';
       const sign = diff > 0 ? '+' : '';
-      elDiff.innerHTML = `<span style="color: var(--warning, #f59e0b);">⚠ Difference: ${sign}${diff.toFixed(2)} USDT (App ${diff > 0 ? 'shows more' : 'shows less'})</span>`;
+      elDiff.innerHTML = `<span style="color: var(--warning, #f59e0b);">⚠ Diff: ${sign}${diff.toFixed(2)} USDT — App ${diff > 0 ? 'overstates' : 'understates'} by ${Math.abs(diff).toFixed(2)}</span>`;
     } else {
       elDiff.style.display = 'block';
       elDiff.innerHTML = `<span style="color: var(--profit);">✓ App and Bybit match</span>`;
     }
   } catch (e) {
     console.warn('[Dashboard] Bybit live inventory sync failed:', e.message);
-    elTotal.textContent = 'Offline';
+    if (elTotal) elTotal.textContent = 'Offline';
   }
 }
 
