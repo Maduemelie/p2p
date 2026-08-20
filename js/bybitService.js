@@ -41,7 +41,10 @@ export const bybitService = {
   async fetchFundingBalance(coin = 'USDT') {
     try {
       const baseUrl = getProxyUrl();
-      const response = await fetch(`${baseUrl}/api/balance?coin=${coin}&accountType=FUND&_t=${Date.now()}`);
+      const response = await fetch(`${baseUrl}/api/balance?coin=${coin}&accountType=FUND&_t=${Date.now()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.retMsg || `HTTP ${response.status}`);
@@ -102,7 +105,10 @@ export const bybitService = {
   async fetchActiveAds(side = '1', tokenId = 'USDT') {
     try {
       const baseUrl = getProxyUrl();
-      const response = await fetch(`${baseUrl}/api/ads?_t=${Date.now()}`);
+      const response = await fetch(`${baseUrl}/api/ads?_t=${Date.now()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.retMsg || `HTTP ${response.status}`);
