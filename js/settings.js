@@ -107,6 +107,8 @@ export function initSettings() {
       });
 
       if (inputOpeningUsdt) inputOpeningUsdt.value = balance;
+      const liveFundingText = document.getElementById('live-funding-balance-text');
+      if (liveFundingText) liveFundingText.textContent = `${balance.toFixed(4)} USDT`;
 
       if (window.showToast) {
         window.showToast(`Funding Balance synced: ${balance.toFixed(4)} USDT!`, 'success');

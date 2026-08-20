@@ -14,26 +14,34 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const {
-      page = 1,
-      size = 30,
-      status = null,
-      side = null,
-      tokenId = null,
-      beginTime = null,
-      endTime = null
-    } = req.body || {};
+    let body = req.body;
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body);
+      } catch (e) {
+        body = {};
+      }
+    } else if (!body || typeof body !== 'object') {
+      body = {};
+    }
+
+    const page = Number(body.page) || 1;
+    const size = Number(body.size) || 30;
 
     const payload = {
-      page: Number(page),
-      size: Number(size)
+      page: page,
+      size: size
     };
 
-    if (status !== null && status !== undefined && status !== '') payload.status = Number(status);
-    if (side !== null && side !== undefined && side !== '') payload.side = Number(side);
-    if (tokenId) payload.tokenId = tokenId;
-    if (beginTime) payload.beginTime = String(beginTime);
-    if (endTime) payload.endTime = String(endTime);
+    if (body.status !== null && body.status !== undefined && body.status !== '') {
+      payload.status = Number(body.status);
+    }
+    if (body.side !== null && body.side !== undefined && body.side !== '') {
+      payload.side = Number(body.side);
+    }
+    if (body.tokenId) payload.tokenId = String(body.tokenId);
+    if (body.beginTime) payload.beginTime = String(body.beginTime);
+    if (body.endTime) payload.endTime = String(body.endTime);
 
     const jsonBodyString = JSON.stringify(payload);
     const endpointPath = `/v5/p2p/order/simplifyList`;

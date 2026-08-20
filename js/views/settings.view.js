@@ -113,6 +113,14 @@ export function renderSettingsView() {
           Synchronize your live Bybit Funding Wallet balance directly into your inventory, and import your completed Bybit P2P orders automatically.
         </p>
 
+        <div class="d-flex align-items-center justify-content-between p-3 mb-3" style="background: rgba(10, 16, 28, 0.6); border-radius: var(--radius-md); border: 1px solid rgba(255, 255, 255, 0.06);">
+          <div class="d-flex align-items-center gap-2">
+            <i data-lucide="wallet" style="color: var(--primary-light);"></i>
+            <span class="text-muted small">Live Funding Balance:</span>
+          </div>
+          <span class="font-mono fw-bold" id="live-funding-balance-text" style="color: var(--text-main);">0.00 USDT</span>
+        </div>
+
         <div class="d-flex flex-wrap gap-2">
           <button class="btn btn-sm btn-outline" id="btn-sync-balance" disabled>
             <i data-lucide="refresh-cw"></i>
