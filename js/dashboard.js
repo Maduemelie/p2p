@@ -158,34 +158,49 @@ export async function syncBybitLiveInventory() {
   if (!elTotal) return;
 
   try {
-    // 1. Total P2P USDT = walletBalance from Bybit Funding account
-    //    This number INCLUDES coins allocated to P2P ads
+    // 1. Total P2P USDT = transferBalance from Bybit Funding account (e.g. 103.01 USDT)
+    //    We use transferBalance because walletBalance includes locked assets (like Flexible Savings) not used for P2P trading.
     let totalP2P = 0;
     try {
       const balResult = await bybitService.fetchFundingBalance('USDT');
       const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
       if (usdtItem) {
-        // walletBalance = total in funding wallet (includes ad-locked coins)
-        // transferBalance = what can be transferred out (may exclude ad-locked)
-        // Use walletBalance as the authoritative total P2P pool
-        totalP2P = parseFloat(usdtItem.walletBalance) || parseFloat(usdtItem.transferBalance) || 0;
+        totalP2P = parseFloat(usdtItem.transferBalance) || 0;
       }
     } catch (e) {
       console.warn('[Dashboard] Could not fetch wallet balance:', e.message);
     }
 
-    // 2. Active Ad Allocation = from the SAME specific ad displayed in the ad card
-    //    Uses latestActiveAd (set by syncAndRenderActiveAd which runs first)
-    //    Do NOT sum all ads — only the tracked active sell ad matters
+    // 2. Active Ad Allocation = Fetch live ad directly to avoid race conditions
     let adAllocation = 0;
-    if (latestActiveAd) {
-      adAllocation = (parseFloat(latestActiveAd.lastQuantity) || 0) + (parseFloat(latestActiveAd.frozenQuantity) || 0);
+    try {
+      const ads = await bybitService.fetchActiveAds('1', 'USDT');
+      const activeAd = ads.find(a => Number(a.side) === 1 && Number(a.status) === 10)
+        || ads.find(a => Number(a.side) === 1 && (Number(a.status) === 20 || Number(a.status) === 2))
+        || null;
+      if (activeAd) {
+        adAllocation = (parseFloat(activeAd.lastQuantity) || 0) + (parseFloat(activeAd.frozenQuantity) || 0);
+      }
+    } catch (e) {
+      console.warn('[Dashboard] Could not fetch active ads for live inventory:', e.message);
     }
 
-    // 3. Free for Buyback = Total − Ad Allocation
+    // 3. Free for Buyback = Total P2P − Ad Allocation (e.g. 103.01 - 31.70 = 71.31)
     const freeForBuyback = Math.max(0, totalP2P - adAllocation);
 
-    console.log('[Bybit Inventory Debug]', { totalP2P, adAllocation, freeForBuyback, latestActiveAdId: latestActiveAd?.id });
+    console.log('[Bybit Inventory Debug]', { totalP2P, adAllocation, freeForBuyback });
+
+    // Populate Bybit live numbers
+    elTotal.textContent = `${totalP2P.toFixed(2)} USDT`;
+    elLocked.textContent = `${adAllocation.toFixed(2)} USDT`;
+    elFree.textContent = `${freeForBuyback.toFixed(2)} USDT`;
+
+    // Compare FIFO tracked inventory against actual Bybit total
+    const trades = store.getTrades();
+    const openingInventory = store.getOpeningInventory();
+    const fifoResult = calculateFIFOInventoryAndPnL(trades, openingInventory);
+    const fifoInventory = fifoResult.remainingInventoryUSDT;
+    const diff = fifoInventory - totalP2P;
 
     // Populate Bybit live numbers
     elTotal.textContent = `${totalP2P.toFixed(2)} USDT`;

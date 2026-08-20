@@ -107,14 +107,14 @@ export function initSettings() {
     const elTotal = document.getElementById('settings-total-usdt');
 
     try {
-      // A. Total P2P USDT = walletBalance from GET /v5/asset/transfer/query-account-coins-balance
-      //    This value INCLUDES coins allocated to P2P ads
+      // A. Total P2P USDT = transferBalance from GET /v5/asset/transfer/query-account-coins-balance
+      //    This is the active available P2P pool, excluding locked Earn/Savings.
       let totalP2P = 0;
       try {
         const balResult = await bybitService.fetchFundingBalance('USDT');
         const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
         if (usdtItem) {
-          totalP2P = parseFloat(usdtItem.walletBalance) || parseFloat(usdtItem.transferBalance) || 0;
+          totalP2P = parseFloat(usdtItem.transferBalance) || 0;
         }
       } catch (e) {
         console.warn('[Settings] Could not fetch wallet balance:', e.message);
