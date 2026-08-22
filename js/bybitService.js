@@ -13,6 +13,12 @@ function getProxyUrl() {
     }
     // Default to current browser origin when served over HTTP/HTTPS
     if (window.location.protocol.startsWith('http')) {
+      const hostname = window.location.hostname;
+      const port = window.location.port;
+      // If running on a local development port other than 3000, redirect requests to proxy on port 3000
+      if ((hostname === 'localhost' || hostname === '127.0.0.1') && port !== '3000') {
+        return 'http://localhost:3000';
+      }
       return window.location.origin;
     }
   }
