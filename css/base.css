@@ -22,7 +22,8 @@ html {
 
 body {
   min-height: 100%;
-  background: var(--bg-base);
+  background: radial-gradient(circle at 50% 0%, #152238 0%, #070B14 75%);
+  background-attachment: fixed;
   color: var(--text-primary);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -32,10 +33,49 @@ body {
   padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 16px);
 }
 
+[data-theme="light"] body {
+  background: var(--bg-base);
+}
+
 a { color: var(--primary-text); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 img { max-width: 100%; display: block; }
+
+/* ==========================================================================
+   Ambient Background Glows
+   ========================================================================== */
+
+.ambient-glow {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.35;
+  transition: opacity var(--duration-normal) ease;
+}
+
+.glow-top-left {
+  top: -100px;
+  left: -100px;
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(circle, #2563EB 0%, transparent 70%);
+}
+
+.glow-bottom-right {
+  bottom: 0px;
+  right: -100px;
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(circle, #059669 0%, transparent 70%);
+  opacity: 0.2;
+}
+
+[data-theme="light"] .ambient-glow {
+  opacity: 0; /* Turn off ambient glows in light mode */
+}
 
 /* ==========================================================================
    ANIMATIONS

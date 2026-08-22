@@ -18,12 +18,18 @@
   position: sticky;
   top: 0;
   z-index: 40;
-  background: var(--bg-surface);
+  background: rgba(7, 11, 20, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border-default);
   padding: calc(var(--safe-top) + var(--sp-3)) var(--sp-4) var(--sp-3);
   height: var(--header-height);
   display: flex;
   align-items: center;
+}
+
+[data-theme="light"] .app-header {
+  background: rgba(255, 255, 255, 0.85);
 }
 
 .header-content {
@@ -43,12 +49,13 @@
   width: 36px;
   height: 36px;
   border-radius: var(--radius-md);
-  background: var(--primary);
+  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
 }
 
 .brand-badge .brand-icon {
@@ -77,6 +84,7 @@
   align-items: center;
   gap: 4px;
   white-space: nowrap;
+  border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 .brand-subtitle {
@@ -100,6 +108,7 @@
   background: var(--success);
   border-radius: 50%;
   border: 2px solid var(--bg-surface);
+  box-shadow: 0 0 8px var(--success);
 }
 
 /* --- Main Content --- */
@@ -133,7 +142,7 @@
 
 .view-title {
   font-size: var(--text-heading);
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--text-primary);
 }
@@ -163,13 +172,19 @@
   z-index: 50;
   height: calc(var(--nav-height) + var(--safe-bottom));
   padding-bottom: var(--safe-bottom);
-  background: var(--bg-surface);
+  background: rgba(7, 11, 20, 0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border-top: 1px solid var(--border-default);
   display: flex;
   align-items: center;
   justify-content: space-around;
   max-width: var(--max-content-width);
   margin: 0 auto;
+}
+
+[data-theme="light"] .bottom-nav {
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .nav-tab {
@@ -218,25 +233,28 @@
 
 .nav-tab.active { color: var(--primary-text); }
 .nav-tab.active .nav-icon-box { transform: translateY(-1px); }
-.nav-tab.active .active-indicator { background: var(--primary); }
+.nav-tab.active .active-indicator {
+  background: var(--primary);
+  box-shadow: 0 2px 10px var(--primary);
+}
 
 /* Center "Add" tab */
 .nav-icon-add {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--primary);
+  background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
 }
 
 .nav-icon-add svg { width: 20px; height: 20px; color: #fff; }
 
 .nav-tab.active .nav-icon-add {
   transform: scale(1.05);
-  box-shadow: 0 2px 12px var(--primary-glow);
 }
 
 /* ==========================================================================
@@ -255,13 +273,19 @@
     flex-direction: column;
     width: var(--sidebar-width);
     min-height: 100vh;
-    background: var(--bg-surface);
+    background: rgba(7, 11, 20, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border-right: 1px solid var(--border-default);
     position: fixed;
     top: 0;
     left: 0;
     z-index: 40;
     padding: var(--sp-5) var(--sp-3);
+  }
+
+  [data-theme="light"] .sidebar-nav {
+    background: rgba(255, 255, 255, 0.9);
   }
 
   .sidebar-brand {
@@ -337,7 +361,9 @@
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(4, 7, 13, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -411,10 +437,12 @@
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  background: var(--bg-surface);
+  background: rgba(18, 28, 47, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-elevated);
   border-radius: var(--radius-md);
-  padding: var(--sp-3) var(--sp-4);
+  padding: 12px 16px;
   color: var(--text-primary);
   box-shadow: var(--shadow-lg);
   animation: toastSlideDown 0.3s var(--ease-out) forwards;
