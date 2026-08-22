@@ -5,6 +5,7 @@
 
 import { renderDashboardView } from './views/dashboard.view.js';
 import { renderAddTradeView } from './views/addTrade.view.js';
+import { renderPricingView } from './views/pricing.view.js';
 import { renderHistoryView } from './views/history.view.js';
 import { renderSettingsView } from './views/settings.view.js';
 import { renderModalsView } from './views/modals.view.js';
@@ -15,6 +16,7 @@ import { initTrades } from './trades.js';
 import { initDashboard } from './dashboard.js';
 import { initHistory } from './history.js';
 import { initSettings } from './settings.js';
+import { initPricing } from './pricing.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Initialize theme before rendering
@@ -36,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initDashboard();
   initHistory();
   initSettings();
+  initPricing();
 
   // 6. PWA
   initPWA();
@@ -55,6 +58,7 @@ function mountAppViews() {
     mainContent.innerHTML = `
       ${renderDashboardView()}
       ${renderAddTradeView()}
+      ${renderPricingView()}
       ${renderHistoryView()}
       ${renderSettingsView()}
     `;
@@ -169,7 +173,7 @@ function initNavigation() {
   // Hash routing
   function handleHashRoute() {
     const hash = window.location.hash.replace('#', '');
-    const validViews = ['dashboard', 'add-trade', 'history', 'settings'];
+    const validViews = ['dashboard', 'add-trade', 'pricing', 'history', 'settings'];
     switchTab(validViews.includes(hash) ? hash : 'dashboard', false);
   }
 

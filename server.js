@@ -265,6 +265,47 @@ app.all('/api/ads', async (req, res) => {
   }
 });
 
+/**
+ * Route: Get Market P2P Depth (Order Book)
+ * Proxies: GET /v5/p2p/item/online (concurrently for side 0 and 1)
+ */
+app.get('/api/market-depth', async (req, res) => {
+  if (!API_KEY || !API_SECRET) {
+    return res.status(500).json({ retCode: -1, retMsg: 'Bybit API credentials not configured in proxy .env file' });
+  }
+
+  try {
+    const coin = req.query.coin || 'USDT';
+    const fiat = req.query.fiat || 'NGN';
+    const limit = req.query.limit || '5';
+
+    // Query Buy side (competitors trying to BUY - side 0) and Sell side (competitors trying to SELL - side 1)
+    const buyQuery = `currencyId=${fiat}&limit=${limit}&page=1&side=0&tokenId=${coin}`;
+    const sellQuery = `currencyId=${fiat}&limit=${limit}&page=1&side=1&tokenId=${coin}`;
+
+    const [buyRes, sellRes] = await Promise.all([
+      executeWithFailover('GET', `/v5/p2p/item/online?${buyQuery}`, buyQuery),
+      executeWithFailover('GET', `/v5/p2p/item/online?${sellQuery}`, sellQuery)
+    ]);
+
+    res.json({
+      retCode: 0,
+      retMsg: 'SUCCESS',
+      result: {
+        coin,
+        fiat,
+        buyDepth: buyRes.data?.result?.items || [],
+        sellDepth: sellRes.data?.result?.items || []
+      }
+    });
+  } catch (error) {
+    console.error('[Proxy] Error fetching market depth:', error.response?.data || error.message);
+    const statusCode = error.response ? error.response.status : 500;
+    const errorData = error.response ? error.response.data : { retCode: -1, retMsg: error.message };
+    res.status(statusCode).json(errorData);
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`=================================================`);
   console.log(`🚀 Bybit P2P Tracker Proxy Running on http://localhost:${PORT}`);

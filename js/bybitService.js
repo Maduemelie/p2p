@@ -122,5 +122,27 @@ export const bybitService = {
       console.warn('[Bybit Service] Error fetching active ads:', e.message);
       return [];
     }
+  },
+
+  /**
+   * Fetch Market Depth (P2P Order Book) (GET /api/market-depth)
+   */
+  async fetchMarketDepth(coin = 'USDT', fiat = 'NGN', limit = 5) {
+    try {
+      const baseUrl = getProxyUrl();
+      const response = await fetch(`${baseUrl}/api/market-depth?coin=${coin}&fiat=${fiat}&limit=${limit}&_t=${Date.now()}`);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.retMsg || `HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.retCode !== 0) {
+        throw new Error(data.retMsg || `Error code: ${data.retCode}`);
+      }
+      return data.result;
+    } catch (e) {
+      console.error('[Bybit Service] Error fetching market depth:', e.message);
+      throw e;
+    }
   }
 };

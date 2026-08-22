@@ -23,7 +23,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3">
+  <link rel="stylesheet" href="css/styles.css?v=2.4">
 </head>
 <body>
   <!-- Ambient Background Glows -->
@@ -48,9 +48,9 @@
           <i data-lucide="layout-dashboard"></i>
           <span>Dashboard</span>
         </button>
-        <button class="sidebar-nav-item" data-target="add-trade">
-          <i data-lucide="plus-circle"></i>
-          <span>Record Trade</span>
+        <button class="sidebar-nav-item" data-target="pricing">
+          <i data-lucide="scale"></i>
+          <span>Pricing Assistant</span>
         </button>
         <button class="sidebar-nav-item" data-target="history">
           <i data-lucide="history"></i>
@@ -110,11 +110,11 @@
         <span class="nav-label">Dashboard</span>
         <span class="active-indicator"></span>
       </button>
-      <button class="nav-tab" data-target="add-trade" id="tab-add-trade" aria-label="Record Trade">
-        <div class="nav-icon-box nav-icon-add">
-          <i data-lucide="plus"></i>
+      <button class="nav-tab" data-target="pricing" id="tab-pricing" aria-label="Pricing">
+        <div class="nav-icon-box">
+          <i data-lucide="scale"></i>
         </div>
-        <span class="nav-label">Trade</span>
+        <span class="nav-label">Pricing</span>
         <span class="active-indicator"></span>
       </button>
       <button class="nav-tab" data-target="history" id="tab-history" aria-label="History">

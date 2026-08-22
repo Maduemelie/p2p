@@ -1690,6 +1690,55 @@ img { max-width: 100%; display: block; }
   width: 100%;
 }
 
+/* P2P Arbitrage & Pricing View Styles */
+.bg-blue-glow {
+  background: rgba(59, 130, 246, 0.15) !important;
+  color: var(--primary) !important;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+}
+
+.bg-emerald-glow {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: var(--success) !important;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+}
+
+.market-depth-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--sp-2);
+}
+
+.market-depth-table th {
+  text-align: left;
+  font-size: var(--text-tiny);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.market-depth-table td {
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--border-default);
+  vertical-align: middle;
+}
+
+.orderbook-row {
+  cursor: pointer;
+  transition: background var(--duration-fast) ease;
+}
+
+.orderbook-row:hover {
+  background: var(--bg-hover);
+}
+
+.orderbook-row:last-child td {
+  border-bottom: none;
+}
+
 /* Print styles */
 @media print {
   .app-header, .bottom-nav, .sidebar-nav,
