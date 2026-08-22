@@ -1,6 +1,7 @@
 /**
  * Bybit NGN P2P Trade Tracker — Trade History Module
- * Search, multi-factor filtering, sorting, FIFO cost-basis card annotations, edit and delete
+ * Search, multi-factor filtering, sorting, FIFO cost-basis card annotations, edit, delete, and pagination.
+ * Redesigned v2.1 with compact expandable rows and dynamic pagination controls.
  */
 
 import { store } from './store.js';
@@ -10,6 +11,10 @@ let activeSearchQuery = '';
 let activeTypeFilter = 'ALL';
 let activeBankFilter = 'ALL';
 let activeSortOrder = 'date-desc';
+
+// Pagination state
+let currentPage = 1;
+const pageSize = 20;
 
 export function initHistory() {
   setupFilterControls();
@@ -25,7 +30,6 @@ export function initHistory() {
   // Quick export button hooks
   const btnExportCsvInline = document.getElementById('btn-export-csv-inline');
   btnExportCsvInline?.addEventListener('click', () => {
-    // Import dynamically to avoid circular deps  
     import('./export.js').then(mod => mod.exportTradesToCSV());
   });
 
@@ -45,29 +49,34 @@ function setupFilterControls() {
   const filterBank = document.getElementById('filter-bank');
   const filterSort = document.getElementById('filter-sort');
 
+  const onFilterChange = () => {
+    currentPage = 1; // Reset to first page on filter change
+    renderTradeHistory();
+  };
+
   searchInput?.addEventListener('input', () => {
     activeSearchQuery = searchInput.value.trim().toLowerCase();
     if (btnClearSearch) {
       btnClearSearch.classList.toggle('hidden', activeSearchQuery.length === 0);
     }
-    renderTradeHistory();
+    onFilterChange();
   });
 
   btnClearSearch?.addEventListener('click', () => {
     if (searchInput) searchInput.value = '';
     activeSearchQuery = '';
     btnClearSearch.classList.add('hidden');
-    renderTradeHistory();
+    onFilterChange();
   });
 
   filterType?.addEventListener('change', () => {
     activeTypeFilter = filterType.value;
-    renderTradeHistory();
+    onFilterChange();
   });
 
   filterBank?.addEventListener('change', () => {
     activeBankFilter = filterBank.value;
-    renderTradeHistory();
+    onFilterChange();
   });
 
   // Add P&L sort options to select if not already present
@@ -85,7 +94,7 @@ function setupFilterControls() {
 
   filterSort?.addEventListener('change', () => {
     activeSortOrder = filterSort.value;
-    renderTradeHistory();
+    onFilterChange();
   });
 }
 
@@ -94,6 +103,8 @@ function setupFilterControls() {
  */
 export function renderTradeHistory() {
   const container = document.getElementById('trades-history-container');
+  const paginationContainer = document.getElementById('history-pagination');
+  const tradeCountEl = document.getElementById('history-trade-count');
   if (!container) return;
 
   const rawTrades = store.getTrades();
@@ -111,6 +122,8 @@ export function renderTradeHistory() {
         <p class="empty-subtitle">Your completed and recorded trades will show up here.</p>
       </div>
     `;
+    if (paginationContainer) paginationContainer.classList.add('hidden');
+    if (tradeCountEl) tradeCountEl.textContent = '0 trades';
     if (window.lucide) window.lucide.createIcons();
     return;
   }
@@ -147,6 +160,19 @@ export function renderTradeHistory() {
     return true;
   });
 
+  // Populate dynamic header filter options for Banks if empty
+  const filterBankSelect = document.getElementById('filter-bank');
+  if (filterBankSelect && filterBankSelect.options.length <= 1) {
+    banks.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b.id;
+      opt.textContent = `${b.name} (•••• ${b.last4})`;
+      filterBankSelect.appendChild(opt);
+    });
+    // Restore selected value
+    filterBankSelect.value = activeBankFilter;
+  }
+
   // 2. Sort Order
   filtered.sort((a, b) => {
     switch (activeSortOrder) {
@@ -166,6 +192,11 @@ export function renderTradeHistory() {
     }
   });
 
+  // Update Trade Count text
+  if (tradeCountEl) {
+    tradeCountEl.textContent = `${filtered.length} match${filtered.length === 1 ? '' : 'es'} found`;
+  }
+
   if (filtered.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
@@ -176,12 +207,24 @@ export function renderTradeHistory() {
         <p class="empty-subtitle">Try adjusting your search keywords or filter dropdowns.</p>
       </div>
     `;
+    if (paginationContainer) paginationContainer.classList.add('hidden');
     if (window.lucide) window.lucide.createIcons();
     return;
   }
 
-  // 3. Render Trade Cards
-  container.innerHTML = filtered.map(trade => {
+  // 3. Paginate Results
+  const totalItems = filtered.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  // Boundary check
+  if (currentPage > totalPages) currentPage = totalPages;
+  if (currentPage < 1) currentPage = 1;
+
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const paginatedTrades = filtered.slice(startIndex, endIndex);
+
+  // 4. Render Trade Rows (Compact + Expandable Details)
+  container.innerHTML = paginatedTrades.map(trade => {
     const isBuy = trade.type === 'BUY';
     const bank = bankMap.get(trade.bankAccountId);
     const bankName = bank ? `${bank.name} •••• ${bank.last4}` : 'Unknown Bank';
@@ -205,166 +248,197 @@ export function renderTradeHistory() {
     let unmatchedBadge = '';
     if (trade.unmatchedQty > 0) {
       unmatchedBadge = `
-        <div class="alert alert-warning mt-2 p-2 d-flex align-items-center gap-2">
+        <div class="alert alert-warning mt-2 mb-2">
           <i data-lucide="alert-triangle"></i>
-          <span><b>${formatUSDT(trade.unmatchedQty)}</b> sold from external / unrecorded inventory (0% P&L assumed for this portion).</span>
+          <span><b>${formatUSDT(trade.unmatchedQty)}</b> sold from unrecorded inventory (0% P&L assumed).</span>
         </div>
       `;
     }
 
-    const tradeClass = isBuy ? 'trade-buy' : (trade.realizedPnL !== null && trade.realizedPnL < 0 ? 'trade-sell-loss' : 'trade-sell-profit');
-    
+    const itemStatusClass = isBuy ? 'trade-buy' : (trade.realizedPnL !== null && trade.realizedPnL < 0 ? 'trade-sell-loss' : 'trade-sell-profit');
+
     return `
-      <div class="card mb-3 trade-history-card ${tradeClass}">
-        <!-- Top Row: Type Badge, Date, PnL & Actions -->
-        <div class="d-flex align-items-center justify-content-between mb-3">
-          <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="badge ${isBuy ? 'badge-buy' : 'badge-sell'}">
+      <div class="card mb-3 trade-history-card ${itemStatusClass}">
+        
+        <!-- COMPACT ROW PREVIEW CONTAINER -->
+        <div class="trade-list-item cursor-pointer js-row-toggle" data-target-drawer="details_${trade.id}">
+          <div class="trade-list-left">
+            <div class="trade-type-indicator ${isBuy ? 'buy-indicator' : 'sell-indicator'}">
               <i data-lucide="${isBuy ? 'arrow-down-left' : 'arrow-up-right'}"></i>
-              ${trade.type} USDT
-            </span>
-            ${pnlBadge}
-            <span class="text-muted small">${formatDateTime(trade.date)}</span>
+            </div>
+            <div class="trade-list-info">
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="trade-list-primary">${formatNGN(trade.ngnAmount)}</span>
+                <span class="badge ${isBuy ? 'badge-buy' : 'badge-sell'}">${trade.type}</span>
+                ${pnlBadge}
+              </div>
+              <p class="trade-list-secondary">
+                ${formatUSDT(trade.usdtAmount)} @ ₦${Number(trade.rate).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
           </div>
-
-          <div class="d-flex align-items-center gap-1">
-            <button class="btn-icon btn-sm btn-edit-trade" data-trade-id="${escapeHtml(trade.id)}" title="Edit Trade" aria-label="Edit Trade">
-              <i data-lucide="edit-3"></i>
-            </button>
-            <button class="btn-icon btn-sm btn-delete-trade text-loss" data-trade-id="${escapeHtml(trade.id)}" title="Delete Trade" aria-label="Delete Trade">
-              <i data-lucide="trash-2"></i>
-            </button>
+          <div class="trade-list-right d-flex align-items-center gap-2">
+            <div class="text-end">
+              <div class="text-muted small">${formatDateTime(trade.date).split(' ')[0]}</div>
+              <div class="text-muted tiny">${formatDateTime(trade.date).split(' ')[1] || ''}</div>
+            </div>
+            <i data-lucide="chevron-down" class="row-chevron transition-normal"></i>
           </div>
         </div>
 
-        <!-- Main Financial Amounts -->
-        <div class="d-flex align-items-baseline justify-content-between mb-3">
-          <div>
-            <div class="text-muted small">${isBuy ? 'Gross Paid' : 'Gross Received'}</div>
-            <div class="metric-value font-mono fw-bold">
-              ${formatNGN(trade.ngnAmount)}
+        <!-- EXPANDABLE DETAIL DRAWER -->
+        <div class="trade-detail-panel hidden" id="details_${trade.id}">
+          <div class="divider my-2"></div>
+          
+          <!-- Detailed Metadata Grid -->
+          <div class="trade-meta-grid card-flat p-3 mb-3">
+            <div class="trade-meta-item">
+              <span class="trade-meta-label">Order Rate:</span>
+              <span class="trade-meta-value">${formatRate(trade.rate)}</span>
             </div>
-          </div>
-          <div class="text-end">
-            <div class="text-muted small">Crypto Volume</div>
-            <div class="font-mono fw-bold text-accent">
-              ${formatUSDT(trade.usdtAmount)}
+            <div class="trade-meta-item">
+              <span class="trade-meta-label">Effective Rate:</span>
+              <span class="trade-meta-value">${formatRate(trade.effectiveRate || trade.rate)}</span>
             </div>
+            <div class="trade-meta-item">
+              <span class="trade-meta-label">Bank Account:</span>
+              <span class="trade-meta-value">${escapeHtml(bankName)}</span>
+            </div>
+            <div class="trade-meta-item">
+              <span class="trade-meta-label">Payment Method:</span>
+              <span class="trade-meta-value">${escapeHtml(trade.paymentMethod || 'Bank Transfer')}</span>
+            </div>
+            ${trade.counterparty ? `
+              <div class="trade-meta-item col-12">
+                <span class="trade-meta-label">Counterparty:</span>
+                <span class="trade-meta-value font-mono">${escapeHtml(trade.counterparty)}</span>
+              </div>
+            ` : ''}
           </div>
-        </div>
 
-        <!-- Trade Breakdown Metadata Grid -->
-        <div class="trade-meta-grid card-flat p-3 mb-2">
-          <div>
-            <span class="text-muted">Order Rate:</span>
-            <span class="font-mono text-main ms-1">${formatRate(trade.rate)}</span>
-          </div>
-          <div>
-            <span class="text-muted">Effective Rate:</span>
-            <span class="font-mono text-main ms-1">${formatRate(trade.effectiveRate || trade.rate)}</span>
-          </div>
-          <div>
-            <span class="text-muted">Bank Account:</span>
-            <span class="text-main ms-1">${escapeHtml(bankName)}</span>
-          </div>
-          <div>
-            <span class="text-muted">Payment:</span>
-            <span class="text-main ms-1">${escapeHtml(trade.paymentMethod || 'Bank Transfer')}</span>
-          </div>
-          ${trade.counterparty ? `
-            <div class="col-span-2">
-              <span class="text-muted">Counterparty:</span>
-              <span class="text-main ms-1 font-mono">${escapeHtml(trade.counterparty)}</span>
+          <!-- Unmatched Alert if applicable -->
+          ${unmatchedBadge}
+
+          <!-- Notes -->
+          ${trade.notes ? `
+            <div class="card-flat p-3 mb-3 text-secondary small">
+              <div class="fw-semibold mb-1 d-flex align-items-center gap-1">
+                <i data-lucide="file-text"></i>
+                <span>Notes & Reference</span>
+              </div>
+              <p class="font-mono text-primary-color">${escapeHtml(trade.notes)}</p>
             </div>
           ` : ''}
-        </div>
 
-        <!-- Unmatched Alert (if any) -->
-        ${unmatchedBadge}
-
-        <!-- Fees & Cost Breakdown Row -->
-        <div class="d-flex align-items-center justify-content-between pt-2">
-          <div>
-            ${hasDrawerContent ? `
-              <button class="btn-link btn-toggle-fees text-accent d-flex align-items-center gap-1" data-drawer-id="drawer_${trade.id}">
-                <i data-lucide="layers"></i>
-                <span>${isBuy ? `Fees: ${formatNGN(trade.totalFees)}` : `FIFO Cost Basis & Fees`}</span>
-                <i data-lucide="chevron-down"></i>
-              </button>
-            ` : `
-              <span class="text-muted small">No fees recorded</span>
-            `}
+          <!-- Fees & Lot Breakdown Drawer Button -->
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div>
+              ${hasDrawerContent ? `
+                <button class="btn btn-xs btn-outline btn-toggle-fees" data-drawer-id="drawer_${trade.id}">
+                  <i data-lucide="layers"></i>
+                  <span>${isBuy ? `Fees: ${formatNGN(trade.totalFees)}` : `FIFO Cost Basis & Fees`}</span>
+                  <i data-lucide="chevron-down"></i>
+                </button>
+              ` : `
+                <span class="text-muted small">No fees recorded</span>
+              `}
+            </div>
+            <div class="text-end">
+              <span class="text-secondary small">${isBuy ? 'Net Total Cost:' : 'Net Received:'}</span>
+              <span class="font-mono fw-bold text-accent ms-1">${formatNGN(trade.netAmount || trade.ngnAmount)}</span>
+            </div>
           </div>
 
-          <div class="text-end">
-            <span class="text-muted small">${isBuy ? 'Net Total Cost:' : 'Net Received:'}</span>
-            <span class="font-mono fw-bold text-accent ms-1">${formatNGN(trade.netAmount || trade.ngnAmount)}</span>
-          </div>
-        </div>
-
-        <!-- Collapsible FIFO Cost Basis & Fees Breakdown Drawer -->
-        ${hasDrawerContent ? `
-          <div class="fee-drawer hidden mt-3 p-3" id="drawer_${trade.id}">
-            
-            ${hasMatchedLots ? `
-              <div class="fw-bold mb-2 text-accent d-flex align-items-center gap-1">
-                <i data-lucide="package-check"></i>
-                <span>FIFO Matched Buy Lots</span>
-              </div>
-              <div class="mb-3">
-                ${trade.matchedLots.map(lot => `
-                  <div class="d-flex align-items-center justify-content-between py-1">
-                    <span class="text-secondary">${escapeHtml(lot.source)}: <b>${formatUSDT(lot.qty)}</b> @ ${formatRate(lot.buyRate)}</span>
-                    <span class="font-mono text-main">${formatNGN(lot.lotCost)}</span>
+          <!-- Inner Collapsible FIFO lots -->
+          ${hasDrawerContent ? `
+            <div class="fee-drawer hidden p-3 mb-3" id="drawer_${trade.id}">
+              ${hasMatchedLots ? `
+                <div class="fw-bold mb-2 text-accent d-flex align-items-center gap-1">
+                  <i data-lucide="package-check"></i>
+                  <span>FIFO Matched Buy Lots</span>
+                </div>
+                <div class="mb-3 font-mono text-supporting">
+                  ${trade.matchedLots.map(lot => `
+                    <div class="d-flex align-items-center justify-content-between py-1 border-bottom-subtle">
+                      <span class="text-secondary">${escapeHtml(lot.source)}: <b>${formatUSDT(lot.qty)}</b> @ ${formatRate(lot.buyRate)}</span>
+                      <span class="text-primary-color">${formatNGN(lot.lotCost)}</span>
+                    </div>
+                  `).join('')}
+                  <div class="d-flex align-items-center justify-content-between pt-2 fw-bold text-primary-color">
+                    <span>Total Cost Basis:</span>
+                    <span class="text-warning">${formatNGN(trade.costBasis)}</span>
                   </div>
-                `).join('')}
-                <div class="d-flex align-items-center justify-content-between pt-1 fw-bold">
-                  <span class="text-muted">Total Matched Cost Basis:</span>
-                  <span class="font-mono text-warning">${formatNGN(trade.costBasis)}</span>
                 </div>
-              </div>
-            ` : ''}
+              ` : ''}
 
-            ${hasFees ? `
-              <div class="fw-bold mb-2 text-warning d-flex align-items-center gap-1">
-                <i data-lucide="receipt"></i>
-                <span>Itemized Trade Fees</span>
-              </div>
-              ${trade.fees.map(f => `
-                <div class="d-flex align-items-center justify-content-between py-1">
-                  <span class="text-secondary">${escapeHtml(f.label || f.type)}</span>
-                  <span class="font-mono text-warning">${formatNGN(f.amount)}</span>
+              ${hasFees ? `
+                <div class="fw-bold mb-2 text-warning d-flex align-items-center gap-1">
+                  <i data-lucide="receipt"></i>
+                  <span>Itemized Trade Fees</span>
                 </div>
-              `).join('')}
-            ` : ''}
-          </div>
-        ` : ''}
+                <div class="font-mono text-supporting">
+                  ${trade.fees.map(f => `
+                    <div class="d-flex align-items-center justify-content-between py-1">
+                      <span class="text-secondary">${escapeHtml(f.label || f.type)}</span>
+                      <span class="text-warning">${formatNGN(f.amount)}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
+            </div>
+          ` : ''}
 
-        <!-- Notes -->
-        ${trade.notes ? `
-          <div class="mt-2 text-muted small">
-            <i data-lucide="file-text"></i>
-            ${escapeHtml(trade.notes)}
+          <!-- Expandable Row Actions -->
+          <div class="d-flex justify-content-end gap-2 mt-2">
+            <button class="btn btn-xs btn-outline btn-edit-trade" data-trade-id="${escapeHtml(trade.id)}">
+              <i data-lucide="edit-3"></i>
+              <span>Edit</span>
+            </button>
+            <button class="btn btn-xs btn-danger btn-delete-trade" data-trade-id="${escapeHtml(trade.id)}">
+              <i data-lucide="trash-2"></i>
+              <span>Delete</span>
+            </button>
           </div>
-        ` : ''}
+        </div>
       </div>
     `;
   }).join('');
 
   if (window.lucide) window.lucide.createIcons();
 
-  // Attach Fee Drawers Toggle
+  // Attach Row Expand / Collapse Toggles
+  container.querySelectorAll('.js-row-toggle').forEach(row => {
+    row.addEventListener('click', (e) => {
+      // Prevent click triggers when clicking buttons inside the row
+      if (e.target.closest('.btn-icon') || e.target.closest('button')) return;
+
+      const targetId = row.getAttribute('data-target-drawer');
+      const drawer = document.getElementById(targetId);
+      const chevron = row.querySelector('.row-chevron');
+      if (drawer) {
+        const isCollapsed = drawer.classList.contains('hidden');
+        drawer.classList.toggle('hidden');
+        if (chevron) {
+          chevron.style.transform = isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+      }
+    });
+  });
+
+  // Attach Fee Drawers Toggle inside panels
   container.querySelectorAll('.btn-toggle-fees').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const drawerId = btn.getAttribute('data-drawer-id');
       const drawer = document.getElementById(drawerId);
+      const icon = btn.querySelector('.lucide-chevron-down, .lucide-chevron-up');
       if (drawer) {
         drawer.classList.toggle('hidden');
       }
     });
   });
 
-  // Attach Edit Listeners
+  // Attach Edit Listeners inside drawers
   container.querySelectorAll('.btn-edit-trade').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -375,7 +449,7 @@ export function renderTradeHistory() {
     });
   });
 
-  // Attach Delete Listeners
+  // Attach Delete Listeners inside drawers
   container.querySelectorAll('.btn-delete-trade').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -393,5 +467,59 @@ export function renderTradeHistory() {
         );
       }
     });
+  });
+
+  // 5. Render Pagination Controls
+  renderPaginationControls(totalPages, totalItems, startIndex, endIndex);
+}
+
+/**
+ * Render pagination numbers, info, and bind event handlers
+ */
+function renderPaginationControls(totalPages, totalItems, startIndex, endIndex) {
+  const paginationContainer = document.getElementById('history-pagination');
+  if (!paginationContainer) return;
+
+  if (totalPages <= 1) {
+    paginationContainer.classList.add('hidden');
+    paginationContainer.innerHTML = '';
+    return;
+  }
+
+  paginationContainer.classList.remove('hidden');
+  paginationContainer.innerHTML = `
+    <button class="pagination-btn" id="btn-history-prev" ${currentPage === 1 ? 'disabled' : ''}>
+      <i data-lucide="chevron-left"></i>
+      <span>Prev</span>
+    </button>
+    <span class="pagination-info">
+      ${startIndex + 1}-${endIndex} of ${totalItems}
+    </span>
+    <button class="pagination-btn" id="btn-history-next" ${currentPage === totalPages ? 'disabled' : ''}>
+      <span>Next</span>
+      <i data-lucide="chevron-right"></i>
+    </button>
+  `;
+
+  if (window.lucide) window.lucide.createIcons();
+
+  // Attach Pagination Button Handlers
+  const btnPrev = document.getElementById('btn-history-prev');
+  const btnNext = document.getElementById('btn-history-next');
+
+  btnPrev?.addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      renderTradeHistory();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  });
+
+  btnNext?.addEventListener('click', () => {
+    if (currentPage < totalPages) {
+      currentPage++;
+      renderTradeHistory();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   });
 }

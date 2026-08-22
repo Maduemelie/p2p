@@ -3,11 +3,11 @@
  * Provides offline shell caching and network fallback
  */
 
-const CACHE_NAME = 'bybit-p2p-v4';
+const CACHE_NAME = 'bybit-p2p-v5';
 const STATIC_ASSETS = [
   './',
   './index.html',
-  './css/styles.css?v=2.2',
+  './css/styles.css?v=2.3',
   './js/app.js',
   './manifest.json',
   './icons/icon.svg',

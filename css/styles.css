@@ -1118,6 +1118,12 @@ img { max-width: 100%; display: block; }
 .trade-list-item:hover { background: var(--bg-hover); }
 .trade-list-item:last-child { border-bottom: none; }
 
+.row-chevron {
+  transition: transform var(--duration-normal) var(--ease-out);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
 .trade-list-left { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; flex: 1; }
 .trade-type-indicator { width: 36px; height: 36px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .trade-type-indicator svg { width: 18px; height: 18px; }
