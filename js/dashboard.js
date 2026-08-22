@@ -114,9 +114,8 @@ export async function syncAndRenderActiveAd(showToast = false) {
       console.log('[Ad Profit Debug]', { adPrice, avgBuyCost, spreadPerUsdt, totalInAd, projectedGross, projectedNet });
 
       if (adBadge) {
-        adBadge.style.background = 'rgba(16, 185, 129, 0.15)';
-        adBadge.style.color = 'var(--profit)';
-        adBadge.textContent = '● Active Sell Ad';
+        adBadge.className = 'live-badge';
+        adBadge.innerHTML = '<span class="live-badge-dot"></span>Active Sell Ad';
       }
       if (adTitle) adTitle.textContent = `Bybit Sell Ad #${activeSellAd.id}`;
       if (metricAdPrice) metricAdPrice.textContent = `₦${adPrice.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
@@ -127,14 +126,15 @@ export async function syncAndRenderActiveAd(showToast = false) {
 
       if (metricSpread) {
         metricSpread.textContent = `${spreadPerUsdt >= 0 ? '+' : ''}₦${spreadPerUsdt.toFixed(2)} / USDT`;
-        metricSpread.className = `font-mono fw-bold fs-5 ${spreadPerUsdt >= 0 ? 'text-profit' : 'text-loss'}`;
+        metricSpread.className = `ad-metric-value font-mono ${spreadPerUsdt >= 0 ? 'text-success' : 'text-danger'}`;
       }
       if (metricMarginPct) {
         metricMarginPct.textContent = `${marginPct >= 0 ? '+' : ''}${marginPct.toFixed(2)}% margin`;
-        metricMarginPct.className = `small d-block mt-1 ${marginPct >= 0 ? 'text-profit' : 'text-loss'}`;
+        metricMarginPct.className = `ad-metric-sub ${marginPct >= 0 ? 'text-success' : 'text-danger'}`;
       }
       if (metricProjectedPnl) {
         metricProjectedPnl.textContent = `${projectedNet >= 0 ? '+' : ''}₦${projectedNet.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+        metricProjectedPnl.className = `ad-metric-value font-mono ${projectedNet >= 0 ? 'text-success' : 'text-danger'}`;
       }
 
       if (showToast && window.showToast) {
@@ -142,18 +142,26 @@ export async function syncAndRenderActiveAd(showToast = false) {
       }
     } else {
       if (adBadge) {
-        adBadge.style.background = 'rgba(255, 255, 255, 0.08)';
-        adBadge.style.color = 'var(--text-muted)';
-        adBadge.textContent = '○ No Active Ad';
+        adBadge.className = 'badge badge-neutral';
+        adBadge.innerHTML = 'No Active Ad';
       }
       if (adTitle) adTitle.textContent = 'No Live Sell Ad on Bybit';
       if (metricAdPrice) metricAdPrice.textContent = '—';
       if (metricAdQty) metricAdQty.textContent = 'Post a Sell Ad on Bybit';
       if (metricAvgBuy) metricAvgBuy.textContent = `₦${avgBuyCost.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
       if (metricTotalBought) metricTotalBought.textContent = `${fifoResult.remainingInventoryUSDT.toFixed(2)} USDT in stock`;
-      if (metricSpread) metricSpread.textContent = '—';
-      if (metricMarginPct) metricMarginPct.textContent = 'Waiting for active ad';
-      if (metricProjectedPnl) metricProjectedPnl.textContent = '₦0.00';
+      if (metricSpread) {
+        metricSpread.textContent = '—';
+        metricSpread.className = 'ad-metric-value font-mono text-accent';
+      }
+      if (metricMarginPct) {
+        metricMarginPct.textContent = 'Waiting for active ad';
+        metricMarginPct.className = 'ad-metric-sub';
+      }
+      if (metricProjectedPnl) {
+        metricProjectedPnl.textContent = '₦0.00';
+        metricProjectedPnl.className = 'ad-metric-value font-mono';
+      }
 
       if (showToast && window.showToast) {
         window.showToast('No active Bybit sell advertisements found.', 'info');
@@ -313,23 +321,22 @@ export function renderDashboardMetrics() {
   // 1. Realized P&L
   if (statNetPnl) {
     statNetPnl.textContent = formatNGN(totalRealizedPnL);
-    statNetPnl.className = `metric-value font-mono ${totalRealizedPnL >= 0 ? 'text-profit' : 'text-loss'}`;
+    statNetPnl.className = `hero-stat-value font-mono ${totalRealizedPnL >= 0 ? 'text-success' : 'text-danger'}`;
   }
 
   if (statPnlRate) {
     const roiStr = Math.abs(overallROI).toFixed(2);
-    if (totalRealizedPnL >= 0) {
-      statPnlRate.innerHTML = `<i data-lucide="sparkles"></i> +${roiStr}% ROI on closed trades`;
-      statPnlRate.className = 'metric-footer text-profit';
-    } else {
-      statPnlRate.innerHTML = `<i data-lucide="alert-triangle"></i> -${roiStr}% loss on closed trades`;
-      statPnlRate.className = 'metric-footer text-loss';
-    }
+    const isProfitable = totalRealizedPnL >= 0;
+    statPnlRate.innerHTML = `
+      <span class="badge ${isProfitable ? 'badge-success' : 'badge-danger'}" id="pnl-roi-badge">
+        <i data-lucide="${isProfitable ? 'trending-up' : 'trending-down'}" id="pnl-icon"></i>
+        <span>${isProfitable ? '+' : '-'}${roiStr}% ROI</span>
+      </span>
+    `;
   }
 
   if (pnlIconBox) {
-    pnlIconBox.className = `metric-icon-box ${totalRealizedPnL >= 0 ? 'profit-glow' : 'loss-glow'}`;
-    pnlIconBox.innerHTML = `<i data-lucide="${totalRealizedPnL >= 0 ? 'trending-up' : 'trending-down'}"></i>`;
+    pnlIconBox.style.display = 'none';
   }
 
   // 2. USDT Inventory
@@ -358,7 +365,7 @@ export function renderDashboardMetrics() {
 
   if (statTotalBankCash) {
     statTotalBankCash.textContent = formatNGN(totalBankCash);
-    statTotalBankCash.className = `metric-value font-mono ${totalBankCash >= 0 ? 'text-profit' : 'text-loss'}`;
+    statTotalBankCash.className = `stat-chip-value ${totalBankCash >= 0 ? 'text-success' : 'text-danger'}`;
   }
   if (statBankCashSubtext) {
     statBankCashSubtext.textContent = `Across ${activeBanksCount} linked ${activeBanksCount === 1 ? 'account' : 'accounts'}`;
@@ -416,24 +423,22 @@ export function renderRecentTradesList() {
     if (!isBuy && trade.realizedPnL !== null) {
       const isProfitable = trade.realizedPnL >= 0;
       pnlBadge = `
-        <span class="small brand-tag" style="background: ${isProfitable ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)'}; color: ${isProfitable ? 'var(--profit)' : 'var(--loss)'}; border: none;">
+        <span class="badge ${isProfitable ? 'badge-success' : 'badge-danger'}">
           P&L: ${formatNGN(trade.realizedPnL)}
         </span>
       `;
     }
 
     return `
-      <div class="card mb-2 p-3 d-flex align-items-center justify-content-between cursor-pointer trade-preview-item" 
-           data-trade-id="${escapeHtml(trade.id)}" 
-           style="background: rgba(10, 16, 28, 0.6); transition: all 0.2s ease;">
+      <div class="trade-list-item cursor-pointer trade-preview-item" data-trade-id="${escapeHtml(trade.id)}">
         <div class="d-flex align-items-center gap-3">
-          <div class="metric-icon-box ${isBuy ? 'profit-glow' : 'loss-glow'}">
+          <div class="trade-type-indicator ${isBuy ? 'buy-indicator' : 'sell-indicator'}">
             <i data-lucide="${isBuy ? 'arrow-down-left' : 'arrow-up-right'}"></i>
           </div>
           <div>
             <div class="d-flex align-items-center gap-2">
               <span class="fw-bold font-mono">${formatNGN(trade.ngnAmount)}</span>
-              <span class="small brand-tag" style="background: ${isBuy ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)'}; color: ${isBuy ? 'var(--profit)' : 'var(--loss)'}; border-color: transparent;">
+              <span class="badge ${isBuy ? 'badge-buy' : 'badge-sell'}">
                 ${trade.type}
               </span>
               ${pnlBadge}

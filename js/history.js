@@ -22,13 +22,16 @@ export function initHistory() {
     }
   });
 
-  // Quick export button hook
+  // Quick export button hooks
+  const btnExportCsvInline = document.getElementById('btn-export-csv-inline');
+  btnExportCsvInline?.addEventListener('click', () => {
+    // Import dynamically to avoid circular deps  
+    import('./export.js').then(mod => mod.exportTradesToCSV());
+  });
+
   const btnExportQuick = document.getElementById('btn-export-quick');
   btnExportQuick?.addEventListener('click', () => {
-    if (window.switchView) {
-      window.switchView('settings');
-      if (window.showToast) window.showToast('Select CSV or JSON export below', 'info');
-    }
+    import('./export.js').then(mod => mod.exportFullBackupJSON());
   });
 }
 
@@ -192,7 +195,7 @@ export function renderTradeHistory() {
       const isProfitable = trade.realizedPnL >= 0;
       const roiStr = Math.abs(trade.roiPercent || 0).toFixed(2);
       pnlBadge = `
-        <span class="brand-tag" style="background: ${isProfitable ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)'}; color: ${isProfitable ? 'var(--profit)' : 'var(--loss)'}; border: 1px solid ${isProfitable ? 'rgba(16, 185, 129, 0.4)' : 'rgba(244, 63, 94, 0.4)'}; font-weight: 700;">
+        <span class="badge ${isProfitable ? 'badge-success' : 'badge-danger'}">
           P&L: ${formatNGN(trade.realizedPnL)} (${isProfitable ? '+' : '-'}${roiStr}%)
         </span>
       `;
@@ -202,20 +205,22 @@ export function renderTradeHistory() {
     let unmatchedBadge = '';
     if (trade.unmatchedQty > 0) {
       unmatchedBadge = `
-        <div class="mt-2 p-2 d-flex align-items-center gap-2" style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: var(--radius-sm); font-size: 0.78rem; color: var(--warning);">
-          <i data-lucide="alert-triangle" style="width: 14px; height: 14px; flex-shrink: 0;"></i>
+        <div class="alert alert-warning mt-2 p-2 d-flex align-items-center gap-2">
+          <i data-lucide="alert-triangle"></i>
           <span><b>${formatUSDT(trade.unmatchedQty)}</b> sold from external / unrecorded inventory (0% P&L assumed for this portion).</span>
         </div>
       `;
     }
 
+    const tradeClass = isBuy ? 'trade-buy' : (trade.realizedPnL !== null && trade.realizedPnL < 0 ? 'trade-sell-loss' : 'trade-sell-profit');
+    
     return `
-      <div class="card mb-3 trade-history-card" style="border-left: 4px solid ${isBuy ? 'var(--profit)' : (trade.realizedPnL !== null && trade.realizedPnL < 0 ? 'var(--loss)' : 'var(--profit)')};">
+      <div class="card mb-3 trade-history-card ${tradeClass}">
         <!-- Top Row: Type Badge, Date, PnL & Actions -->
         <div class="d-flex align-items-center justify-content-between mb-3">
           <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="brand-tag" style="background: ${isBuy ? 'rgba(16, 185, 129, 0.18)' : 'rgba(244, 63, 94, 0.18)'}; color: ${isBuy ? 'var(--profit)' : 'var(--loss)'}; border-color: ${isBuy ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'};">
-              <i data-lucide="${isBuy ? 'arrow-down-left' : 'arrow-up-right'}" style="width: 12px; height: 12px; vertical-align: middle;"></i>
+            <span class="badge ${isBuy ? 'badge-buy' : 'badge-sell'}">
+              <i data-lucide="${isBuy ? 'arrow-down-left' : 'arrow-up-right'}"></i>
               ${trade.type} USDT
             </span>
             ${pnlBadge}
@@ -223,10 +228,10 @@ export function renderTradeHistory() {
           </div>
 
           <div class="d-flex align-items-center gap-1">
-            <button class="btn-icon btn-sm btn-edit-trade" data-trade-id="${escapeHtml(trade.id)}" title="Edit Trade" aria-label="Edit Trade" style="width: 32px; height: 32px;">
+            <button class="btn-icon btn-sm btn-edit-trade" data-trade-id="${escapeHtml(trade.id)}" title="Edit Trade" aria-label="Edit Trade">
               <i data-lucide="edit-3"></i>
             </button>
-            <button class="btn-icon btn-sm btn-delete-trade text-loss" data-trade-id="${escapeHtml(trade.id)}" title="Delete Trade" aria-label="Delete Trade" style="width: 32px; height: 32px;">
+            <button class="btn-icon btn-sm btn-delete-trade text-loss" data-trade-id="${escapeHtml(trade.id)}" title="Delete Trade" aria-label="Delete Trade">
               <i data-lucide="trash-2"></i>
             </button>
           </div>
@@ -236,20 +241,20 @@ export function renderTradeHistory() {
         <div class="d-flex align-items-baseline justify-content-between mb-3">
           <div>
             <div class="text-muted small">${isBuy ? 'Gross Paid' : 'Gross Received'}</div>
-            <div class="font-mono fw-bold" style="font-size: 1.35rem; color: ${isBuy ? 'var(--text-main)' : 'var(--profit)'};">
+            <div class="metric-value font-mono fw-bold">
               ${formatNGN(trade.ngnAmount)}
             </div>
           </div>
           <div class="text-end">
             <div class="text-muted small">Crypto Volume</div>
-            <div class="font-mono fw-bold text-accent" style="font-size: 1.15rem;">
+            <div class="font-mono fw-bold text-accent">
               ${formatUSDT(trade.usdtAmount)}
             </div>
           </div>
         </div>
 
         <!-- Trade Breakdown Metadata Grid -->
-        <div class="trade-meta-grid p-3 mb-2" style="background: rgba(10, 16, 28, 0.5); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; font-size: 0.82rem;">
+        <div class="trade-meta-grid card-flat p-3 mb-2">
           <div>
             <span class="text-muted">Order Rate:</span>
             <span class="font-mono text-main ms-1">${formatRate(trade.rate)}</span>
@@ -267,7 +272,7 @@ export function renderTradeHistory() {
             <span class="text-main ms-1">${escapeHtml(trade.paymentMethod || 'Bank Transfer')}</span>
           </div>
           ${trade.counterparty ? `
-            <div style="grid-column: span 2;">
+            <div class="col-span-2">
               <span class="text-muted">Counterparty:</span>
               <span class="text-main ms-1 font-mono">${escapeHtml(trade.counterparty)}</span>
             </div>
@@ -278,13 +283,13 @@ export function renderTradeHistory() {
         ${unmatchedBadge}
 
         <!-- Fees & Cost Breakdown Row -->
-        <div class="d-flex align-items-center justify-content-between pt-2" style="border-top: 1px solid var(--border-subtle); font-size: 0.85rem;">
+        <div class="d-flex align-items-center justify-content-between pt-2">
           <div>
             ${hasDrawerContent ? `
               <button class="btn-link btn-toggle-fees text-accent d-flex align-items-center gap-1" data-drawer-id="drawer_${trade.id}">
-                <i data-lucide="layers" style="width: 14px; height: 14px;"></i>
+                <i data-lucide="layers"></i>
                 <span>${isBuy ? `Fees: ${formatNGN(trade.totalFees)}` : `FIFO Cost Basis & Fees`}</span>
-                <i data-lucide="chevron-down" style="width: 14px; height: 14px;"></i>
+                <i data-lucide="chevron-down"></i>
               </button>
             ` : `
               <span class="text-muted small">No fees recorded</span>
@@ -299,16 +304,16 @@ export function renderTradeHistory() {
 
         <!-- Collapsible FIFO Cost Basis & Fees Breakdown Drawer -->
         ${hasDrawerContent ? `
-          <div class="fee-drawer hidden mt-3 p-3" id="drawer_${trade.id}" style="background: rgba(14, 22, 38, 0.7); border-radius: var(--radius-sm); border: 1px dashed var(--border-subtle); font-size: 0.8rem;">
+          <div class="fee-drawer hidden mt-3 p-3" id="drawer_${trade.id}">
             
             ${hasMatchedLots ? `
               <div class="fw-bold mb-2 text-accent d-flex align-items-center gap-1">
-                <i data-lucide="package-check" style="width: 14px; height: 14px;"></i>
+                <i data-lucide="package-check"></i>
                 <span>FIFO Matched Buy Lots</span>
               </div>
               <div class="mb-3">
                 ${trade.matchedLots.map(lot => `
-                  <div class="d-flex align-items-center justify-content-between py-1" style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                  <div class="d-flex align-items-center justify-content-between py-1">
                     <span class="text-secondary">${escapeHtml(lot.source)}: <b>${formatUSDT(lot.qty)}</b> @ ${formatRate(lot.buyRate)}</span>
                     <span class="font-mono text-main">${formatNGN(lot.lotCost)}</span>
                   </div>
@@ -322,11 +327,11 @@ export function renderTradeHistory() {
 
             ${hasFees ? `
               <div class="fw-bold mb-2 text-warning d-flex align-items-center gap-1">
-                <i data-lucide="receipt" style="width: 14px; height: 14px;"></i>
+                <i data-lucide="receipt"></i>
                 <span>Itemized Trade Fees</span>
               </div>
               ${trade.fees.map(f => `
-                <div class="d-flex align-items-center justify-content-between py-1" style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                <div class="d-flex align-items-center justify-content-between py-1">
                   <span class="text-secondary">${escapeHtml(f.label || f.type)}</span>
                   <span class="font-mono text-warning">${formatNGN(f.amount)}</span>
                 </div>
@@ -337,8 +342,8 @@ export function renderTradeHistory() {
 
         <!-- Notes -->
         ${trade.notes ? `
-          <div class="mt-2 text-muted small" style="font-style: italic;">
-            <i data-lucide="file-text" style="width: 12px; height: 12px; vertical-align: middle;"></i>
+          <div class="mt-2 text-muted small">
+            <i data-lucide="file-text"></i>
             ${escapeHtml(trade.notes)}
           </div>
         ` : ''}
@@ -376,9 +381,16 @@ export function renderTradeHistory() {
       e.stopPropagation();
       const tradeId = btn.getAttribute('data-trade-id');
       const trade = store.getTradeById(tradeId);
-      if (confirm(`Are you sure you want to delete this ${trade?.type || ''} trade (${formatNGN(trade?.ngnAmount || 0)})?`)) {
-        store.deleteTrade(tradeId);
-        if (window.showToast) window.showToast('Trade deleted successfully', 'info');
+      if (window.showConfirmModal) {
+        window.showConfirmModal(
+          'Delete Trade?',
+          `Are you sure you want to delete this ${trade?.type || ''} trade (${formatNGN(trade?.ngnAmount || 0)})?`,
+          () => {
+            store.deleteTrade(tradeId);
+            if (window.showToast) window.showToast('Trade deleted', 'info');
+          },
+          'danger'
+        );
       }
     });
   });

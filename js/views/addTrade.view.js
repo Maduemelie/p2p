@@ -1,5 +1,7 @@
 /**
- * View: Add & Edit Trade Component
+ * View: Record Trade Form — Redesigned v2.0
+ * Sectioned form with prominent Buy/Sell indicator, collapsible fees,
+ * and calculation summary. Uses CSS classes only, no inline styles.
  */
 export function renderAddTradeView() {
   return `
@@ -7,180 +9,207 @@ export function renderAddTradeView() {
       <div class="view-header">
         <div>
           <h2 class="view-title" id="trade-form-title">Record Trade</h2>
-          <p class="view-subtitle">Enter your Bybit USDT/NGN P2P order details</p>
+          <p class="view-subtitle" id="trade-form-subtitle">Log a new BUY or SELL order</p>
         </div>
+        <button class="btn btn-sm btn-ghost hidden" id="btn-cancel-edit">
+          <i data-lucide="x"></i>
+          <span>Cancel Edit</span>
+        </button>
       </div>
 
-      <!-- Trade Mode Toggle (Buy vs Sell) -->
-      <div class="segmented-control trade-type-selector mb-4" id="trade-type-segmented">
-        <button type="button" class="seg-btn active trade-buy-btn" data-type="BUY" id="btn-type-buy">
+      <!-- Trade Direction Toggle -->
+      <div class="segmented-control trade-type-selector mb-4" id="trade-type-toggle">
+        <button type="button" class="seg-btn trade-buy-btn active" data-direction="BUY">
           <i data-lucide="arrow-down-left"></i>
-          <span>Buy USDT (Pay NGN)</span>
+          <span>BUY USDT</span>
         </button>
-        <button type="button" class="seg-btn trade-sell-btn" data-type="SELL" id="btn-type-sell">
+        <button type="button" class="seg-btn trade-sell-btn" data-direction="SELL">
           <i data-lucide="arrow-up-right"></i>
-          <span>Sell USDT (Receive NGN)</span>
+          <span>SELL USDT</span>
         </button>
+      </div>
+
+      <!-- Edit Mode Alert -->
+      <div class="alert alert-info mb-4 hidden" id="edit-mode-alert">
+        <i data-lucide="edit-3"></i>
+        <span>You are editing an existing trade. Save or cancel to return.</span>
       </div>
 
       <!-- Trade Entry Form -->
-      <form class="trade-form card" id="form-trade" novalidate>
-        <input type="hidden" id="trade-id" value="">
-        <input type="hidden" id="trade-direction" value="BUY">
+      <form id="form-add-trade" novalidate>
 
-        <div class="form-grid">
-          <!-- Date & Time -->
-          <div class="form-group col-12 col-md-6">
-            <label for="trade-date" class="form-label">
-              <i data-lucide="calendar"></i> Date & Time
-            </label>
-            <input type="datetime-local" id="trade-date" class="form-input" required>
+        <!-- Section 1: Order Details -->
+        <div class="form-section">
+          <div class="form-section-title">
+            <i data-lucide="clipboard-list"></i>
+            Order Details
           </div>
-
-          <!-- Bank Account Selection -->
-          <div class="form-group col-12 col-md-6">
-            <label for="trade-bank-account" class="form-label">
-              <i data-lucide="landmark"></i> Bank Account Used
-            </label>
-            <div class="select-with-add">
-              <select id="trade-bank-account" class="form-select" required>
-                <option value="" disabled selected>Select Bank Account</option>
-                <option value="default_opay">OPay (•••• 1234)</option>
-                <option value="default_kuda">Kuda Bank (•••• 5678)</option>
-                <option value="default_gtb">GTBank (•••• 9012)</option>
-              </select>
-              <button type="button" class="btn btn-secondary btn-icon-only" id="btn-quick-add-bank" title="Add New Bank Account">
-                <i data-lucide="plus"></i>
-              </button>
+          <div class="form-grid">
+            <div class="form-group col-12 col-md-6">
+              <label for="trade-date" class="form-label">
+                <i data-lucide="calendar"></i> Date & Time
+              </label>
+              <input type="datetime-local" id="trade-date" class="form-input" required>
             </div>
-          </div>
-
-          <!-- Rate (₦/USDT) -->
-          <div class="form-group col-12 col-md-4">
-            <label for="trade-rate" class="form-label">
-              <i data-lucide="percent"></i> Rate (₦ / 1 USDT)
-            </label>
-            <div class="input-affix-wrapper">
-              <span class="input-prefix">₦</span>
-              <input type="number" step="0.01" min="0.01" id="trade-rate" class="form-input font-mono" placeholder="1450.00" required>
-            </div>
-          </div>
-
-          <!-- Amount NGN -->
-          <div class="form-group col-12 col-md-4">
-            <label for="trade-ngn-amount" class="form-label" id="label-ngn-amount">
-              <i data-lucide="banknote"></i> NGN Amount Paid
-            </label>
-            <div class="input-affix-wrapper">
-              <span class="input-prefix">₦</span>
-              <input type="number" step="0.01" min="0.01" id="trade-ngn-amount" class="form-input font-mono" placeholder="100,000.00" required>
-            </div>
-          </div>
-
-          <!-- Amount USDT (Auto Calculated or manual) -->
-          <div class="form-group col-12 col-md-4">
-            <label for="trade-usdt-amount" class="form-label" id="label-usdt-amount">
-              <i data-lucide="coins"></i> USDT Expected
-            </label>
-            <div class="input-affix-wrapper">
-              <span class="input-prefix">$</span>
-              <input type="number" step="0.0001" min="0.0001" id="trade-usdt-amount" class="form-input font-mono highlight-input" placeholder="68.96" required>
-              <span class="input-suffix">USDT</span>
-            </div>
-          </div>
-
-          <!-- Counterparty Name / Bybit Nickname -->
-          <div class="form-group col-12 col-md-6">
-            <label for="trade-counterparty" class="form-label">
-              <i data-lucide="user"></i> Counterparty / Merchant Nickname
-            </label>
-            <input type="text" id="trade-counterparty" class="form-input" placeholder="e.g. BybitProTrader99">
-          </div>
-
-          <!-- Payment Method -->
-          <div class="form-group col-12 col-md-6">
-            <label for="trade-payment-method" class="form-label">
-              <i data-lucide="credit-card"></i> Payment Method
-            </label>
-            <select id="trade-payment-method" class="form-select">
-              <option value="Bank Transfer" selected>Bank Transfer</option>
-              <option value="OPay">OPay</option>
-              <option value="Palmpay">Palmpay</option>
-              <option value="Kuda">Kuda Bank</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Dynamic Fees Section -->
-        <div class="fees-section mt-4">
-          <div class="fees-header">
-            <div class="d-flex align-items-center gap-2">
-              <i data-lucide="receipt" class="text-warning"></i>
-              <h4 class="fees-title">Fees Breakdown</h4>
-            </div>
-            <button type="button" class="btn btn-xs btn-outline" id="btn-add-fee-row">
-              <i data-lucide="plus"></i> Add Fee Row
-            </button>
-          </div>
-
-          <div class="fees-list" id="fees-container">
-            <!-- Default fee row: Bank Transfer fee -->
-            <div class="fee-row" data-fee-index="0">
-              <div class="fee-type-col">
-                <select class="form-select fee-type-select">
-                  <option value="Bank Transfer Fee" selected>Bank Transfer Fee</option>
-                  <option value="Bybit P2P Fee">Bybit P2P Fee</option>
-                  <option value="Network / Gas Fee">Network / Gas Fee</option>
-                  <option value="SMS / Alert Fee">SMS / Alert Fee</option>
-                  <option value="Custom">Custom Label...</option>
+            <div class="form-group col-12 col-md-6">
+              <label for="trade-bank-account" class="form-label">
+                <i data-lucide="landmark"></i> Bank Account
+              </label>
+              <div class="select-with-add">
+                <select id="trade-bank-account" class="form-select" required>
+                  <option value="" disabled>Select Bank Account</option>
                 </select>
-                <input type="text" class="form-input fee-custom-label mt-1 hidden" placeholder="Fee description">
+                <button type="button" class="btn btn-icon btn-outline" id="btn-quick-add-bank" title="Quick Add Bank">
+                  <i data-lucide="plus"></i>
+                </button>
               </div>
-              <div class="fee-amount-col">
-                <div class="input-affix-wrapper">
-                  <span class="input-prefix">₦</span>
-                  <input type="number" step="0.01" min="0" class="form-input font-mono fee-amount-input" placeholder="0.00" value="0.00">
-                </div>
-              </div>
-              <button type="button" class="btn-icon btn-remove-fee" title="Remove Fee" aria-label="Remove Fee">
-                <i data-lucide="trash-2"></i>
-              </button>
             </div>
-          </div>
-
-          <div class="fee-summary-bar">
-            <span class="text-muted">Total Trade Fees:</span>
-            <span class="font-mono text-warning fw-bold" id="calculated-total-fees">₦0.00</span>
           </div>
         </div>
 
-        <!-- Trade Calculation Breakdown Box -->
-        <div class="calculation-summary-card mt-4">
-          <div class="summary-row">
-            <span class="summary-label">Effective Rate (including fees):</span>
-            <span class="summary-value font-mono" id="summary-effective-rate">₦0.00 / USDT</span>
+        <!-- Section 2: Price & Amount -->
+        <div class="form-section">
+          <div class="form-section-title">
+            <i data-lucide="calculator"></i>
+            Price & Amount
           </div>
-          <div class="summary-row summary-row-total">
-            <span class="summary-label" id="summary-net-label">Net Total Cost:</span>
-            <span class="summary-value font-mono fw-bold text-accent" id="summary-net-amount">₦0.00</span>
+          <div class="form-grid">
+            <div class="form-group col-12 col-md-4">
+              <label for="trade-rate" class="form-label">
+                <i data-lucide="trending-up"></i> Rate (NGN / USDT)
+              </label>
+              <div class="input-affix-wrapper">
+                <span class="input-prefix">₦</span>
+                <input type="number" step="0.01" min="0" id="trade-rate" class="form-input font-mono" placeholder="1,600.00" required>
+              </div>
+            </div>
+            <div class="form-group col-12 col-md-4">
+              <label for="trade-ngn" class="form-label">
+                <i data-lucide="banknote"></i> NGN Amount
+              </label>
+              <div class="input-affix-wrapper">
+                <span class="input-prefix">₦</span>
+                <input type="number" step="0.01" min="0" id="trade-ngn" class="form-input font-mono" placeholder="500,000.00" required>
+              </div>
+            </div>
+            <div class="form-group col-12 col-md-4">
+              <label for="trade-usdt" class="form-label">
+                <i data-lucide="coins"></i> USDT Amount
+              </label>
+              <div class="input-affix-wrapper">
+                <span class="input-prefix">$</span>
+                <input type="number" step="0.0001" min="0" id="trade-usdt" class="form-input font-mono" placeholder="312.50">
+                <span class="input-suffix">USDT</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 3: Trade Info -->
+        <div class="form-section">
+          <div class="form-section-title">
+            <i data-lucide="users"></i>
+            Trade Info
+          </div>
+          <div class="form-grid">
+            <div class="form-group col-12 col-md-6">
+              <label for="trade-counterparty" class="form-label">
+                <i data-lucide="user"></i> Counterparty (Optional)
+              </label>
+              <input type="text" id="trade-counterparty" class="form-input" placeholder="Bybit username or real name">
+            </div>
+            <div class="form-group col-12 col-md-6">
+              <label for="trade-payment-method" class="form-label">
+                <i data-lucide="credit-card"></i> Payment Method
+              </label>
+              <select id="trade-payment-method" class="form-select">
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Bybit P2P">Bybit P2P</option>
+                <option value="USSD">USSD</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 4: Fees (Collapsible) -->
+        <div class="form-section">
+          <div class="fees-section">
+            <div class="fees-header">
+              <span class="fees-title">Trading Fees</span>
+              <button type="button" class="btn btn-xs btn-outline" id="btn-add-fee-row">
+                <i data-lucide="plus"></i> Add Fee
+              </button>
+            </div>
+
+            <div id="fees-container">
+              <div class="fee-row" id="fee_row_0">
+                <div class="fee-type-col">
+                  <select class="form-select select-sm fee-type-select">
+                    <option value="Bank Transfer Fee" selected>Bank Transfer Fee</option>
+                    <option value="Bybit P2P Fee">Bybit P2P Fee</option>
+                    <option value="Network / Gas Fee">Network / Gas Fee</option>
+                    <option value="SMS / Alert Fee">SMS / Alert Fee</option>
+                    <option value="Custom">Custom Label...</option>
+                  </select>
+                  <input type="text" class="form-input select-sm fee-custom-label mt-1 hidden" placeholder="e.g. Stamp Duty">
+                </div>
+                <div class="fee-amount-col">
+                  <div class="input-affix-wrapper">
+                    <span class="input-prefix">₦</span>
+                    <input type="number" step="0.01" min="0" class="form-input font-mono fee-amount-input" placeholder="0.00" value="0.00">
+                  </div>
+                </div>
+                <button type="button" class="btn-remove-fee" title="Remove Fee" aria-label="Remove Fee">
+                  <i data-lucide="trash-2"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="fee-summary-bar">
+              <span class="text-muted fw-semibold">Total Fees:</span>
+              <span class="font-mono fw-bold text-warning" id="calculated-total-fees">₦0.00</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Calculation Summary -->
+        <div class="form-section">
+          <div class="calculation-summary-card">
+            <div class="summary-row">
+              <span>Gross <span id="summary-direction-label">Paid</span>:</span>
+              <span class="font-mono fw-bold" id="summary-gross-ngn">₦0.00</span>
+            </div>
+            <div class="summary-row">
+              <span>Total Fees:</span>
+              <span class="font-mono fw-semibold text-warning" id="summary-total-fees">₦0.00</span>
+            </div>
+            <div class="summary-row summary-row-total">
+              <span class="fw-bold">Effective <span id="summary-effective-label">Cost</span>:</span>
+              <span class="font-mono fw-bold text-accent" id="summary-effective-rate">₦0.00 / USDT</span>
+            </div>
+            <div class="summary-row summary-row-total">
+              <span class="fw-bold">Net <span id="summary-net-label">Total</span>:</span>
+              <span class="font-mono fw-bold text-accent" id="summary-net-ngn">₦0.00</span>
+            </div>
           </div>
         </div>
 
         <!-- Notes -->
-        <div class="form-group mt-3">
-          <label for="trade-notes" class="form-label">
-            <i data-lucide="file-text"></i> Trade Notes & Reference (Optional)
-          </label>
-          <textarea id="trade-notes" class="form-textarea" rows="2" placeholder="Order ID, reference number, or special trade notes..."></textarea>
+        <div class="form-section">
+          <div class="form-group">
+            <label for="trade-notes" class="form-label">
+              <i data-lucide="file-text"></i> Notes (Optional)
+            </label>
+            <textarea id="trade-notes" class="form-textarea" rows="2" placeholder="e.g. Quick buy for arbitrage, seller very fast..."></textarea>
+          </div>
         </div>
 
-        <!-- Form Actions -->
-        <div class="form-actions mt-4">
-          <button type="button" class="btn btn-secondary hidden" id="btn-cancel-edit">Cancel Edit</button>
-          <button type="submit" class="btn btn-primary btn-block" id="btn-save-trade">
-            <i data-lucide="check-circle-2"></i>
-            <span id="btn-save-trade-text">Record Trade</span>
+        <!-- Submit -->
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary btn-block" id="btn-submit-trade">
+            <i data-lucide="check-circle"></i>
+            <span id="btn-submit-label">Save Trade</span>
           </button>
         </div>
       </form>

@@ -1,6 +1,6 @@
 /**
  * Bybit NGN P2P Trade Tracker — Trade Entry & Form Controller
- * Manages Buy/Sell toggle, reactive rate math, validation, and submission
+ * v2.0 — Redesigned with inline validation and sticky summaries
  */
 
 import { store } from './store.js';
@@ -9,14 +9,14 @@ import { initFees, getFeeItems, getTotalFees, updateFeeSummaryDisplay, resetFees
 
 let isEditing = false;
 let currentEditId = null;
+let currentDirection = 'BUY'; // Tracks current toggle state: BUY or SELL
 
 export function initTrades() {
-  const formTrade = document.getElementById('form-trade');
-  const btnBuy = document.getElementById('btn-type-buy');
-  const btnSell = document.getElementById('btn-type-sell');
+  const formTrade = document.getElementById('form-add-trade');
+  const typeToggle = document.getElementById('trade-type-toggle');
   const rateInput = document.getElementById('trade-rate');
-  const ngnInput = document.getElementById('trade-ngn-amount');
-  const usdtInput = document.getElementById('trade-usdt-amount');
+  const ngnInput = document.getElementById('trade-ngn');
+  const usdtInput = document.getElementById('trade-usdt');
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
 
   // Initialize dynamic fees with recalculation callback
@@ -28,11 +28,17 @@ export function initTrades() {
     dateInput.value = getLocalIsoDateTime();
   }
 
-  // Direction Switchers
-  btnBuy?.addEventListener('click', () => setTradeDirection('BUY'));
-  btnSell?.addEventListener('click', () => setTradeDirection('SELL'));
+  // Direction Switchers via Segmented Control delegation
+  typeToggle?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.seg-btn');
+    if (!btn) return;
+    const direction = btn.getAttribute('data-direction');
+    if (direction) {
+      setTradeDirection(direction);
+    }
+  });
 
-  // Reactive Math Inputs
+  // Reactive Math Inputs (Rate + NGN auto-calculates USDT, Rate + USDT auto-calculates NGN)
   rateInput?.addEventListener('input', () => {
     const rate = parseFloat(rateInput.value) || 0;
     const ngn = parseFloat(ngnInput?.value) || 0;
@@ -78,33 +84,34 @@ export function initTrades() {
  * @param {'BUY'|'SELL'} direction
  */
 export function setTradeDirection(direction) {
-  const tradeDirection = document.getElementById('trade-direction');
-  const btnBuy = document.getElementById('btn-type-buy');
-  const btnSell = document.getElementById('btn-type-sell');
-  const labelNgnAmount = document.getElementById('label-ngn-amount');
-  const labelUsdtAmount = document.getElementById('label-usdt-amount');
-  const summaryNetLabel = document.getElementById('summary-net-label');
-  const btnSaveText = document.getElementById('btn-save-trade-text');
+  currentDirection = direction;
+  const toggleContainer = document.getElementById('trade-type-toggle');
+  const btnBuy = toggleContainer?.querySelector('.trade-buy-btn');
+  const btnSell = toggleContainer?.querySelector('.trade-sell-btn');
 
-  if (tradeDirection) tradeDirection.value = direction;
+  const summaryDirectionLabel = document.getElementById('summary-direction-label');
+  const summaryEffectiveLabel = document.getElementById('summary-effective-label');
+  const summaryNetLabel = document.getElementById('summary-net-label');
+  const btnSubmitLabel = document.getElementById('btn-submit-label');
 
   if (direction === 'BUY') {
     btnBuy?.classList.add('active');
     btnSell?.classList.remove('active');
-    if (labelNgnAmount) labelNgnAmount.innerHTML = '<i data-lucide="banknote"></i> NGN Amount Paid';
-    if (labelUsdtAmount) labelUsdtAmount.innerHTML = '<i data-lucide="coins"></i> USDT Expected';
-    if (summaryNetLabel) summaryNetLabel.textContent = 'Net Total Cost (NGN):';
-    if (btnSaveText) btnSaveText.textContent = isEditing ? 'Update Buy Trade' : 'Record Buy Trade';
+    
+    if (summaryDirectionLabel) summaryDirectionLabel.textContent = 'Paid';
+    if (summaryEffectiveLabel) summaryEffectiveLabel.textContent = 'Cost';
+    if (summaryNetLabel) summaryNetLabel.textContent = 'Total';
+    if (btnSubmitLabel) btnSubmitLabel.textContent = isEditing ? 'Update Buy Trade' : 'Save Buy Trade';
   } else {
     btnSell?.classList.add('active');
     btnBuy?.classList.remove('active');
-    if (labelNgnAmount) labelNgnAmount.innerHTML = '<i data-lucide="banknote"></i> NGN Amount Received';
-    if (labelUsdtAmount) labelUsdtAmount.innerHTML = '<i data-lucide="coins"></i> USDT Sold';
-    if (summaryNetLabel) summaryNetLabel.textContent = 'Net Total Received (NGN):';
-    if (btnSaveText) btnSaveText.textContent = isEditing ? 'Update Sell Trade' : 'Record Sell Trade';
+    
+    if (summaryDirectionLabel) summaryDirectionLabel.textContent = 'Received';
+    if (summaryEffectiveLabel) summaryEffectiveLabel.textContent = 'Yield';
+    if (summaryNetLabel) summaryNetLabel.textContent = 'Received';
+    if (btnSubmitLabel) btnSubmitLabel.textContent = isEditing ? 'Update Sell Trade' : 'Save Sell Trade';
   }
 
-  if (window.lucide) window.lucide.createIcons();
   recalculateTradeSummary();
 }
 
@@ -112,23 +119,33 @@ export function setTradeDirection(direction) {
  * Recalculate summary card (effective rate, net cost / net received)
  */
 export function recalculateTradeSummary() {
-  const direction = (document.getElementById('trade-direction')?.value || 'BUY');
+  const direction = currentDirection;
   const rate = parseFloat(document.getElementById('trade-rate')?.value) || 0;
-  const ngn = parseFloat(document.getElementById('trade-ngn-amount')?.value) || 0;
-  const usdt = parseFloat(document.getElementById('trade-usdt-amount')?.value) || 0;
+  const ngn = parseFloat(document.getElementById('trade-ngn')?.value) || 0;
+  const usdt = parseFloat(document.getElementById('trade-usdt')?.value) || 0;
 
   const totalFees = updateFeeSummaryDisplay();
   const { netAmount, effectiveRate } = calculateTradeBreakdown(direction, ngn, usdt, totalFees);
 
+  const summaryGrossNgn = document.getElementById('summary-gross-ngn');
+  const summaryTotalFees = document.getElementById('summary-total-fees');
   const summaryEffectiveRate = document.getElementById('summary-effective-rate');
-  const summaryNetAmount = document.getElementById('summary-net-amount');
+  const summaryNetNgn = document.getElementById('summary-net-ngn');
 
-  if (summaryNetAmount) {
-    summaryNetAmount.textContent = formatNGN(netAmount);
+  if (summaryGrossNgn) {
+    summaryGrossNgn.textContent = formatNGN(ngn);
+  }
+
+  if (summaryTotalFees) {
+    summaryTotalFees.textContent = formatNGN(totalFees);
+  }
+
+  if (summaryNetNgn) {
+    summaryNetNgn.textContent = formatNGN(netAmount);
   }
 
   if (summaryEffectiveRate) {
-    summaryEffectiveRate.textContent = effectiveRate > 0 ? formatRate(effectiveRate) : (rate > 0 ? formatRate(rate) : '₦0.00 / USDT');
+    summaryEffectiveRate.textContent = effectiveRate > 0 ? `${formatRate(effectiveRate)} / USDT` : (rate > 0 ? `${formatRate(rate)} / USDT` : '₦0.00 / USDT');
   }
 }
 
@@ -138,31 +155,54 @@ export function recalculateTradeSummary() {
 function handleTradeSubmit(e) {
   e.preventDefault();
 
-  const direction = (document.getElementById('trade-direction')?.value || 'BUY');
+  const direction = currentDirection;
   const date = document.getElementById('trade-date')?.value;
   const bankAccountId = document.getElementById('trade-bank-account')?.value;
   const rate = parseFloat(document.getElementById('trade-rate')?.value) || 0;
-  const ngnAmount = parseFloat(document.getElementById('trade-ngn-amount')?.value) || 0;
-  const usdtAmount = parseFloat(document.getElementById('trade-usdt-amount')?.value) || 0;
+  const ngnAmount = parseFloat(document.getElementById('trade-ngn')?.value) || 0;
+  const usdtAmount = parseFloat(document.getElementById('trade-usdt')?.value) || 0;
   const counterparty = document.getElementById('trade-counterparty')?.value?.trim() || '';
   const paymentMethod = document.getElementById('trade-payment-method')?.value || 'Bank Transfer';
   const notes = document.getElementById('trade-notes')?.value?.trim() || '';
 
+  // Inputs for styling validation
+  const inputs = {
+    date: document.getElementById('trade-date'),
+    bank: document.getElementById('trade-bank-account'),
+    rate: document.getElementById('trade-rate'),
+    ngn: document.getElementById('trade-ngn'),
+    usdt: document.getElementById('trade-usdt')
+  };
+
+  // Reset errors
+  Object.values(inputs).forEach(inp => inp?.classList.remove('is-invalid'));
+
   // Validation
+  let isValid = true;
+
   if (!date) {
-    if (window.showToast) window.showToast('Please select trade date & time.', 'error');
-    return;
+    inputs.date?.classList.add('is-invalid');
+    isValid = false;
   }
   if (!bankAccountId) {
-    if (window.showToast) window.showToast('Please select the bank account used.', 'error');
-    return;
+    inputs.bank?.classList.add('is-invalid');
+    isValid = false;
   }
   if (rate <= 0) {
-    if (window.showToast) window.showToast('Please enter a valid rate (₦/USDT).', 'error');
-    return;
+    inputs.rate?.classList.add('is-invalid');
+    isValid = false;
   }
-  if (ngnAmount <= 0 || usdtAmount <= 0) {
-    if (window.showToast) window.showToast('Please enter valid NGN and USDT amounts.', 'error');
+  if (ngnAmount <= 0) {
+    inputs.ngn?.classList.add('is-invalid');
+    isValid = false;
+  }
+  if (usdtAmount <= 0) {
+    inputs.usdt?.classList.add('is-invalid');
+    isValid = false;
+  }
+
+  if (!isValid) {
+    if (window.showToast) window.showToast('Please correct the highlighted fields.', 'error');
     return;
   }
 
@@ -223,19 +263,21 @@ export function startEditTrade(tradeId) {
 
   // Update titles & buttons
   const formTitle = document.getElementById('trade-form-title');
+  const formSubtitle = document.getElementById('trade-form-subtitle');
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
-  const btnSaveText = document.getElementById('btn-save-trade-text');
+  const editModeAlert = document.getElementById('edit-mode-alert');
 
   if (formTitle) formTitle.textContent = 'Edit Trade';
+  if (formSubtitle) formSubtitle.textContent = `Modifying recorded transaction #${tradeId.slice(-6)}`;
   if (btnCancelEdit) btnCancelEdit.classList.remove('hidden');
-  if (btnSaveText) btnSaveText.textContent = `Update ${trade.type} Trade`;
+  if (editModeAlert) editModeAlert.classList.remove('hidden');
 
   // Populate fields
   const dateInput = document.getElementById('trade-date');
   const bankSelect = document.getElementById('trade-bank-account');
   const rateInput = document.getElementById('trade-rate');
-  const ngnInput = document.getElementById('trade-ngn-amount');
-  const usdtInput = document.getElementById('trade-usdt-amount');
+  const ngnInput = document.getElementById('trade-ngn');
+  const usdtInput = document.getElementById('trade-usdt');
   const counterpartyInput = document.getElementById('trade-counterparty');
   const paymentSelect = document.getElementById('trade-payment-method');
   const notesInput = document.getElementById('trade-notes');
@@ -262,15 +304,23 @@ export function resetTradeForm() {
   isEditing = false;
   currentEditId = null;
 
-  const form = document.getElementById('form-trade');
+  const form = document.getElementById('form-add-trade');
   const formTitle = document.getElementById('trade-form-title');
+  const formSubtitle = document.getElementById('trade-form-subtitle');
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
+  const editModeAlert = document.getElementById('edit-mode-alert');
   const dateInput = document.getElementById('trade-date');
 
   form?.reset();
   if (dateInput) dateInput.value = getLocalIsoDateTime();
   if (formTitle) formTitle.textContent = 'Record Trade';
+  if (formSubtitle) formSubtitle.textContent = 'Log a new BUY or SELL order';
   if (btnCancelEdit) btnCancelEdit.classList.add('hidden');
+  if (editModeAlert) editModeAlert.classList.add('hidden');
+
+  // Reset validation styles
+  const inputs = ['trade-date', 'trade-bank-account', 'trade-rate', 'trade-ngn', 'trade-usdt'];
+  inputs.forEach(id => document.getElementById(id)?.classList.remove('is-invalid'));
 
   setTradeDirection('BUY');
   resetFees(recalculateTradeSummary);

@@ -1,0 +1,159 @@
+/* ==========================================================================
+   Bybit NGN P2P Tracker — Design System v2.0
+   1. Design Tokens & Variables (Dark theme default / Light theme overrides)
+   ========================================================================== */
+
+:root {
+  /* Surfaces */
+  --bg-base: #0A0F1A;
+  --bg-surface: #111827;
+  --bg-surface-elevated: #1E293B;
+  --bg-input: #0F172A;
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active: rgba(255, 255, 255, 0.08);
+
+  /* Brand / Primary */
+  --primary: #3B82F6;
+  --primary-hover: #2563EB;
+  --primary-active: #1D4ED8;
+  --primary-subtle: rgba(59, 130, 246, 0.10);
+  --primary-glow: rgba(59, 130, 246, 0.25);
+  --primary-text: #93C5FD;
+
+  /* Semantic: Success (Profit) */
+  --success: #10B981;
+  --success-hover: #059669;
+  --success-subtle: rgba(16, 185, 129, 0.10);
+  --success-text: #6EE7B7;
+
+  /* Semantic: Danger (Loss / Error) */
+  --danger: #EF4444;
+  --danger-hover: #DC2626;
+  --danger-subtle: rgba(239, 68, 68, 0.10);
+  --danger-text: #FCA5A5;
+
+  /* Semantic: Warning */
+  --warning: #F59E0B;
+  --warning-subtle: rgba(245, 158, 11, 0.10);
+  --warning-text: #FCD34D;
+
+  /* Semantic: Info */
+  --info: #6366F1;
+  --info-subtle: rgba(99, 102, 241, 0.10);
+  --info-text: #A5B4FC;
+
+  /* Text */
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-disabled: #475569;
+  --text-inverse: #0F172A;
+
+  /* Borders */
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-elevated: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.20);
+  --border-focus: var(--primary);
+
+  /* Typography */
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Type Scale */
+  --text-display: 1.75rem;
+  --text-heading: 1.25rem;
+  --text-subheading: 1rem;
+  --text-body: 0.9375rem;
+  --text-supporting: 0.8125rem;
+  --text-caption: 0.75rem;
+  --text-tiny: 0.6875rem;
+
+  /* Spacing (8px base) */
+  --sp-0: 0;
+  --sp-1: 0.25rem;   /* 4px */
+  --sp-2: 0.5rem;    /* 8px */
+  --sp-3: 0.75rem;   /* 12px */
+  --sp-4: 1rem;      /* 16px */
+  --sp-5: 1.25rem;   /* 20px */
+  --sp-6: 1.5rem;    /* 24px */
+  --sp-8: 2rem;      /* 32px */
+  --sp-10: 2.5rem;   /* 40px */
+  --sp-12: 3rem;     /* 48px */
+
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 16px 40px rgba(0, 0, 0, 0.6);
+
+  /* Layout */
+  --header-height: 56px;
+  --nav-height: 64px;
+  --sidebar-width: 240px;
+  --max-content-width: 960px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+
+  /* Transitions */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 350ms;
+}
+
+[data-theme="light"] {
+  --bg-base: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-surface-elevated: #F1F5F9;
+  --bg-input: #FFFFFF;
+  --bg-hover: rgba(0, 0, 0, 0.03);
+  --bg-active: rgba(0, 0, 0, 0.06);
+
+  --primary: #2563EB;
+  --primary-hover: #1D4ED8;
+  --primary-active: #1E40AF;
+  --primary-subtle: rgba(37, 99, 235, 0.08);
+  --primary-glow: rgba(37, 99, 235, 0.15);
+  --primary-text: #2563EB;
+
+  --success: #059669;
+  --success-hover: #047857;
+  --success-subtle: rgba(5, 150, 105, 0.08);
+  --success-text: #059669;
+
+  --danger: #DC2626;
+  --danger-hover: #B91C1C;
+  --danger-subtle: rgba(220, 38, 38, 0.08);
+  --danger-text: #DC2626;
+
+  --warning: #D97706;
+  --warning-subtle: rgba(217, 119, 6, 0.08);
+  --warning-text: #D97706;
+
+  --info: #4F46E5;
+  --info-subtle: rgba(79, 70, 229, 0.08);
+  --info-text: #4F46E5;
+
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+  --text-disabled: #CBD5E1;
+  --text-inverse: #F8FAFC;
+
+  --border-default: rgba(0, 0, 0, 0.08);
+  --border-elevated: rgba(0, 0, 0, 0.12);
+  --border-strong: rgba(0, 0, 0, 0.20);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.10);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 16px 40px rgba(0, 0, 0, 0.16);
+}

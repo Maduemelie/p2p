@@ -1,5 +1,6 @@
 /**
  * Bybit NGN P2P Trade Tracker — Main Application & Controller Coordinator
+ * v2.0 — Redesigned with sidebar nav, theme toggle, confirmation modals
  */
 
 import { renderDashboardView } from './views/dashboard.view.js';
@@ -16,18 +17,19 @@ import { initHistory } from './history.js';
 import { initSettings } from './settings.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. Mount Modular View Templates into App Shell
+  // 1. Initialize theme before rendering
+  initTheme();
+
+  // 2. Mount views
   mountAppViews();
 
-  // 2. Initialize Lucide Icons
-  if (window.lucide) {
-    window.lucide.createIcons();
-  }
+  // 3. Initialize icons
+  if (window.lucide) window.lucide.createIcons();
 
-  // 3. Navigation & Routing Coordinator
+  // 4. Navigation
   initNavigation();
 
-  // 4. Initialize Modular Feature Controllers
+  // 5. Feature controllers
   initBanks();
   initTransfers();
   initTrades();
@@ -35,12 +37,15 @@ document.addEventListener('DOMContentLoaded', () => {
   initHistory();
   initSettings();
 
-  // 5. PWA & Offline Service Worker Setup
+  // 6. PWA
   initPWA();
+
+  // 7. Global keyboard shortcuts
+  initKeyboardShortcuts();
 });
 
 /**
- * Mount all sub-views and modals into shell containers
+ * Mount all sub-views into shell containers
  */
 function mountAppViews() {
   const mainContent = document.getElementById('main-content');
@@ -61,20 +66,60 @@ function mountAppViews() {
 }
 
 /**
- * Tab Switching & Router Logic
+ * Theme Toggle (Dark / Light)
+ */
+function initTheme() {
+  const savedTheme = localStorage.getItem('bybit_p2p_theme') || 'dark';
+  if (savedTheme === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+
+  // Bind both toggle buttons (header + sidebar)
+  document.addEventListener('click', (e) => {
+    const toggle = e.target.closest('#btn-theme-toggle, #btn-theme-toggle-sidebar');
+    if (!toggle) return;
+
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    if (isLight) {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('bybit_p2p_theme', 'dark');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'light');
+      localStorage.setItem('bybit_p2p_theme', 'light');
+    }
+
+    // Update theme-color meta for PWA
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      metaTheme.setAttribute('content', isLight ? '#0A0F1A' : '#F8FAFC');
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+  });
+}
+
+/**
+ * Navigation — Tab switching for bottom nav + sidebar
  */
 function initNavigation() {
-  const navTabs = document.querySelectorAll('.nav-tab');
+  const bottomTabs = document.querySelectorAll('.nav-tab');
+  const sidebarItems = document.querySelectorAll('.sidebar-nav-item');
   const views = document.querySelectorAll('.app-view');
 
   function switchTab(targetViewId, pushState = true) {
-    // 1. Update active tab buttons
-    navTabs.forEach(tab => {
-      const isTarget = tab.getAttribute('data-target') === targetViewId;
-      tab.classList.toggle('active', isTarget);
+    // Update bottom nav tabs
+    bottomTabs.forEach(tab => {
+      tab.classList.toggle('active', tab.getAttribute('data-target') === targetViewId);
     });
 
-    // 2. Update active view panels
+    // Update sidebar items
+    sidebarItems.forEach(item => {
+      item.classList.toggle('active', item.getAttribute('data-target') === targetViewId);
+    });
+
+    // Update views
     views.forEach(view => {
       const isTarget = view.getAttribute('data-view') === targetViewId;
       if (isTarget) {
@@ -84,30 +129,33 @@ function initNavigation() {
       }
     });
 
-    // 3. Update URL hash
+    // URL hash
     if (pushState) {
       window.location.hash = targetViewId;
     }
 
-    // Smooth scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // Refresh icons in newly visible view
-    if (window.lucide) {
-      window.lucide.createIcons();
-    }
+    if (window.lucide) window.lucide.createIcons();
   }
 
-  // Attach click events to navigation tabs
-  navTabs.forEach(tab => {
+  // Bottom nav clicks
+  bottomTabs.forEach(tab => {
     tab.addEventListener('click', (e) => {
       e.preventDefault();
-      const target = tab.getAttribute('data-target');
-      switchTab(target);
+      switchTab(tab.getAttribute('data-target'));
     });
   });
 
-  // Quick Action Buttons
+  // Sidebar nav clicks
+  sidebarItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      switchTab(item.getAttribute('data-target'));
+    });
+  });
+
+  // Quick action buttons
   const btnDashQuickAdd = document.getElementById('btn-dash-quick-add');
   if (btnDashQuickAdd) {
     btnDashQuickAdd.addEventListener('click', () => switchTab('add-trade'));
@@ -118,21 +166,16 @@ function initNavigation() {
     btnViewAllHistory.addEventListener('click', () => switchTab('history'));
   }
 
-  // Handle URL hash on initial load & popstate
+  // Hash routing
   function handleHashRoute() {
     const hash = window.location.hash.replace('#', '');
     const validViews = ['dashboard', 'add-trade', 'history', 'settings'];
-    if (validViews.includes(hash)) {
-      switchTab(hash, false);
-    } else {
-      switchTab('dashboard', false);
-    }
+    switchTab(validViews.includes(hash) ? hash : 'dashboard', false);
   }
 
   window.addEventListener('hashchange', handleHashRoute);
   handleHashRoute();
 
-  // Expose switchTab globally
   window.switchView = switchTab;
 }
 
@@ -167,23 +210,102 @@ window.showToast = function(message, type = 'info', duration = 3200) {
 };
 
 /**
- * PWA Service Worker & Install Prompt Registration
+ * Confirmation Modal System
+ * Replaces native confirm() with styled modal
+ * @param {string} title
+ * @param {string} message
+ * @param {Function} onConfirm
+ * @param {'danger'|'warning'} type
+ */
+window.showConfirmModal = function(title, message, onConfirm, type = 'danger') {
+  const container = document.getElementById('confirm-modal-container');
+  if (!container) return;
+
+  const iconName = type === 'danger' ? 'alert-triangle' : 'alert-circle';
+
+  container.innerHTML = `
+    <div class="modal-backdrop" id="confirm-modal-backdrop">
+      <div class="modal-card" style="max-width: 400px;">
+        <div class="confirm-modal-body">
+          <div class="confirm-modal-icon ${type}-icon">
+            <i data-lucide="${iconName}"></i>
+          </div>
+          <h3 class="confirm-modal-title">${title}</h3>
+          <p class="confirm-modal-message">${message}</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="confirm-modal-cancel">Cancel</button>
+          <button class="btn ${type === 'danger' ? 'btn-danger' : 'btn-primary'}" id="confirm-modal-ok">
+            ${type === 'danger' ? 'Delete' : 'Confirm'}
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  if (window.lucide) window.lucide.createIcons();
+
+  const backdrop = document.getElementById('confirm-modal-backdrop');
+  const btnCancel = document.getElementById('confirm-modal-cancel');
+  const btnOk = document.getElementById('confirm-modal-ok');
+
+  function close() {
+    container.innerHTML = '';
+  }
+
+  btnCancel?.addEventListener('click', close);
+  btnOk?.addEventListener('click', () => {
+    close();
+    if (onConfirm) onConfirm();
+  });
+
+  // Close on backdrop click
+  backdrop?.addEventListener('click', (e) => {
+    if (e.target === backdrop) close();
+  });
+};
+
+/**
+ * Global keyboard shortcuts
+ */
+function initKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      // Close confirmation modal
+      const confirmContainer = document.getElementById('confirm-modal-container');
+      if (confirmContainer && confirmContainer.innerHTML.trim()) {
+        confirmContainer.innerHTML = '';
+        return;
+      }
+
+      // Close any open modal
+      const openModals = document.querySelectorAll('.modal-backdrop:not(.hidden)');
+      openModals.forEach(modal => {
+        modal.classList.add('hidden');
+      });
+    }
+  });
+
+  // Close modals on backdrop click
+  document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal-backdrop') && !e.target.closest('.modal-card')) {
+      e.target.classList.add('hidden');
+    }
+  });
+}
+
+/**
+ * PWA Service Worker & Install Prompt
  */
 function initPWA() {
-  // Register Service Worker
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js')
-        .then(reg => {
-          console.log('[PWA] Service Worker registered with scope:', reg.scope);
-        })
-        .catch(err => {
-          console.warn('[PWA] Service Worker registration failed:', err);
-        });
+        .then(reg => console.log('[PWA] SW registered:', reg.scope))
+        .catch(err => console.warn('[PWA] SW failed:', err));
     });
   }
 
-  // PWA Install Prompt Hook
   let deferredPrompt;
   const btnInstall = document.getElementById('btn-install-pwa');
 
@@ -195,8 +317,8 @@ function initPWA() {
       btnInstall.addEventListener('click', () => {
         if (deferredPrompt) {
           deferredPrompt.prompt();
-          deferredPrompt.userChoice.then((choiceResult) => {
-            if (choiceResult.outcome === 'accepted') {
+          deferredPrompt.userChoice.then((result) => {
+            if (result.outcome === 'accepted') {
               window.showToast('App installed successfully!', 'success');
             }
             deferredPrompt = null;

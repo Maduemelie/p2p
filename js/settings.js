@@ -16,6 +16,21 @@ export function initSettings() {
   const inputImportJson = document.getElementById('input-import-json');
   const btnClearAllData = document.getElementById('btn-clear-all-data');
 
+  // Settings sub-tab switching
+  const settingsTabBtns = document.querySelectorAll('.settings-tab-btn');
+  const settingsTabPanels = document.querySelectorAll('.settings-tab-panel');
+  
+  settingsTabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.getAttribute('data-settings-tab');
+      settingsTabBtns.forEach(b => b.classList.toggle('active', b === btn));
+      settingsTabPanels.forEach(p => {
+        p.classList.toggle('active', p.getAttribute('data-settings-panel') === target);
+      });
+      if (window.lucide) window.lucide.createIcons();
+    });
+  });
+
   // Opening Inventory Form
   const formOpening = document.getElementById('form-opening-inventory');
   const inputOpeningUsdt = document.getElementById('input-opening-usdt');
@@ -436,18 +451,18 @@ export function initSettings() {
   // 4. Wipe All Data
   btnClearAllData?.addEventListener('click', () => {
     const tradesCount = store.getTrades().length;
-    const confirm1 = confirm(
-      `⚠️ WARNING: Are you sure you want to permanently erase ALL data (${tradesCount} trades, transfers, and bank accounts)?\n\nThis cannot be undone unless you have a JSON backup!`
-    );
-
-    if (confirm1) {
-      const confirm2 = confirm('Final confirmation: Click OK to completely wipe your journal from this browser.');
-      if (confirm2) {
-        store.clearAllData();
-        if (inputOpeningUsdt) inputOpeningUsdt.value = '';
-        if (inputOpeningCost) inputOpeningCost.value = '';
-        if (window.showToast) window.showToast('All journal data has been cleared.', 'info');
-      }
+    if (window.showConfirmModal) {
+      window.showConfirmModal(
+        'Delete All Data?',
+        `This will permanently erase ${tradesCount} trades, all transfers, and bank accounts. This cannot be undone without a JSON backup.`,
+        () => {
+          store.clearAllData();
+          if (inputOpeningUsdt) inputOpeningUsdt.value = '';
+          if (inputOpeningCost) inputOpeningCost.value = '';
+          if (window.showToast) window.showToast('All journal data has been cleared.', 'info');
+        },
+        'danger'
+      );
     }
   });
 }
