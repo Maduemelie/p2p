@@ -279,19 +279,20 @@ app.get('/api/market-depth', async (req, res) => {
     const fiat = req.query.fiat || 'NGN';
     const limit = req.query.limit || '5';
 
-    // Build Buy side (competitors trying to BUY - side 0) and Sell side (competitors trying to SELL - side 1) payloads
+    // Build Buy side (competitors trying to BUY crypto from users -> users are selling -> side 1)
     const buyPayload = {
       tokenId: coin,
       currencyId: fiat,
-      side: '0',
+      side: '1',
       page: '1',
       size: String(limit)
     };
 
+    // Build Sell side (competitors trying to SELL crypto to users -> users are buying -> side 0)
     const sellPayload = {
       tokenId: coin,
       currencyId: fiat,
-      side: '1',
+      side: '0',
       page: '1',
       size: String(limit)
     };
