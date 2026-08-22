@@ -1,6 +1,7 @@
 /**
  * Bybit NGN P2P Trade Tracker — Dashboard Module
  * Calculates FIFO cost-basis performance metrics and manages Chart.js analytics
+ * Redesigned v2.1 with clean information architecture and capital allocation progress bars.
  */
 
 import { store } from './store.js';
@@ -12,6 +13,17 @@ let currentChartPeriod = 'all';
 let latestActiveAd = null;
 
 export function initDashboard() {
+  // Set dynamic welcome greeting
+  const greetingEl = document.getElementById('dashboard-greeting');
+  if (greetingEl) {
+    const hrs = new Date().getHours();
+    let greet = 'Good day 👋';
+    if (hrs < 12) greet = 'Good morning 🌅';
+    else if (hrs < 17) greet = 'Good afternoon ☀️';
+    else greet = 'Good evening 🌙';
+    greetingEl.textContent = greet;
+  }
+
   renderDashboardMetrics();
   renderRecentTradesList();
   initDashboardChart();
@@ -81,7 +93,6 @@ export async function syncAndRenderActiveAd(showToast = false) {
           const balResult = await bybitService.fetchFundingBalance('USDT');
           const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
           if (usdtItem) {
-            // Use transferBalance strictly (which is the P2P available balance, e.g. 103.01 USDT)
             totalP2P = parseFloat(usdtItem.transferBalance) || 0;
           }
         } catch (balErr) {
@@ -107,11 +118,8 @@ export async function syncAndRenderActiveAd(showToast = false) {
       const marginPct = avgBuyCost > 0 ? (spreadPerUsdt / avgBuyCost) * 100 : 0;
 
       // Projected profit = ONLY this ad's quantity × spread − estimated fees
-      // NOT the FIFO inventory, NOT all ads — just THIS ad batch
       const projectedGross = spreadPerUsdt * totalInAd;
       const projectedNet = Math.max(0, projectedGross - 50); // 50 NGN estimated stamp duty
-
-      console.log('[Ad Profit Debug]', { adPrice, avgBuyCost, spreadPerUsdt, totalInAd, projectedGross, projectedNet });
 
       if (adBadge) {
         adBadge.className = 'live-badge';
@@ -119,22 +127,22 @@ export async function syncAndRenderActiveAd(showToast = false) {
       }
       if (adTitle) adTitle.textContent = `Bybit Sell Ad #${activeSellAd.id}`;
       if (metricAdPrice) metricAdPrice.textContent = `₦${adPrice.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
-      if (metricAdQty) metricAdQty.textContent = `${totalInAd.toFixed(2)} USDT in ad`;
+      if (metricAdQty) metricAdQty.textContent = `${totalInAd.toFixed(2)} USDT listed`;
 
       if (metricAvgBuy) metricAvgBuy.textContent = `₦${avgBuyCost.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
       if (metricTotalBought) metricTotalBought.textContent = `${fifoResult.remainingInventoryUSDT.toFixed(2)} USDT in stock`;
 
       if (metricSpread) {
         metricSpread.textContent = `${spreadPerUsdt >= 0 ? '+' : ''}₦${spreadPerUsdt.toFixed(2)} / USDT`;
-        metricSpread.className = `ad-metric-value font-mono ${spreadPerUsdt >= 0 ? 'text-success' : 'text-danger'}`;
+        metricSpread.className = `ad-submetric-value font-mono ${spreadPerUsdt >= 0 ? 'text-success' : 'text-danger'}`;
       }
       if (metricMarginPct) {
         metricMarginPct.textContent = `${marginPct >= 0 ? '+' : ''}${marginPct.toFixed(2)}% margin`;
-        metricMarginPct.className = `ad-metric-sub ${marginPct >= 0 ? 'text-success' : 'text-danger'}`;
+        metricMarginPct.className = `ad-submetric-sub ${marginPct >= 0 ? 'text-success' : 'text-danger'}`;
       }
       if (metricProjectedPnl) {
         metricProjectedPnl.textContent = `${projectedNet >= 0 ? '+' : ''}₦${projectedNet.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
-        metricProjectedPnl.className = `ad-metric-value font-mono ${projectedNet >= 0 ? 'text-success' : 'text-danger'}`;
+        metricProjectedPnl.className = `ad-submetric-value font-mono ${projectedNet >= 0 ? 'text-success' : 'text-danger'}`;
       }
 
       if (showToast && window.showToast) {
@@ -152,15 +160,15 @@ export async function syncAndRenderActiveAd(showToast = false) {
       if (metricTotalBought) metricTotalBought.textContent = `${fifoResult.remainingInventoryUSDT.toFixed(2)} USDT in stock`;
       if (metricSpread) {
         metricSpread.textContent = '—';
-        metricSpread.className = 'ad-metric-value font-mono text-accent';
+        metricSpread.className = 'ad-submetric-value font-mono text-accent';
       }
       if (metricMarginPct) {
         metricMarginPct.textContent = 'Waiting for active ad';
-        metricMarginPct.className = 'ad-metric-sub';
+        metricMarginPct.className = 'ad-submetric-sub';
       }
       if (metricProjectedPnl) {
         metricProjectedPnl.textContent = '₦0.00';
-        metricProjectedPnl.className = 'ad-metric-value font-mono';
+        metricProjectedPnl.className = 'ad-submetric-value font-mono';
       }
 
       if (showToast && window.showToast) {
@@ -174,17 +182,14 @@ export async function syncAndRenderActiveAd(showToast = false) {
 
 /**
  * Fetch live Bybit wallet balance and compare against FIFO inventory.
- * 
- * CRITICAL ACCOUNTING MODEL:
- *   walletBalance = Total P2P balance (e.g. 103.01 USDT, includes ad coins)
- *   transferBalance = Free P2P balance for buyback (e.g. 71.31 USDT, excludes ad coins)
- *   Active ad allocation = walletBalance − transferBalance (e.g. 31.70 USDT)
  */
 export async function syncBybitLiveInventory() {
   const elTotal = document.getElementById('stat-bybit-live-total');
   const elFree = document.getElementById('stat-bybit-free');
   const elLocked = document.getElementById('stat-bybit-locked');
   const elDiff = document.getElementById('stat-inventory-diff');
+  const barActive = document.getElementById('bar-segment-active');
+  const barFree = document.getElementById('bar-segment-free');
 
   if (!elTotal) return;
 
@@ -225,6 +230,19 @@ export async function syncBybitLiveInventory() {
     elLocked.textContent = `${adAllocation.toFixed(2)} USDT`;
     elFree.textContent = `${freeForBuyback.toFixed(2)} USDT`;
 
+    // Update Progress Bar segments visually
+    if (barActive && barFree) {
+      if (totalP2P > 0) {
+        const activePct = (adAllocation / totalP2P) * 100;
+        const freePct = (freeForBuyback / totalP2P) * 100;
+        barActive.style.width = `${activePct}%`;
+        barFree.style.width = `${freePct}%`;
+      } else {
+        barActive.style.width = '0%';
+        barFree.style.width = '0%';
+      }
+    }
+
     // Compare FIFO tracked inventory against actual Bybit total
     const trades = store.getTrades();
     const openingInventory = store.getOpeningInventory();
@@ -232,17 +250,25 @@ export async function syncBybitLiveInventory() {
     const fifoInventory = fifoResult.remainingInventoryUSDT;
     const diff = fifoInventory - totalP2P;
 
-    if (Math.abs(diff) > 0.5) {
-      elDiff.style.display = 'block';
-      const sign = diff > 0 ? '+' : '';
-      elDiff.innerHTML = `<span style="color: var(--warning, #f59e0b);">⚠ Diff: ${sign}${diff.toFixed(2)} USDT — App ${diff > 0 ? 'overstates' : 'understates'} by ${Math.abs(diff).toFixed(2)}</span>`;
-    } else {
-      elDiff.style.display = 'block';
-      elDiff.innerHTML = `<span style="color: var(--profit);">✓ App and Bybit match</span>`;
+    if (elDiff) {
+      if (Math.abs(diff) > 0.5) {
+        elDiff.style.display = 'block';
+        elDiff.classList.remove('hidden');
+        const sign = diff > 0 ? '+' : '';
+        elDiff.innerHTML = `<span class="text-warning">⚠ Sync Diff: ${sign}${diff.toFixed(2)} USDT (App ledger vs Bybit balance)</span>`;
+      } else {
+        elDiff.style.display = 'block';
+        elDiff.classList.remove('hidden');
+        elDiff.innerHTML = `<span class="text-success">✓ Ledger & Bybit inventory matched</span>`;
+      }
     }
   } catch (e) {
     console.warn('[Dashboard] Bybit live inventory sync failed:', e.message);
     if (elTotal) elTotal.textContent = 'Offline';
+    if (barActive && barFree) {
+      barActive.style.width = '0%';
+      barFree.style.width = '0%';
+    }
   }
 }
 
@@ -289,39 +315,16 @@ export function renderDashboardMetrics() {
     displayAvgCostPerUSDT = buybackUSDT > 0 ? (buybackNGN / buybackUSDT) : (openingInventory.defaultCostBasis || 0);
   }
 
-  // Calculate gross buy/sell totals
-  let totalInvestedNGN = 0;
-  let totalBoughtUSDT = 0;
-  let totalRealizedNGN = 0;
-  let totalSoldUSDT = 0;
-
-  trades.forEach(t => {
-    const ngn = Number(t.ngnAmount) || 0;
-    const usdt = Number(t.usdtAmount) || 0;
-    if (t.type === 'BUY') {
-      totalInvestedNGN += ngn;
-      totalBoughtUSDT += usdt;
-    } else {
-      totalRealizedNGN += ngn;
-      totalSoldUSDT += usdt;
-    }
-  });
-
   // DOM Elements
   const statNetPnl = document.getElementById('stat-net-pnl');
   const statPnlRate = document.getElementById('stat-pnl-rate');
-  const pnlIconBox = document.getElementById('pnl-icon-box');
   const statInventoryHolding = document.getElementById('stat-inventory-holding');
   const statInventoryCost = document.getElementById('stat-inventory-cost');
-  const statTotalInvested = document.getElementById('stat-total-invested');
-  const statBuyVolume = document.getElementById('stat-buy-volume');
-  const statTotalRealized = document.getElementById('stat-total-realized');
-  const statSellVolume = document.getElementById('stat-sell-volume');
 
   // 1. Realized P&L
   if (statNetPnl) {
-    statNetPnl.textContent = formatNGN(totalRealizedPnL);
-    statNetPnl.className = `hero-stat-value font-mono ${totalRealizedPnL >= 0 ? 'text-success' : 'text-danger'}`;
+    statNetPnl.textContent = `${totalRealizedPnL >= 0 ? '+' : ''}${formatNGN(totalRealizedPnL)}`;
+    statNetPnl.className = `portfolio-value font-mono ${totalRealizedPnL >= 0 ? 'text-success' : 'text-danger'}`;
   }
 
   if (statPnlRate) {
@@ -335,19 +338,15 @@ export function renderDashboardMetrics() {
     `;
   }
 
-  if (pnlIconBox) {
-    pnlIconBox.style.display = 'none';
-  }
-
   // 2. USDT Inventory
   if (statInventoryHolding) {
     statInventoryHolding.textContent = formatUSDT(displayInventoryUSDT);
   }
   if (statInventoryCost) {
     if (displayInventoryUSDT > 0) {
-      statInventoryCost.textContent = `Avg: ${formatRate(displayAvgCostPerUSDT)} • ${formatNGN(displayInventoryCostNGN)}`;
+      statInventoryCost.textContent = `Cost: ${formatNGN(displayInventoryCostNGN)} • Avg: ₦${displayAvgCostPerUSDT.toFixed(2)}`;
     } else {
-      statInventoryCost.textContent = latestActiveAd ? 'No buybacks in this campaign yet' : 'No unsold inventory';
+      statInventoryCost.textContent = latestActiveAd ? 'No active buybacks' : 'No inventory';
     }
   }
 
@@ -365,19 +364,11 @@ export function renderDashboardMetrics() {
 
   if (statTotalBankCash) {
     statTotalBankCash.textContent = formatNGN(totalBankCash);
-    statTotalBankCash.className = `stat-chip-value ${totalBankCash >= 0 ? 'text-success' : 'text-danger'}`;
+    statTotalBankCash.className = `portfolio-value font-mono ${totalBankCash >= 0 ? 'text-success' : 'text-danger'}`;
   }
   if (statBankCashSubtext) {
     statBankCashSubtext.textContent = `Across ${activeBanksCount} linked ${activeBanksCount === 1 ? 'account' : 'accounts'}`;
   }
-
-  // 4. Gross Buys
-  if (statTotalInvested) statTotalInvested.textContent = formatNGN(totalInvestedNGN);
-  if (statBuyVolume) statBuyVolume.textContent = `${formatUSDT(totalBoughtUSDT)} bought`;
-
-  // 5. Gross Sells
-  if (statTotalRealized) statTotalRealized.textContent = formatNGN(totalRealizedNGN);
-  if (statSellVolume) statSellVolume.textContent = `${formatUSDT(totalSoldUSDT)} sold`;
 
   if (window.lucide) window.lucide.createIcons();
 }
@@ -431,24 +422,24 @@ export function renderRecentTradesList() {
 
     return `
       <div class="trade-list-item cursor-pointer trade-preview-item" data-trade-id="${escapeHtml(trade.id)}">
-        <div class="d-flex align-items-center gap-3">
+        <div class="trade-list-left">
           <div class="trade-type-indicator ${isBuy ? 'buy-indicator' : 'sell-indicator'}">
             <i data-lucide="${isBuy ? 'arrow-down-left' : 'arrow-up-right'}"></i>
           </div>
-          <div>
+          <div class="trade-list-info">
             <div class="d-flex align-items-center gap-2">
-              <span class="fw-bold font-mono">${formatNGN(trade.ngnAmount)}</span>
+              <span class="trade-list-primary">${formatNGN(trade.ngnAmount)}</span>
               <span class="badge ${isBuy ? 'badge-buy' : 'badge-sell'}">
                 ${trade.type}
               </span>
               ${pnlBadge}
             </div>
-            <p class="text-muted small">
+            <p class="trade-list-secondary">
               ${formatUSDT(trade.usdtAmount)} @ ₦${Number(trade.rate).toLocaleString('en-US', { minimumFractionDigits: 2 })} • ${escapeHtml(bankLabel)}
             </p>
           </div>
         </div>
-        <div class="text-end">
+        <div class="trade-list-right">
           <div class="text-muted small">${formatDateTime(trade.date)}</div>
           ${trade.unmatchedQty > 0 ? `<div class="text-warning small">⚠️ ${formatUSDT(trade.unmatchedQty)} unmatched</div>` : ''}
         </div>

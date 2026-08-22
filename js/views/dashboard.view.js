@@ -1,14 +1,16 @@
 /**
- * View: Dashboard Component — Redesigned v2.0
- * Hero P&L, stat chips, conditional Bybit ad, chart, recent activity
+ * View: Dashboard Component — Redesigned v2.1
+ * Clean Information Architecture, Hero Metrics, and Visual Progress Bars
  */
 export function renderDashboardView() {
   return `
     <section class="app-view active" id="view-dashboard" data-view="dashboard">
+      
+      <!-- Top View Header -->
       <div class="view-header">
         <div>
           <h2 class="view-title">Dashboard</h2>
-          <p class="view-subtitle">FIFO cost-basis performance & inventory</p>
+          <p class="view-subtitle" id="dashboard-greeting">Good day 👋</p>
         </div>
         <button class="btn btn-sm btn-primary" id="btn-dash-quick-add">
           <i data-lucide="plus-circle"></i>
@@ -16,103 +18,110 @@ export function renderDashboardView() {
         </button>
       </div>
 
-      <!-- Hero P&L Card -->
-      <div class="card mb-4" id="card-hero-pnl">
-        <div class="hero-stat">
-          <div class="hero-stat-label">Net Realized P&L</div>
-          <div class="hero-stat-value font-mono text-success" id="stat-net-pnl">₦0.00</div>
-          <div class="hero-stat-footer" id="stat-pnl-rate">
-            <span class="badge badge-success" id="pnl-roi-badge">
-              <i data-lucide="trending-up" id="pnl-icon"></i>
-              <span>0.0% ROI</span>
-            </span>
+      <!-- ① Portfolio Overview Card -->
+      <div class="card mb-4">
+        <h3 class="card-title mb-3">Portfolio Overview</h3>
+        <div class="portfolio-grid">
+          <div class="portfolio-item">
+            <span class="portfolio-label">Bank Cash</span>
+            <span class="portfolio-value font-mono text-success" id="stat-total-bank-cash">₦0.00</span>
+            <span class="portfolio-sub" id="stat-bank-cash-subtext">Across linked accounts</span>
+          </div>
+          <div class="portfolio-item">
+            <span class="portfolio-label">USDT Inventory</span>
+            <span class="portfolio-value font-mono text-accent" id="stat-inventory-holding">0.00 USDT</span>
+            <span class="portfolio-sub font-mono" id="stat-inventory-cost">Avg: ₦0.00 / USDT</span>
+          </div>
+          <div class="portfolio-item">
+            <span class="portfolio-label">Realized P&L</span>
+            <span class="portfolio-value font-mono" id="stat-net-pnl">₦0.00</span>
+            <div id="stat-pnl-rate" class="mt-1">
+              <span class="badge" id="pnl-roi-badge">0.0% ROI</span>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Quick Stat Chips -->
-      <div class="stat-chips mb-4">
-        <div class="stat-chip">
-          <div class="stat-chip-label">USDT Inventory</div>
-          <div class="stat-chip-value text-accent" id="stat-inventory-holding">0.00 USDT</div>
-          <div class="stat-chip-sub" id="stat-inventory-cost">Avg: ₦0.00 / USDT</div>
-        </div>
-        <div class="stat-chip">
-          <div class="stat-chip-label">Total Buys</div>
-          <div class="stat-chip-value" id="stat-total-invested">₦0.00</div>
-          <div class="stat-chip-sub" id="stat-buy-volume">0.00 USDT bought</div>
-        </div>
-        <div class="stat-chip">
-          <div class="stat-chip-label">Total Sells</div>
-          <div class="stat-chip-value" id="stat-total-realized">₦0.00</div>
-          <div class="stat-chip-sub" id="stat-sell-volume">0.00 USDT sold</div>
-        </div>
-        <div class="stat-chip">
-          <div class="stat-chip-label">Bank Cash</div>
-          <div class="stat-chip-value text-success" id="stat-total-bank-cash">₦0.00</div>
-          <div class="stat-chip-sub" id="stat-bank-cash-subtext">Across linked accounts</div>
-        </div>
-      </div>
-
-      <!-- Live Bybit Sell Ad & Spread Monitor -->
-      <div class="live-ad-card" id="card-active-ad-spread">
-        <div class="live-ad-header">
-          <div class="d-flex align-items-center gap-2">
+      <!-- ② Current Position Card (Active Sell Ad) -->
+      <div class="card mb-4" id="card-active-ad-spread">
+        <div class="card-header-flex mb-3">
+          <div>
             <span class="live-badge" id="active-ad-badge">
               <span class="live-badge-dot"></span>
               Active Sell Ad
             </span>
-            <span class="card-title" id="active-ad-title">Bybit P2P Sell Ad</span>
+            <h3 class="card-title mt-1" id="active-ad-title">Bybit Sell Ad</h3>
           </div>
-          <button class="btn btn-sm btn-outline" id="btn-sync-active-ad" title="Refresh Live Bybit Ad">
+          <button class="btn btn-xs btn-outline" id="btn-sync-active-ad" title="Refresh Live Bybit Ad">
             <i data-lucide="refresh-cw"></i>
-            <span>Refresh</span>
+            <span>Refresh Ad</span>
           </button>
         </div>
 
-        <div class="ad-metrics-row" id="active-ad-content">
-          <div class="ad-metric-cell">
-            <span class="ad-metric-label">Your Live Ad Price</span>
-            <span class="ad-metric-value font-mono text-success" id="metric-ad-sell-price">₦0.00</span>
-            <span class="ad-metric-sub" id="metric-ad-qty-stock">0.00 USDT in ad</span>
-          </div>
-          <div class="ad-metric-cell">
-            <span class="ad-metric-label">Weighted Buy Cost</span>
-            <span class="ad-metric-value font-mono text-accent" id="metric-ad-avg-buy-cost">₦0.00</span>
-            <span class="ad-metric-sub" id="metric-ad-total-bought">From your buy orders</span>
-          </div>
-          <div class="ad-metric-cell">
-            <span class="ad-metric-label">Live Ad Spread</span>
-            <span class="ad-metric-value font-mono text-success" id="metric-ad-spread-usdt">+₦0.00</span>
-            <span class="ad-metric-sub text-success" id="metric-ad-margin-pct">+0.00% margin</span>
-          </div>
-          <div class="ad-metric-cell">
-            <span class="ad-metric-label">Projected Net Profit</span>
-            <span class="ad-metric-value font-mono text-success" id="metric-ad-projected-pnl">+₦0.00</span>
-            <span class="ad-metric-sub" id="metric-ad-emtl-deduction">On current ad batch</span>
-          </div>
+        <div class="ad-hero-section mb-3">
+          <div class="ad-hero-label">Live Ad Price</div>
+          <div class="ad-hero-value font-mono text-success" id="metric-ad-sell-price">₦0.00</div>
+          <div class="ad-hero-sub text-muted" id="metric-ad-qty-stock">0.00 USDT listed</div>
         </div>
 
-        <!-- Bybit Live Inventory -->
-        <div class="balance-grid mt-3">
-          <div class="balance-cell">
-            <span class="balance-cell-label">P2P Balance</span>
-            <span class="balance-cell-value text-accent" id="stat-bybit-live-total">— USDT</span>
+        <div class="ad-submetrics-grid">
+          <div class="ad-submetric-cell">
+            <span class="ad-submetric-label">Cost Basis</span>
+            <span class="ad-submetric-value font-mono" id="metric-ad-avg-buy-cost">₦0.00</span>
           </div>
-          <div class="balance-cell">
-            <span class="balance-cell-label">In Active Ad</span>
-            <span class="balance-cell-value" id="stat-bybit-locked">—</span>
+          <div class="ad-submetric-cell">
+            <span class="ad-submetric-label">Spread</span>
+            <span class="ad-submetric-value font-mono text-success" id="metric-ad-spread-usdt">+₦0.00</span>
+            <span class="ad-submetric-sub text-success" id="metric-ad-margin-pct">+0.00%</span>
           </div>
-          <div class="balance-cell">
-            <span class="balance-cell-label">Free for Buyback</span>
-            <span class="balance-cell-value" id="stat-bybit-free">—</span>
+          <div class="ad-submetric-cell">
+            <span class="ad-submetric-label">Projected Profit</span>
+            <span class="ad-submetric-value font-mono text-success" id="metric-ad-projected-pnl">+₦0.00</span>
           </div>
         </div>
-        <div id="stat-inventory-diff" class="small mt-2 text-center hidden"></div>
       </div>
 
-      <!-- P&L Chart -->
-      <div class="card chart-card">
+      <!-- ③ Capital Allocation Card -->
+      <div class="card mb-4" id="card-capital-allocation">
+        <h3 class="card-title mb-1">Capital Allocation</h3>
+        <p class="card-subtitle mb-3">Bybit funding balance distribution</p>
+
+        <div class="capital-total-display mb-3">
+          <span class="capital-total-label">Total P2P Balance</span>
+          <span class="capital-total-value font-mono text-accent" id="stat-bybit-live-total">— USDT</span>
+        </div>
+
+        <!-- Allocation Progress Bar -->
+        <div class="allocation-bar-container mb-3">
+          <div class="allocation-bar" id="allocation-progress-bar">
+            <div class="bar-segment segment-active" id="bar-segment-active" style="width: 0%;"></div>
+            <div class="bar-segment segment-free" id="bar-segment-free" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Allocation Legend / Details -->
+        <div class="allocation-legend">
+          <div class="legend-item">
+            <span class="legend-dot dot-active"></span>
+            <div class="legend-text-group">
+              <span class="legend-label">Active Ad</span>
+              <span class="legend-value font-mono" id="stat-bybit-locked">—</span>
+            </div>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-free"></span>
+            <div class="legend-text-group">
+              <span class="legend-label">Free / Available</span>
+              <span class="legend-value font-mono" id="stat-bybit-free">—</span>
+            </div>
+          </div>
+        </div>
+        
+        <div id="stat-inventory-diff" class="small mt-3 text-center hidden"></div>
+      </div>
+
+      <!-- ④ Performance Chart Card -->
+      <div class="card mb-4">
         <div class="chart-header">
           <div>
             <h3 class="card-title">Realized P&L Trend</h3>
@@ -133,8 +142,8 @@ export function renderDashboardView() {
         </div>
       </div>
 
-      <!-- Recent Activity -->
-      <div class="card">
+      <!-- ⑤ Recent Activity Card -->
+      <div class="card mb-4" id="recent-activity-dashboard-card">
         <div class="card-header-flex mb-3">
           <h3 class="card-title">Recent Activity</h3>
           <button class="btn-link" id="btn-view-all-history">View All →</button>
@@ -149,6 +158,9 @@ export function renderDashboardView() {
           </div>
         </div>
       </div>
+
+      <!-- Padding to prevent Bottom Nav overlap -->
+      <div class="bottom-nav-spacer"></div>
     </section>
   `;
 }

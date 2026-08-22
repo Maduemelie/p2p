@@ -1159,6 +1159,237 @@ img { max-width: 100%; display: block; }
   50% { opacity: 0.8; }
 }
 
+/* ==========================================================================
+   DASHBOARD COCKPIT REDESIGN (v2.1)
+   ========================================================================== */
+
+/* Portfolio Grid */
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-4);
+  margin-top: var(--sp-2);
+}
+
+@media (max-width: 600px) {
+  .portfolio-grid {
+    grid-template-columns: 1fr;
+    gap: var(--sp-3);
+  }
+  .portfolio-item {
+    border-bottom: 1px solid var(--border-default);
+    padding-bottom: var(--sp-3);
+  }
+  .portfolio-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+}
+
+.portfolio-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.portfolio-label {
+  font-size: var(--text-tiny);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.portfolio-value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.portfolio-sub {
+  font-size: var(--text-tiny);
+  color: var(--text-muted);
+}
+
+/* Active Position / Ad price details */
+.ad-hero-section {
+  padding: var(--sp-4) 0;
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: var(--sp-3);
+}
+
+.ad-hero-label {
+  font-size: var(--text-tiny);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ad-hero-value {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.1;
+  margin: var(--sp-1) 0;
+}
+
+.ad-hero-sub {
+  font-size: var(--text-supporting);
+}
+
+.ad-submetrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-3);
+}
+
+@media (max-width: 480px) {
+  .ad-submetrics-grid {
+    grid-template-columns: 1fr;
+    gap: var(--sp-2);
+  }
+  .ad-submetric-cell {
+    border-bottom: 1px dashed var(--border-default);
+    padding-bottom: var(--sp-2);
+  }
+  .ad-submetric-cell:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+}
+
+.ad-submetric-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ad-submetric-label {
+  font-size: var(--text-tiny);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ad-submetric-value {
+  font-size: var(--text-subheading);
+  font-weight: 700;
+}
+
+.ad-submetric-sub {
+  font-size: var(--text-tiny);
+  margin-top: 2px;
+}
+
+/* Capital Allocation Display */
+.capital-total-display {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid var(--border-default);
+  padding-bottom: var(--sp-3);
+}
+
+.capital-total-label {
+  font-size: var(--text-supporting);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.capital-total-value {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+/* Visual Progress Bar */
+.allocation-bar-container {
+  width: 100%;
+  padding: var(--sp-1) 0;
+}
+
+.allocation-bar {
+  display: flex;
+  height: 12px;
+  background: var(--bg-surface-elevated);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.bar-segment {
+  height: 100%;
+  transition: width var(--duration-normal) var(--ease-out);
+}
+
+.segment-active {
+  background: linear-gradient(90deg, #F59E0B 0%, #D97706 100%);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
+}
+
+.segment-free {
+  background: linear-gradient(90deg, #3B82F6 0%, #1D4ED8 100%);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+}
+
+/* Allocation Legend */
+.allocation-legend {
+  display: flex;
+  gap: var(--sp-5);
+  margin-top: var(--sp-3);
+}
+
+@media (max-width: 480px) {
+  .allocation-legend {
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-active {
+  background: var(--warning);
+  box-shadow: 0 0 6px var(--warning);
+}
+
+.dot-free {
+  background: var(--primary);
+  box-shadow: 0 0 6px var(--primary);
+}
+
+.legend-text-group {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+.legend-label {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.legend-value {
+  font-size: var(--text-supporting);
+  font-weight: 700;
+}
+
+/* Scroll Offset Spacer to prevent nav bar covering content */
+.bottom-nav-spacer {
+  height: 96px;
+  width: 100%;
+}
+
 /* Print styles */
 @media print {
   .app-header, .bottom-nav, .sidebar-nav,
