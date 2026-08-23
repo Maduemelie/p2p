@@ -210,15 +210,7 @@ export function calculateFintechTradeFees(direction, ngnAmount, isSameBank = fal
       });
     }
   } else if (direction === 'SELL') {
-    // On SELL (Receiving Naira):
-    // Inward transfer levy / Stamp Duty is ₦50 on deposits >= ₦10,000
-    if (amount >= 10000) {
-      fees.push({
-        type: 'Custom',
-        amount: 50,
-        label: 'Stamp Duty / EMTL Levy'
-      });
-    }
+    // When we are paid Naira (SELL): No automated charges are incurred by the merchant
   }
 
   return fees;
