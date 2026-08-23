@@ -3,7 +3,7 @@
  * Provides offline shell caching and network fallback
  */
 
-const CACHE_NAME = 'bybit-p2p-v7';
+const CACHE_NAME = 'bybit-p2p-v8';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -45,42 +45,63 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event — Cache First with Network Fallback
+// Fetch Event — Network First for local assets, Cache First for external CDN assets
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
+  const requestUrl = new URL(event.request.url);
+  const isLocalAsset = requestUrl.origin === self.location.origin;
 
-      return fetch(event.request)
+  if (isLocalAsset) {
+    // Network-First Strategy for local files (always load latest when online)
+    event.respondWith(
+      fetch(event.request)
         .then((networkResponse) => {
-          // Cache valid responses for external fonts / CDN icons
           if (networkResponse && networkResponse.status === 200) {
-            const url = event.request.url;
-            if (
-              url.includes('fonts.googleapis.com') ||
-              url.includes('fonts.gstatic.com') ||
-              url.includes('unpkg.com/lucide') ||
-              url.includes('cdn.jsdelivr.net')
-            ) {
-              const responseClone = networkResponse.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, responseClone);
-              });
-            }
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
           }
           return networkResponse;
         })
         .catch(() => {
           // Offline fallback
-          if (event.request.headers.get('accept')?.includes('text/html')) {
-            return caches.match('./index.html');
-          }
-        });
-    })
-  );
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) return cachedResponse;
+            if (event.request.headers.get('accept')?.includes('text/html')) {
+              return caches.match('./index.html');
+            }
+          });
+        })
+    );
+  } else {
+    // Cache-First Strategy for static external libraries & CDNs
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        return fetch(event.request)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              const url = event.request.url;
+              if (
+                url.includes('fonts.googleapis.com') ||
+                url.includes('fonts.gstatic.com') ||
+                url.includes('unpkg.com/lucide') ||
+                url.includes('cdn.jsdelivr.net')
+              ) {
+                const responseClone = networkResponse.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                  cache.put(event.request, responseClone);
+                });
+              }
+            }
+            return networkResponse;
+          });
+      })
+    );
+  }
 });
