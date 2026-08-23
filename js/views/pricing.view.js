@@ -66,6 +66,37 @@ export function renderPricingView() {
             </div>
             <p class="form-helper">Stamp duty or fee charged when receiving Naira from a buyer</p>
           </div>
+          <div class="form-group col-12 col-md-6">
+            <label for="input-pricing-mode" class="form-label">
+              <i data-lucide="calculator"></i> Pricing Calculation Mode
+            </label>
+            <select id="input-pricing-mode" class="form-select">
+              <option value="competitor">Outbid/Undercut Top Competitor</option>
+              <option value="avg-5">Simple Average (Top 5 Ads)</option>
+              <option value="avg-10" selected>Simple Average (Top 10 Ads)</option>
+              <option value="avg-20">Simple Average (Top 20 Ads)</option>
+              <option value="vwap-5">Weighted Average (Top 5 Ads)</option>
+              <option value="vwap-10">Weighted Average (Top 10 Ads)</option>
+              <option value="vwap-20">Weighted Average (Top 20 Ads)</option>
+            </select>
+          </div>
+          <div class="form-group col-12 col-md-6">
+            <label for="input-depth-limit" class="form-label">
+              <i data-lucide="layers"></i> Market Depth Sync Size
+            </label>
+            <select id="input-depth-limit" class="form-select">
+              <option value="10">10 Ads</option>
+              <option value="20">20 Ads</option>
+              <option value="50" selected>50 Ads</option>
+              <option value="100">100 Ads</option>
+            </select>
+          </div>
+          <div class="form-group col-12 col-md-6 d-flex flex-row align-items-center gap-2" style="cursor: pointer; padding-top: 10px;">
+            <input type="checkbox" id="input-filter-limits" style="width: 18px; height: 18px; cursor: pointer;" checked>
+            <label for="input-filter-limits" class="form-label mb-0" style="cursor: pointer; user-select: none;">
+              <i data-lucide="filter"></i> Filter ads by target volume & limits
+            </label>
+          </div>
         </div>
       </div>
 
