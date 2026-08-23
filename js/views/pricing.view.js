@@ -111,6 +111,9 @@ export function renderPricingView() {
             </div>
             <h3 class="card-title">Buy Ad Assistant <span class="badge badge-primary">Inflow</span></h3>
           </div>
+          <p class="text-secondary small mb-3" style="line-height: 1.4;">
+            Prices competitor ads for your <strong>Buy Ad</strong> (which appears under Bybit P2P <strong>"Sell"</strong> tab for takers).
+          </p>
           
           <div class="d-flex flex-column gap-3">
             <div class="d-flex justify-content-between align-items-center">
@@ -150,7 +153,10 @@ export function renderPricingView() {
             </div>
             <h3 class="card-title">Sell Ad Assistant <span class="badge badge-buy">Outflow</span></h3>
           </div>
-
+          <p class="text-secondary small mb-3" style="line-height: 1.4;">
+            Prices competitor ads for your <strong>Sell Ad</strong> (which appears under Bybit P2P <strong>"Buy"</strong> tab for takers).
+          </p>
+          
           <div class="d-flex flex-column gap-3">
             <div class="d-flex justify-content-between align-items-center">
               <span class="text-secondary small">FIFO Holding Cost Basis:</span>
@@ -189,7 +195,7 @@ export function renderPricingView() {
         <!-- Buy Depth (Other Advertisers Buying - Takers Selling) -->
         <div class="col-12 col-md-6 card">
           <h3 class="card-title mb-1">Buy Order Book (Market Bids)</h3>
-          <p class="card-subtitle mb-3">Other advertisers buying USDT. Top bid wins.</p>
+          <p class="card-subtitle mb-3">Other merchants buying USDT (matches Bybit P2P <strong>"Sell"</strong> tab for takers). Top bid wins.</p>
           <div class="table-responsive">
             <table class="market-depth-table" id="pricing-buy-orderbook">
               <thead>
@@ -211,7 +217,7 @@ export function renderPricingView() {
         <!-- Sell Depth (Other Advertisers Selling - Takers Buying) -->
         <div class="col-12 col-md-6 card">
           <h3 class="card-title mb-1">Sell Order Book (Market Asks)</h3>
-          <p class="card-subtitle mb-3">Other advertisers selling USDT. Cheapest ask wins.</p>
+          <p class="card-subtitle mb-3">Other merchants selling USDT (matches Bybit P2P <strong>"Buy"</strong> tab for takers). Cheapest ask wins.</p>
           <div class="table-responsive">
             <table class="market-depth-table" id="pricing-sell-orderbook">
               <thead>
