@@ -258,7 +258,7 @@ export function renderTradeHistory() {
     const itemStatusClass = isBuy ? 'trade-buy' : (trade.realizedPnL !== null && trade.realizedPnL < 0 ? 'trade-sell-loss' : 'trade-sell-profit');
 
     return `
-      <div class="card mb-3 trade-history-card ${itemStatusClass}">
+      <div class="card mb-3 trade-history-card ${itemStatusClass}" id="trade-card-${trade.id}">
         
         <!-- COMPACT ROW PREVIEW CONTAINER -->
         <div class="trade-list-item cursor-pointer js-row-toggle" data-target-drawer="details_${trade.id}">
@@ -358,12 +358,20 @@ export function renderTradeHistory() {
                   <span>FIFO Matched Buy Lots</span>
                 </div>
                 <div class="mb-3 font-mono text-supporting">
-                  ${trade.matchedLots.map(lot => `
-                    <div class="d-flex align-items-center justify-content-between py-1 border-bottom-subtle">
-                      <span class="text-secondary">${escapeHtml(lot.source)}: <b>${formatUSDT(lot.qty)}</b> @ ${formatRate(lot.buyRate)}</span>
-                      <span class="text-primary-color">${formatNGN(lot.lotCost)}</span>
-                    </div>
-                  `).join('')}
+                  ${trade.matchedLots.map(lot => {
+                    const isRealTrade = lot.lotId && lot.lotId.startsWith('trade');
+                    const sourceHtml = isRealTrade
+                      ? `<span class="matched-lot-link text-primary-color cursor-pointer hover-underline d-inline-flex align-items-center gap-1" data-target-id="${lot.lotId}" title="Click to jump to this Buy trade">
+                           ${escapeHtml(lot.source)} <i data-lucide="external-link" style="width: 10px; height: 10px; display: inline-block;"></i>
+                         </span>`
+                      : `<span>${escapeHtml(lot.source)}</span>`;
+                    return `
+                      <div class="d-flex align-items-center justify-content-between py-1 border-bottom-subtle">
+                        <span class="text-secondary">${sourceHtml}: <b>${formatUSDT(lot.qty)}</b> @ ${formatRate(lot.buyRate)}</span>
+                        <span class="text-primary-color">${formatNGN(lot.lotCost)}</span>
+                      </div>
+                    `;
+                  }).join('')}
                   <div class="d-flex align-items-center justify-content-between pt-2 fw-bold text-primary-color">
                     <span>Total Cost Basis:</span>
                     <span class="text-warning">${formatNGN(trade.costBasis)}</span>
@@ -465,6 +473,74 @@ export function renderTradeHistory() {
           },
           'danger'
         );
+      }
+    });
+  });
+
+  // Handle click on matched lot link to jump to the corresponding Buy trade
+  container.querySelectorAll('.matched-lot-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const targetTradeId = link.getAttribute('data-target-id');
+      if (!targetTradeId) return;
+
+      // 1. Reset all filters and search fields to ensure target is visible
+      const searchInput = document.getElementById('history-search');
+      if (searchInput) searchInput.value = '';
+      activeSearchQuery = '';
+      const btnClearSearch = document.getElementById('btn-clear-search');
+      if (btnClearSearch) btnClearSearch.classList.add('hidden');
+
+      const filterType = document.getElementById('filter-type');
+      if (filterType) filterType.value = 'ALL';
+      activeTypeFilter = 'ALL';
+
+      const filterBank = document.getElementById('filter-bank');
+      if (filterBank) filterBank.value = 'ALL';
+      activeBankFilter = 'ALL';
+
+      const filterSort = document.getElementById('filter-sort');
+      if (filterSort) filterSort.value = 'date-desc';
+      activeSortOrder = 'date-desc';
+
+      // 2. Find target position in the full chronological sorted list
+      const rawTrades = store.getTrades();
+      const { enrichedTrades } = calculateFIFOInventoryAndPnL(rawTrades, store.getOpeningInventory());
+      
+      // Sort using current 'date-desc'
+      enrichedTrades.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      const index = enrichedTrades.findIndex(t => t.id === targetTradeId);
+      if (index !== -1) {
+        // Calculate page index
+        const targetPage = Math.floor(index / pageSize) + 1;
+        currentPage = targetPage;
+
+        // Re-render
+        renderTradeHistory();
+
+        // 3. Scroll to target card and flash highlight
+        setTimeout(() => {
+          const card = document.getElementById(`trade-card-${targetTradeId}`);
+          if (card) {
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            card.classList.add('highlight-pulse');
+            
+            // Auto-expand target detail drawer
+            const targetDrawer = document.getElementById(`details_${targetTradeId}`);
+            if (targetDrawer && targetDrawer.classList.contains('hidden')) {
+              targetDrawer.classList.remove('hidden');
+              const chevron = card.querySelector('.row-chevron');
+              if (chevron) {
+                chevron.style.transform = 'rotate(180deg)';
+              }
+            }
+
+            setTimeout(() => {
+              card.classList.remove('highlight-pulse');
+            }, 2500);
+          }
+        }, 150);
       }
     });
   });

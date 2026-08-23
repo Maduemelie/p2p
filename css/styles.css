@@ -1746,3 +1746,33 @@ img { max-width: 100%; display: block; }
   body { background: #fff; color: #000; padding: 0; }
   .card { border: 1px solid #ddd; box-shadow: none; }
 }
+
+/* Matched FIFO lot links & Jump-to highlight */
+.matched-lot-link {
+  transition: color var(--duration-fast) ease, text-shadow var(--duration-fast) ease;
+}
+
+.matched-lot-link:hover {
+  color: var(--primary) !important;
+  text-shadow: 0 0 8px var(--primary-glow);
+}
+
+@keyframes highlightPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+    border-color: #3b82f6;
+  }
+  50% {
+    box-shadow: 0 0 15px 5px rgba(59, 130, 246, 0.5);
+    border-color: #3b82f6;
+    background-color: var(--bg-hover);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+.highlight-pulse {
+  animation: highlightPulse 2.5s ease-in-out;
+  border: 1px solid #3b82f6 !important;
+}
