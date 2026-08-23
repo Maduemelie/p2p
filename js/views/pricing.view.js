@@ -167,6 +167,10 @@ export function renderPricingView() {
               <span class="font-mono fw-bold" id="pricing-break-even">₦0.00</span>
             </div>
             <div class="d-flex justify-content-between align-items-center">
+              <span class="text-secondary small">Target Sell Price:</span>
+              <span class="font-mono fw-bold text-warning" id="pricing-target-sell-price">₦0.00</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
               <span class="text-secondary small">Top Competitor Sell:</span>
               <span class="font-mono fw-bold" id="pricing-top-sell-competitor">₦0.00</span>
             </div>

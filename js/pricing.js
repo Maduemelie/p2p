@@ -284,11 +284,14 @@ function calculateMargins() {
     if (elMaxBuy) elMaxBuy.textContent = formatNGN(maxBuyPrice);
 
     // Suggested Buy Price: outbid the reference price by +0.10 NGN
-    const suggestedBuy = referenceBuyPrice > 0 ? (referenceBuyPrice + 0.10) : (exitPrice - targetSpread - 1);
+    const rawSuggestedBuy = referenceBuyPrice > 0 ? (referenceBuyPrice + 0.10) : maxBuyPrice;
+    
+    // Cap at maxBuyPrice to protect target spread!
+    const suggestedBuy = Math.min(rawSuggestedBuy, maxBuyPrice);
     if (elSuggestedBuy) elSuggestedBuy.textContent = formatNGN(suggestedBuy);
 
     // Dynamic Safe check
-    if (suggestedBuy <= maxBuyPrice) {
+    if (rawSuggestedBuy <= maxBuyPrice) {
       if (elBuyStatus) {
         const excessSpread = exitPrice - suggestedBuy - (inflowFee / avgVolume);
         elBuyStatus.innerHTML = `<span class="badge badge-success">🟢 Safe to Outbid • Spread: +₦${excessSpread.toFixed(2)}</span>`;
@@ -296,9 +299,9 @@ function calculateMargins() {
       if (elSuggestedBuy) elSuggestedBuy.className = 'font-mono text-success fw-bold my-1';
     } else {
       if (elBuyStatus) {
-        elBuyStatus.innerHTML = `<span class="badge badge-danger">🔴 Spread Compressed (${(exitPrice - suggestedBuy).toFixed(2)} NGN)</span>`;
+        elBuyStatus.innerHTML = `<span class="badge badge-danger">🔴 Spread Compressed (Capped for Spread)</span>`;
       }
-      if (elSuggestedBuy) elSuggestedBuy.className = 'font-mono text-danger fw-bold my-1';
+      if (elSuggestedBuy) elSuggestedBuy.className = 'font-mono text-warning fw-bold my-1';
     }
   } else {
     if (elMaxBuy) elMaxBuy.textContent = '—';
@@ -353,6 +356,7 @@ function calculateMargins() {
   }
 
   const elBreakEven = document.getElementById('pricing-break-even');
+  const elTargetSell = document.getElementById('pricing-target-sell-price');
   const elSuggestedSell = document.getElementById('pricing-suggested-sell');
   const elSellStatus = document.getElementById('pricing-sell-status');
 
@@ -361,13 +365,20 @@ function calculateMargins() {
     const breakEven = costBasis + (outflowFee / avgVolume);
     if (elBreakEven) elBreakEven.textContent = formatNGN(breakEven);
 
+    // Target Sell price = cost + targetSpread + (outflow fee / vol)
+    const targetSellPrice = costBasis + targetSpread + (outflowFee / avgVolume);
+    if (elTargetSell) elTargetSell.textContent = formatNGN(targetSellPrice);
+
     if (referenceSellPrice > 0) {
       // Suggested Sell price: undercut the reference price by -0.10 NGN
-      const suggestedSell = referenceSellPrice - 0.10;
+      const rawSuggestedSell = referenceSellPrice - 0.10;
+      
+      // Floor at targetSellPrice to guarantee target spread is met!
+      const suggestedSell = Math.max(rawSuggestedSell, targetSellPrice);
       if (elSuggestedSell) elSuggestedSell.textContent = formatNGN(suggestedSell);
 
       // Dynamic Safe check
-      if (suggestedSell >= breakEven) {
+      if (rawSuggestedSell >= targetSellPrice) {
         if (elSellStatus) {
           const sellSpread = suggestedSell - costBasis - (outflowFee / avgVolume);
           elSellStatus.innerHTML = `<span class="badge badge-success">🟢 Safe to Undercut • Spread: +₦${sellSpread.toFixed(2)}</span>`;
@@ -375,9 +386,9 @@ function calculateMargins() {
         if (elSuggestedSell) elSuggestedSell.className = 'font-mono text-success fw-bold my-1';
       } else {
         if (elSellStatus) {
-          elSellStatus.innerHTML = `<span class="badge badge-danger">🔴 Below Break-Even (₦${suggestedSell.toFixed(2)})</span>`;
+          elSellStatus.innerHTML = `<span class="badge badge-danger">🔴 Below Target Spread (Floored for Spread)</span>`;
         }
-        if (elSuggestedSell) elSuggestedSell.className = 'font-mono text-danger fw-bold my-1';
+        if (elSuggestedSell) elSuggestedSell.className = 'font-mono text-warning fw-bold my-1';
       }
     } else {
       if (elSuggestedSell) elSuggestedSell.textContent = '—';
@@ -385,6 +396,7 @@ function calculateMargins() {
     }
   } else {
     if (elBreakEven) elBreakEven.textContent = '—';
+    if (elTargetSell) elTargetSell.textContent = '—';
     if (elSuggestedSell) elSuggestedSell.textContent = '—';
     if (elSellStatus) elSellStatus.innerHTML = '<span class="badge badge-neutral">No inventory costs found</span>';
   }
