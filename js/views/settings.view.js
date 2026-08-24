@@ -40,22 +40,28 @@ export function renderSettingsView() {
           </div>
         </div>
 
-        <!-- Wallet Transfers -->
-        <div class="card mb-4">
-          <div class="card-header-flex mb-3">
-            <div>
-              <h3 class="card-title">Wallet Transfers</h3>
-              <p class="card-subtitle">Track movements between Funding, Spot, external</p>
-            </div>
-            <button class="btn btn-sm btn-outline" id="btn-open-transfer-modal">
-              <i data-lucide="repeat"></i>
-              <span>Log</span>
-            </button>
-          </div>
-          <div id="transfers-summary-list">
-            <p class="text-muted small">No transfers logged yet.</p>
-          </div>
-        </div>
+         <!-- Transfers Log -->
+         <div class="card mb-4">
+           <div class="card-header-flex mb-3">
+             <div>
+               <h3 class="card-title">Transfers Log</h3>
+               <p class="card-subtitle">Track movements of USDT (Wallets) or Naira (Banks)</p>
+             </div>
+             <div class="d-flex gap-2">
+               <button class="btn btn-sm btn-outline" id="btn-open-transfer-modal">
+                 <i data-lucide="repeat"></i>
+                 <span>Log USDT</span>
+               </button>
+               <button class="btn btn-sm btn-primary" id="btn-open-bank-transfer-modal">
+                 <i data-lucide="landmark"></i>
+                 <span>Log Naira</span>
+               </button>
+             </div>
+           </div>
+           <div id="transfers-summary-list">
+             <p class="text-muted small">No transfers logged yet.</p>
+           </div>
+         </div>
       </div>
 
       <!-- Tab: Bybit Sync -->

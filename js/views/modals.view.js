@@ -143,6 +143,76 @@ export function renderModalsView() {
           </div>
         </form>
       </div>
+    <!-- Modal: Log Bank Transfer -->
+    <div class="modal-backdrop hidden" id="modal-bank-transfer-backdrop">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Log Bank Transfer</h3>
+          <button class="btn-icon" id="btn-close-bank-transfer-modal" aria-label="Close">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <form id="form-log-bank-transfer" class="modal-body">
+          <div class="form-group mb-3">
+            <label for="bank-transfer-date" class="form-label">
+              <i data-lucide="calendar"></i> Date & Time
+            </label>
+            <input type="datetime-local" id="bank-transfer-date" class="form-input" required>
+          </div>
+
+          <div class="form-grid mb-3">
+            <div class="form-group col-12 col-md-6">
+              <label for="bank-transfer-from" class="form-label">
+                <i data-lucide="arrow-up-right"></i> From Account
+              </label>
+              <select id="bank-transfer-from" class="form-select" required>
+                <option value="" disabled selected>Select Source Bank</option>
+              </select>
+            </div>
+            <div class="form-group col-12 col-md-6">
+              <label for="bank-transfer-to" class="form-label">
+                <i data-lucide="arrow-down-left"></i> To Account
+              </label>
+              <select id="bank-transfer-to" class="form-select" required>
+                <option value="" disabled selected>Select Destination Bank</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-grid mb-3">
+            <div class="form-group col-12 col-md-6">
+              <label for="bank-transfer-amount" class="form-label">
+                <i data-lucide="banknote"></i> Naira Amount
+              </label>
+              <div class="input-affix-wrapper">
+                <span class="input-prefix">₦</span>
+                <input type="number" step="0.01" min="0.01" id="bank-transfer-amount" class="form-input font-mono" placeholder="50,000.00" required>
+              </div>
+            </div>
+            <div class="form-group col-12 col-md-6">
+              <label for="bank-transfer-fee" class="form-label">
+                <i data-lucide="receipt"></i> Transfer Fee
+              </label>
+              <div class="input-affix-wrapper">
+                <span class="input-prefix">₦</span>
+                <input type="number" step="0.01" min="0" id="bank-transfer-fee" class="form-input font-mono" placeholder="10.00" value="10.00">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group mb-3">
+            <label for="bank-transfer-notes" class="form-label">
+              <i data-lucide="file-text"></i> Notes (Optional)
+            </label>
+            <input type="text" id="bank-transfer-notes" class="form-input" placeholder="e.g. Funding new trading account">
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-bank-transfer-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Transfer</button>
+          </div>
+        </form>
+      </div>
     </div>
   `;
 }

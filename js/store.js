@@ -230,12 +230,26 @@ class Store {
       const fromId = transfer.fromBankId;
       const toId = transfer.toBankId;
       const amount = Number(transfer.amount) || 0;
+      const fee = Number(transfer.fee) || 0;
 
-      if (fromId && balanceMap.has(fromId)) {
-        balanceMap.get(fromId).currentBalance -= amount;
-      }
-      if (toId && balanceMap.has(toId)) {
-        balanceMap.get(toId).currentBalance += amount;
+      if (transfer.asset === 'NGN') {
+        if (fromId && balanceMap.has(fromId)) {
+          balanceMap.get(fromId).currentBalance -= (amount + fee);
+          balanceMap.get(fromId).totalOutflow += (amount + fee);
+          balanceMap.get(fromId).totalFees += fee;
+        }
+        if (toId && balanceMap.has(toId)) {
+          balanceMap.get(toId).currentBalance += amount;
+          balanceMap.get(toId).totalInflow += amount;
+        }
+      } else {
+        // Fallback/USDT transfers matching bank IDs
+        if (fromId && balanceMap.has(fromId)) {
+          balanceMap.get(fromId).currentBalance -= amount;
+        }
+        if (toId && balanceMap.has(toId)) {
+          balanceMap.get(toId).currentBalance += amount;
+        }
       }
     });
 
