@@ -30,6 +30,24 @@ function getProxyUrl() {
   return 'http://localhost:3000';
 }
 
+function getAuthHeaders(customHeaders = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...customHeaders
+  };
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const token = localStorage.getItem('bybit_p2p_proxy_token');
+    if (token && token.trim()) {
+      const cleanToken = token.trim();
+      headers['Authorization'] = `Bearer ${cleanToken}`;
+      headers['x-proxy-token'] = cleanToken;
+      headers['x-api-token'] = cleanToken;
+      headers['x-auth-token'] = cleanToken;
+    }
+  }
+  return headers;
+}
+
 export const bybitService = {
   /**
    * Check if the local proxy server is running and configured
@@ -37,7 +55,9 @@ export const bybitService = {
   async checkStatus() {
     try {
       const baseUrl = getProxyUrl();
-      const response = await fetch(`${baseUrl}/api/status`);
+      const response = await fetch(`${baseUrl}/api/status`, {
+        headers: getAuthHeaders()
+      });
       if (!response.ok) throw new Error('Proxy status error');
       return await response.json();
     } catch (e) {
@@ -54,9 +74,12 @@ export const bybitService = {
       const baseUrl = getProxyUrl();
       const response = await fetch(`${baseUrl}/api/balance?coin=${coin}&accountType=FUND&_t=${Date.now()}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: getAuthHeaders()
       });
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Unauthorized: Invalid or missing proxy authorization token. Please configure your Proxy Auth Token in Settings.');
+        }
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.retMsg || `HTTP ${response.status}`);
       }
@@ -87,13 +110,14 @@ export const bybitService = {
 
       const response = await fetch(`${baseUrl}/api/orders`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Unauthorized: Invalid or missing proxy authorization token. Please configure your Proxy Auth Token in Settings.');
+        }
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.retMsg || errData.ret_msg || `HTTP ${response.status}`);
       }
@@ -118,9 +142,13 @@ export const bybitService = {
       const baseUrl = getProxyUrl();
       const response = await fetch(`${baseUrl}/api/ads?_t=${Date.now()}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: getAuthHeaders()
       });
       if (!response.ok) {
+        if (response.status === 401) {
+          console.warn('[Bybit Service] Unauthorized: Invalid or missing proxy authorization token');
+          throw new Error('Unauthorized: Invalid or missing proxy authorization token. Please configure your Proxy Auth Token in Settings.');
+        }
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.retMsg || `HTTP ${response.status}`);
       }
@@ -141,8 +169,13 @@ export const bybitService = {
   async fetchMarketDepth(coin = 'USDT', fiat = 'NGN', limit = 5) {
     try {
       const baseUrl = getProxyUrl();
-      const response = await fetch(`${baseUrl}/api/market-depth?coin=${coin}&fiat=${fiat}&limit=${limit}&_t=${Date.now()}`);
+      const response = await fetch(`${baseUrl}/api/market-depth?coin=${coin}&fiat=${fiat}&limit=${limit}&_t=${Date.now()}`, {
+        headers: getAuthHeaders()
+      });
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Unauthorized: Invalid or missing proxy authorization token. Please configure your Proxy Auth Token in Settings.');
+        }
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.retMsg || `HTTP ${response.status}`);
       }

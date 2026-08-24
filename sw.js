@@ -3,18 +3,35 @@
  * Provides offline shell caching and network fallback
  */
 
-const CACHE_NAME = 'bybit-p2p-v8';
+const CACHE_NAME = 'bybit-p2p-v9';
 const STATIC_ASSETS = [
   './',
   './index.html',
-  './css/styles.css?v=2.5',
-  './js/app.js',
-  './js/views/pricing.view.js',
-  './js/pricing.js',
   './manifest.json',
+  './css/styles.css',
+  './css/styles.css?v=2.5',
   './icons/icon.svg',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  './js/app.js',
+  './js/store.js',
+  './js/utils.js',
+  './js/fees.js',
+  './js/export.js',
+  './js/bybitService.js',
+  './js/dashboard.js',
+  './js/trades.js',
+  './js/history.js',
+  './js/pricing.js',
+  './js/banks.js',
+  './js/transfers.js',
+  './js/settings.js',
+  './js/views/dashboard.view.js',
+  './js/views/addTrade.view.js',
+  './js/views/pricing.view.js',
+  './js/views/history.view.js',
+  './js/views/settings.view.js',
+  './js/views/modals.view.js'
 ];
 
 // Install Event — pre-cache core app shell
@@ -69,9 +86,14 @@ self.addEventListener('fetch', (event) => {
           // Offline fallback
           return caches.match(event.request).then((cachedResponse) => {
             if (cachedResponse) return cachedResponse;
-            if (event.request.headers.get('accept')?.includes('text/html')) {
-              return caches.match('./index.html');
-            }
+            // Fallback: match ignoring query search params (e.g. css?v=2.5)
+            return caches.match(event.request, { ignoreSearch: true }).then((matchIgnoreSearch) => {
+              if (matchIgnoreSearch) return matchIgnoreSearch;
+              // Fallback for navigation requests to return offline HTML shell
+              if (event.request.headers.get('accept')?.includes('text/html') || event.request.mode === 'navigate') {
+                return caches.match('./index.html');
+              }
+            });
           });
         })
     );

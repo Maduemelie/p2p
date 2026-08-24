@@ -152,38 +152,8 @@ export function initSettings() {
       if (elLocked) elLocked.textContent = `${adAllocation.toFixed(2)} USDT`;
       if (elFree) elFree.textContent = `${freeForBuyback.toFixed(2)} USDT`;
 
-      if (showToast) {
-        // Find active ad's original quantity to set as Starting Inventory
-        let adOriginalQty = totalP2P;
-        try {
-          const ads = await bybitService.fetchActiveAds('1', 'USDT');
-          const activeAd = ads.find(a => Number(a.side) === 1 && Number(a.status) === 10)
-            || ads.find(a => Number(a.side) === 1 && (Number(a.status) === 20 || Number(a.status) === 2))
-            || null;
-          if (activeAd) {
-            adOriginalQty = parseFloat(activeAd.quantity) || totalP2P;
-          }
-        } catch (adErr) {
-          console.warn('[Settings Sync] Could not fetch active ads:', adErr.message);
-        }
-
-        // Calculate current FIFO average buy cost
-        const trades = store.getTrades();
-        const currentOpening = store.getOpeningInventory();
-        const fifoResult = calculateFIFOInventoryAndPnL(trades, currentOpening);
-        const avgBuyCost = fifoResult.avgHoldingCostPerUSDT || currentOpening.defaultCostBasis || 0;
-
-        store.setOpeningInventory({
-          startingUsdtBalance: adOriginalQty,
-          defaultCostBasis: avgBuyCost
-        });
-
-        if (inputOpeningUsdt) inputOpeningUsdt.value = adOriginalQty;
-        if (inputOpeningCost) inputOpeningCost.value = avgBuyCost;
-
-        if (window.showToast) {
-          window.showToast(`P2P Balance Synced: ${adOriginalQty.toFixed(2)} USDT saved as Starting USDT @ ₦${avgBuyCost.toFixed(2)}!`, 'success');
-        }
+      if (showToast && window.showToast) {
+        window.showToast(`P2P Balance Synced: ${totalP2P.toFixed(2)} USDT Total (${freeForBuyback.toFixed(2)} USDT Free, ${adAllocation.toFixed(2)} USDT Locked)`, 'success');
       }
     } catch (err) {
       console.error('[Settings] Bybit holdings sync error:', err);
@@ -243,17 +213,18 @@ export function initSettings() {
     pendingImportOrders.forEach(order => {
       const orderId = String(order.id);
       const direction = Number(order.side) === 0 ? 'BUY' : 'SELL';
+      const isBuy = direction === 'BUY';
       const rate = parseFloat(order.price) || 0;
       const ngnAmount = parseFloat(order.amount) || 0;
       const usdtAmount = parseFloat(order.notifyTokenQuantity || order.quantity || (rate > 0 ? (ngnAmount / rate).toFixed(4) : 0)) || 0;
       
-      const counterparty = order.targetNickName || order.buyerRealName || order.sellerRealName || '';
+      const counterparty = order.targetNickName || (isBuy ? order.sellerRealName : order.buyerRealName) || '';
       const rawDate = order.createDate ? Number(order.createDate) : Date.now();
       const date = new Date(rawDate).toISOString();
 
       // Get assigned bank for this trade
       const assignedBankId = selectedBankMap.get(orderId) || defaultBankId;
-      const isSameBank = formAssign.querySelector(`.assign-same-bank-check[data-order-id="${orderId}"]`)?.checked ?? false;
+      const isSameBank = isBuy ? (formAssign.querySelector(`.assign-same-bank-check[data-order-id="${orderId}"]`)?.checked ?? false) : false;
 
       // Calculate automated Fintech fees (OPay-to-OPay is free under ₦10k)
       const fees = calculateFintechTradeFees(direction, ngnAmount, isSameBank);
@@ -317,11 +288,8 @@ export function initSettings() {
         return;
       }
 
-      const buyOrders = newOrders.filter(o => Number(o.side) === 0);
-      const sellOrders = newOrders.filter(o => Number(o.side) === 1);
-
-      // If there are BUY orders, open the Assign Banks modal so user can pick the source bank
-      if (buyOrders.length > 0 && assignList && modalAssign) {
+      // Open the Assign Banks modal for all imported orders (BUY and/or SELL)
+      if (assignList && modalAssign) {
         pendingImportOrders = newOrders;
 
         const bankOptionsHtml = banks.map(bank => {
@@ -329,62 +297,62 @@ export function initSettings() {
           return `<option value="${escapeHtml(bank.id)}">${escapeHtml(bank.name)} (•••• ${escapeHtml(bank.last4)}) — ₦${bal.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</option>`;
         }).join('');
 
-        assignList.innerHTML = buyOrders.map(order => {
+        assignList.innerHTML = newOrders.map(order => {
+          const isBuy = Number(order.side) === 0;
+          const direction = isBuy ? 'BUY' : 'SELL';
           const ngnAmount = parseFloat(order.amount) || 0;
           const usdtAmount = parseFloat(order.notifyTokenQuantity || order.quantity || 0);
           const rate = parseFloat(order.price) || 0;
-          const counterparty = order.targetNickName || order.sellerRealName || 'Seller';
+          const counterparty = order.targetNickName || (isBuy ? order.sellerRealName : order.buyerRealName) || (isBuy ? 'Seller' : 'Buyer');
           const orderDateStr = order.createDate ? new Date(Number(order.createDate)).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+          const badgeStyle = isBuy
+            ? 'background: rgba(59, 130, 246, 0.15); color: var(--primary-light);'
+            : 'background: rgba(16, 185, 129, 0.15); color: var(--profit);';
+          const labelText = isBuy ? 'Paid From Bank Account:' : 'Received Into Bank Account:';
 
           return `
             <div class="card p-3" style="background: rgba(10, 16, 28, 0.6); border: 1px solid rgba(255, 255, 255, 0.08);">
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <div>
-                  <span class="brand-tag" style="background: rgba(59, 130, 246, 0.15); color: var(--primary-light);">BUY USDT</span>
+                  <span class="brand-tag" style="${badgeStyle}">${direction} USDT</span>
                   <strong class="ms-2 font-mono">₦${ngnAmount.toLocaleString('en-NG', { minimumFractionDigits: 2 })}</strong>
                   <span class="text-muted small">(${usdtAmount.toFixed(2)} USDT @ ₦${rate.toFixed(2)})</span>
                 </div>
                 <span class="text-muted small">${orderDateStr}</span>
               </div>
               <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="text-muted small">To: <strong>${escapeHtml(counterparty)}</strong></span>
+                <span class="text-muted small">${isBuy ? 'To' : 'From'}: <strong>${escapeHtml(counterparty)}</strong></span>
               </div>
               <div class="form-group mb-2">
-                <label class="form-label small text-muted mb-1">Paid From Bank Account:</label>
+                <label class="form-label small text-muted mb-1">${labelText}</label>
                 <select class="form-select form-select-sm assign-bank-select" data-order-id="${escapeHtml(String(order.id))}">
                   ${bankOptionsHtml}
                 </select>
               </div>
+              ${isBuy ? `
               <div class="d-flex align-items-center gap-2">
                 <input type="checkbox" class="form-check-input assign-same-bank-check" id="same-bank-${escapeHtml(String(order.id))}" data-order-id="${escapeHtml(String(order.id))}" checked>
                 <label for="same-bank-${escapeHtml(String(order.id))}" class="small text-muted mb-0" style="cursor: pointer;">
                   Same-Bank Transfer (OPay, PalmPay, Moniepoint, Kuda — Free under ₦10k)
                 </label>
-              </div>
+              </div>` : ''}
             </div>
           `;
         }).join('');
 
-        if (sellOrders.length > 0) {
-          assignList.innerHTML += `
-            <p class="text-muted small mt-2">
-              <i data-lucide="info"></i> Plus ${sellOrders.length} SELL order(s) will be automatically credited to your primary account.
-            </p>
-          `;
-        }
-
         modalAssign.classList.remove('hidden');
         if (window.lucide) window.lucide.createIcons();
       } else {
-        // Only SELL orders exist, import directly
+        // Fallback: If modal DOM element is unavailable, import with default bank
         let importedCount = 0;
         newOrders.forEach(order => {
           const orderId = String(order.id);
-          const direction = 'SELL';
+          const direction = Number(order.side) === 0 ? 'BUY' : 'SELL';
+          const isBuy = direction === 'BUY';
           const rate = parseFloat(order.price) || 0;
           const ngnAmount = parseFloat(order.amount) || 0;
           const usdtAmount = parseFloat(order.notifyTokenQuantity || order.quantity || (rate > 0 ? (ngnAmount / rate).toFixed(4) : 0)) || 0;
-          const counterparty = order.targetNickName || order.buyerRealName || '';
+          const counterparty = order.targetNickName || (isBuy ? order.sellerRealName : order.buyerRealName) || '';
           const rawDate = order.createDate ? Number(order.createDate) : Date.now();
           const date = new Date(rawDate).toISOString();
 

@@ -143,14 +143,18 @@ export function renderTradeHistory() {
       const counterparty = (trade.counterparty || '').toLowerCase();
       const notes = (trade.notes || '').toLowerCase();
       const paymentMethod = (trade.paymentMethod || '').toLowerCase();
-      const ngnStr = trade.ngnAmount.toString();
-      const usdtStr = trade.usdtAmount.toString();
-      const rateStr = trade.rate.toString();
+      const refIdStr = (trade.refId || '').toString().toLowerCase();
+      const tradeIdStr = (trade.id || '').toString().toLowerCase();
+      const ngnStr = (trade.ngnAmount !== undefined && trade.ngnAmount !== null ? trade.ngnAmount : '').toString();
+      const usdtStr = (trade.usdtAmount !== undefined && trade.usdtAmount !== null ? trade.usdtAmount : '').toString();
+      const rateStr = (trade.rate !== undefined && trade.rate !== null ? trade.rate : '').toString();
 
       const matches = bankName.includes(activeSearchQuery) ||
                       counterparty.includes(activeSearchQuery) ||
                       notes.includes(activeSearchQuery) ||
                       paymentMethod.includes(activeSearchQuery) ||
+                      refIdStr.includes(activeSearchQuery) ||
+                      tradeIdStr.includes(activeSearchQuery) ||
                       ngnStr.includes(activeSearchQuery) ||
                       usdtStr.includes(activeSearchQuery) ||
                       rateStr.includes(activeSearchQuery);
@@ -308,6 +312,12 @@ export function renderTradeHistory() {
               <span class="trade-meta-label">Payment Method:</span>
               <span class="trade-meta-value">${escapeHtml(trade.paymentMethod || 'Bank Transfer')}</span>
             </div>
+            ${trade.refId ? `
+              <div class="trade-meta-item col-12">
+                <span class="trade-meta-label">Bybit Order ID:</span>
+                <span class="trade-meta-value font-mono">${escapeHtml(trade.refId)}</span>
+              </div>
+            ` : ''}
             ${trade.counterparty ? `
               <div class="trade-meta-item col-12">
                 <span class="trade-meta-label">Counterparty:</span>

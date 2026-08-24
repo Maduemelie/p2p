@@ -112,7 +112,15 @@ function initNavigation() {
   const sidebarItems = document.querySelectorAll('.sidebar-nav-item');
   const views = document.querySelectorAll('.app-view');
 
+  let currentView = 'dashboard';
+  let previousView = 'dashboard';
+
   function switchTab(targetViewId, pushState = true) {
+    if (targetViewId && targetViewId !== currentView) {
+      previousView = currentView;
+      currentView = targetViewId;
+    }
+
     // Update bottom nav tabs
     bottomTabs.forEach(tab => {
       tab.classList.toggle('active', tab.getAttribute('data-target') === targetViewId);
@@ -181,6 +189,7 @@ function initNavigation() {
   handleHashRoute();
 
   window.switchView = switchTab;
+  window.getPreviousView = () => previousView;
 }
 
 /**

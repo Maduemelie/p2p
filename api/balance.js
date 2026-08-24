@@ -1,13 +1,9 @@
-const { API_KEY, API_SECRET, executeWithFailover } = require('./_bybit');
+const { API_KEY, API_SECRET, executeWithFailover, verifyAuth } = require('./_bybit');
 
 module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  if (!verifyAuth(req, res)) return;
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
 
   if (!API_KEY || !API_SECRET) {
     return res.status(500).json({ retCode: -1, retMsg: 'Bybit API credentials not configured in Vercel Environment Variables' });

@@ -7,9 +7,15 @@ export function renderAddTradeView() {
   return `
     <section class="app-view" id="view-add-trade" data-view="add-trade">
       <div class="view-header">
-        <div>
-          <h2 class="view-title" id="trade-form-title">Record Trade</h2>
-          <p class="view-subtitle" id="trade-form-subtitle">Log a new BUY or SELL order</p>
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-sm btn-ghost" id="btn-cancel-trade" title="Go Back">
+            <i data-lucide="arrow-left"></i>
+            <span>Back</span>
+          </button>
+          <div>
+            <h2 class="view-title" id="trade-form-title">Record Trade</h2>
+            <p class="view-subtitle" id="trade-form-subtitle">Log a new BUY or SELL order</p>
+          </div>
         </div>
         <button class="btn btn-sm btn-ghost hidden" id="btn-cancel-edit">
           <i data-lucide="x"></i>
@@ -205,9 +211,13 @@ export function renderAddTradeView() {
           </div>
         </div>
 
-        <!-- Submit -->
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary btn-block" id="btn-submit-trade">
+        <!-- Submit & Cancel -->
+        <div class="form-actions d-flex gap-2">
+          <button type="button" class="btn btn-secondary flex-1" id="btn-form-cancel">
+            <i data-lucide="x"></i>
+            <span>Cancel</span>
+          </button>
+          <button type="submit" class="btn btn-primary flex-2" id="btn-submit-trade">
             <i data-lucide="check-circle"></i>
             <span id="btn-submit-label">Save Trade</span>
           </button>

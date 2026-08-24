@@ -85,41 +85,13 @@ export async function syncAndRenderActiveAd(showToast = false) {
       const frozenQty = parseFloat(activeSellAd.frozenQuantity) || 0;
       const totalInAd = lastQty + frozenQty;
 
-      // Auto-Sync starting inventory and cost basis when a new ad ID is detected
-      const savedAdId = localStorage.getItem('bybit_last_synced_ad_id');
-      if (activeSellAd.id && savedAdId !== activeSellAd.id) {
-        let totalP2P = 0;
-        try {
-          const balResult = await bybitService.fetchFundingBalance('USDT');
-          const usdtItem = balResult?.balance?.find(b => b.coin === 'USDT') || balResult?.balance?.[0];
-          if (usdtItem) {
-            totalP2P = parseFloat(usdtItem.transferBalance) || 0;
-          }
-        } catch (balErr) {
-          console.warn('[Ad Auto-Sync] Could not fetch wallet balance:', balErr.message);
-        }
-
-        const adOriginalQty = parseFloat(activeSellAd.quantity) || totalP2P;
-        if (adOriginalQty > 0) {
-          store.setOpeningInventory({
-            startingUsdtBalance: adOriginalQty,
-            defaultCostBasis: avgBuyCost
-          });
-          localStorage.setItem('bybit_last_synced_ad_id', activeSellAd.id);
-
-          if (window.showToast) {
-            window.showToast(`📢 New Sell Ad #${activeSellAd.id} detected! Auto-updated Starting Inventory to ${adOriginalQty.toFixed(2)} USDT @ ₦${avgBuyCost.toFixed(2)}.`, 'success');
-          }
-        }
-      }
-
       // Spread and margin based on THIS ad's price vs actual buy cost
       const spreadPerUsdt = avgBuyCost > 0 ? (adPrice - avgBuyCost) : 0;
       const marginPct = avgBuyCost > 0 ? (spreadPerUsdt / avgBuyCost) * 100 : 0;
 
-      // Projected profit = ONLY this ad's quantity × spread − estimated fees
+      // Projected profit = ONLY this ad's quantity × spread (₦0 fee deduction when receiving Naira)
       const projectedGross = spreadPerUsdt * totalInAd;
-      const projectedNet = Math.max(0, projectedGross - 50); // 50 NGN estimated stamp duty
+      const projectedNet = Math.max(0, projectedGross);
 
       if (adBadge) {
         adBadge.className = 'live-badge';
@@ -289,31 +261,10 @@ export function renderDashboardMetrics() {
     avgHoldingCostPerUSDT
   } = fifoResult;
 
-  // Dynamically determine inventory display values based on active Sell Ad campaign state
-  let displayInventoryUSDT = remainingInventoryUSDT;
-  let displayInventoryCostNGN = inventoryCostBasisNGN;
-  let displayAvgCostPerUSDT = avgHoldingCostPerUSDT;
-
-  if (latestActiveAd) {
-    const adCreateTime = Number(latestActiveAd.createDate) || 0;
-    let buybackUSDT = 0;
-    let buybackNGN = 0;
-
-    trades.forEach(t => {
-      if (t.type === 'BUY') {
-        const tradeTime = new Date(t.date).getTime();
-        // Sum only buybacks that occurred after the active ad was created
-        if (tradeTime >= adCreateTime) {
-          buybackUSDT += Number(t.usdtAmount) || 0;
-          buybackNGN += Number(t.ngnAmount) || 0;
-        }
-      }
-    });
-
-    displayInventoryUSDT = buybackUSDT;
-    displayInventoryCostNGN = buybackNGN;
-    displayAvgCostPerUSDT = buybackUSDT > 0 ? (buybackNGN / buybackUSDT) : (openingInventory.defaultCostBasis || 0);
-  }
+  // Inventory display values strictly from authoritative FIFO engine output
+  const displayInventoryUSDT = remainingInventoryUSDT;
+  const displayInventoryCostNGN = inventoryCostBasisNGN;
+  const displayAvgCostPerUSDT = avgHoldingCostPerUSDT || openingInventory.defaultCostBasis || 0;
 
   // DOM Elements
   const statNetPnl = document.getElementById('stat-net-pnl');
@@ -346,7 +297,7 @@ export function renderDashboardMetrics() {
     if (displayInventoryUSDT > 0) {
       statInventoryCost.textContent = `Cost: ${formatNGN(displayInventoryCostNGN)} • Avg: ₦${displayAvgCostPerUSDT.toFixed(2)}`;
     } else {
-      statInventoryCost.textContent = latestActiveAd ? 'No active buybacks' : 'No inventory';
+      statInventoryCost.textContent = 'No inventory';
     }
   }
 

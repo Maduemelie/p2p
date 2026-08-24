@@ -126,8 +126,8 @@ export function renderModalsView() {
       <div class="modal-card">
         <div class="modal-header">
           <div>
-            <h3 class="modal-title">Assign Bank for Buy Orders</h3>
-            <p class="modal-subtitle">Select which bank sent Naira for each trade</p>
+            <h3 class="modal-title">Assign Bank Accounts for Imported Orders</h3>
+            <p class="modal-subtitle">Select bank accounts for cash outflows (BUY) and cash inflows (SELL)</p>
           </div>
           <button class="btn-icon" id="btn-close-assign-banks-modal" aria-label="Close">
             <i data-lucide="x"></i>

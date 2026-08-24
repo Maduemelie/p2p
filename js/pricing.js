@@ -5,7 +5,7 @@
 
 import { bybitService } from './bybitService.js';
 import { store } from './store.js';
-import { formatNGN, formatUSDT, formatRate, calculateFIFOInventoryAndPnL } from './utils.js';
+import { formatNGN, formatUSDT, formatRate, calculateFIFOInventoryAndPnL, escapeHtml } from './utils.js';
 
 // Cache for market depth to allow local calculation runs without API spam
 let cachedMarketDepth = null;
@@ -436,10 +436,10 @@ function renderOrderBooks(depth) {
           : 'Lmt: No Limit';
 
         return `
-          <tr class="orderbook-row" data-rate="${price}">
+          <tr class="orderbook-row cursor-pointer" data-direction="SELL" data-rate="${price}" data-volume="${available}" data-counterparty="${escapeHtml(advName)}" title="Tap to record Sell trade at ₦${price}">
             <td>
-              <div class="fw-semibold truncate" style="max-width: 120px;" title="${advName}">
-                ${idx + 1}. ${advName}
+              <div class="fw-semibold truncate" style="max-width: 120px;" title="${escapeHtml(advName)}">
+                ${idx + 1}. ${escapeHtml(advName)}
               </div>
               <div class="text-muted tiny">${limitStr}</div>
             </td>
@@ -471,10 +471,10 @@ function renderOrderBooks(depth) {
           : 'Lmt: No Limit';
 
         return `
-          <tr class="orderbook-row" data-rate="${price}">
+          <tr class="orderbook-row cursor-pointer" data-direction="BUY" data-rate="${price}" data-volume="${available}" data-counterparty="${escapeHtml(advName)}" title="Tap to record Buy trade at ₦${price}">
             <td>
-              <div class="fw-semibold truncate" style="max-width: 120px;" title="${advName}">
-                ${idx + 1}. ${advName}
+              <div class="fw-semibold truncate" style="max-width: 120px;" title="${escapeHtml(advName)}">
+                ${idx + 1}. ${escapeHtml(advName)}
               </div>
               <div class="text-muted tiny">${limitStr}</div>
             </td>
@@ -490,12 +490,20 @@ function renderOrderBooks(depth) {
     }
   }
 
-  // Click on any orderbook row to quickly copy its price to settings
+  // Click on any orderbook row to prefill trade form and navigate
   document.querySelectorAll('.orderbook-row').forEach(row => {
     row.addEventListener('click', () => {
-      const rate = row.getAttribute('data-rate');
-      navigator.clipboard.writeText(rate);
-      if (window.showToast) window.showToast(`Rate copied to clipboard: ₦${rate}`, 'info');
+      const direction = row.getAttribute('data-direction') || 'BUY';
+      const rate = parseFloat(row.getAttribute('data-rate')) || 0;
+      const usdtAmount = parseFloat(row.getAttribute('data-volume')) || 0;
+      const counterparty = row.getAttribute('data-counterparty') || '';
+
+      if (window.prefillTradeForm) {
+        window.prefillTradeForm({ direction, rate, usdtAmount, counterparty });
+      } else {
+        navigator.clipboard?.writeText(String(rate));
+        if (window.showToast) window.showToast(`Rate copied to clipboard: ₦${rate}`, 'info');
+      }
     });
   });
 }

@@ -25,7 +25,7 @@ export function renderHistoryView() {
       <div class="card filter-card mb-4">
         <div class="search-box">
           <i data-lucide="search" class="search-icon"></i>
-          <input type="text" id="history-search" class="form-input search-input" placeholder="Search by counterparty, notes, bank...">
+          <input type="text" id="history-search" class="form-input search-input" placeholder="Search by Order ID (refId), counterparty, notes, bank...">
           <button class="btn-clear-search hidden" id="btn-clear-search" aria-label="Clear Search">
             <i data-lucide="x"></i>
           </button>

@@ -4,7 +4,7 @@
  */
 
 import { store } from './store.js';
-import { formatNGN, formatRate, getLocalIsoDateTime, calculateTradeBreakdown } from './utils.js';
+import { formatNGN, formatUSDT, formatRate, getLocalIsoDateTime, calculateTradeBreakdown } from './utils.js';
 import { initFees, getFeeItems, getTotalFees, updateFeeSummaryDisplay, resetFees, setFeeItems } from './fees.js';
 
 let isEditing = false;
@@ -18,6 +18,8 @@ export function initTrades() {
   const ngnInput = document.getElementById('trade-ngn');
   const usdtInput = document.getElementById('trade-usdt');
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
+  const btnCancelTrade = document.getElementById('btn-cancel-trade');
+  const btnFormCancel = document.getElementById('btn-form-cancel');
 
   // Initialize dynamic fees with recalculation callback
   initFees(recalculateTradeSummary);
@@ -66,14 +68,25 @@ export function initTrades() {
     recalculateTradeSummary();
   });
 
-  // Cancel Edit
-  btnCancelEdit?.addEventListener('click', resetTradeForm);
+  // Cancel / Back Navigation Handlers
+  const handleCancelNavigation = () => {
+    resetTradeForm();
+    const prev = (window.getPreviousView ? window.getPreviousView() : 'dashboard') || 'dashboard';
+    if (window.switchView) {
+      window.switchView(prev);
+    }
+  };
+
+  btnCancelEdit?.addEventListener('click', handleCancelNavigation);
+  btnCancelTrade?.addEventListener('click', handleCancelNavigation);
+  btnFormCancel?.addEventListener('click', handleCancelNavigation);
 
   // Form Submit Handler
   formTrade?.addEventListener('submit', handleTradeSubmit);
 
-  // Expose startEditTrade globally
+  // Expose global actions
   window.startEditTrade = startEditTrade;
+  window.prefillTradeForm = prefillTradeForm;
 
   // Run initial calculation check
   recalculateTradeSummary();
@@ -234,11 +247,12 @@ function handleTradeSubmit(e) {
     if (window.showToast) window.showToast(`${direction === 'BUY' ? 'Buy' : 'Sell'} trade of ${formatNGN(ngnAmount)} recorded!`, 'success');
   }
 
+  const wasEditing = isEditing;
   resetTradeForm();
 
   // Switch to history view if editing, or dashboard
   if (window.switchView) {
-    window.switchView(isEditing ? 'history' : 'dashboard');
+    window.switchView(wasEditing ? 'history' : 'dashboard');
   }
 }
 
@@ -326,3 +340,46 @@ export function resetTradeForm() {
   resetFees(recalculateTradeSummary);
   recalculateTradeSummary();
 }
+
+/**
+ * Pre-populate trade form with values from external trigger (e.g. order book click) and switch view
+ * @param {Object} options
+ * @param {'BUY'|'SELL'} [options.direction='BUY']
+ * @param {number} [options.rate=0]
+ * @param {number} [options.usdtAmount=0]
+ * @param {string} [options.counterparty='']
+ * @param {string} [options.notes='']
+ */
+export function prefillTradeForm({ direction = 'BUY', rate = 0, usdtAmount = 0, counterparty = '', notes = '' } = {}) {
+  resetTradeForm();
+
+  const rateInput = document.getElementById('trade-rate');
+  const usdtInput = document.getElementById('trade-usdt');
+  const ngnInput = document.getElementById('trade-ngn');
+  const counterpartyInput = document.getElementById('trade-counterparty');
+  const notesInput = document.getElementById('trade-notes');
+
+  const numRate = parseFloat(rate) || 0;
+  const numUsdt = parseFloat(usdtAmount) || 0;
+  const numNgn = (numRate > 0 && numUsdt > 0) ? (numRate * numUsdt) : 0;
+
+  if (rateInput && numRate > 0) rateInput.value = numRate;
+  if (usdtInput && numUsdt > 0) usdtInput.value = numUsdt;
+  if (ngnInput && numNgn > 0) ngnInput.value = numNgn.toFixed(2);
+  if (counterpartyInput && counterparty) counterpartyInput.value = counterparty;
+  if (notesInput && notes) notesInput.value = notes;
+
+  setTradeDirection(direction);
+  recalculateTradeSummary();
+
+  if (window.switchView) {
+    window.switchView('add-trade');
+  }
+
+  if (window.showToast) {
+    const formattedUsdt = numUsdt > 0 ? `${formatUSDT(numUsdt)} ` : '';
+    const formattedRate = numRate > 0 ? `@ ₦${numRate.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '';
+    window.showToast(`Populated ${direction} trade from order book (${formattedUsdt}${formattedRate})`.trim(), 'info');
+  }
+}
+
