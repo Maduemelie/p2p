@@ -143,6 +143,7 @@ export function renderModalsView() {
           </div>
         </form>
       </div>
+    </div>
     <!-- Modal: Log Bank Transfer -->
     <div class="modal-backdrop hidden" id="modal-bank-transfer-backdrop">
       <div class="modal-card">
