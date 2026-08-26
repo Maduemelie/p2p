@@ -1,11 +1,17 @@
 /**
  * Controller: P2P Arbitrage & Pricing Assistant
  * Performs spreads arithmetic, fetches competitor ad books, and calculates optimal pricing.
+ * Delegates mathematical formulas to the extracted pricingEngine module.
  */
 
 import { bybitService } from './bybitService.js';
 import { store } from './store.js';
-import { formatNGN, formatUSDT, formatRate, calculateFIFOInventoryAndPnL, escapeHtml } from './utils.js';
+import { formatNGN, calculateFIFOInventoryAndPnL, escapeHtml } from './utils.js';
+import {
+  filterCompetitorAds,
+  calculateBuyPricing,
+  calculateSellPricing
+} from './pricingEngine.js';
 
 // Cache for market depth to allow local calculation runs without API spam
 let cachedMarketDepth = null;
@@ -133,7 +139,7 @@ export async function refreshPricingData(showToast = false) {
   }
 
   try {
-    const depthLimit = parseInt(localStorage.getItem('bybit_p2p_pricing_depth_limit')) || 50;
+    const depthLimit = parseInt(localStorage.getItem('bybit_p2p_pricing_depth_limit'), 10) || 50;
     const depth = await bybitService.fetchMarketDepth('USDT', 'NGN', depthLimit);
     if (depth) {
       cachedMarketDepth = depth;
@@ -191,31 +197,9 @@ function calculateMargins() {
   const sortedBuyAds = [...buyAds].sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
   const sortedSellAds = [...sellAds].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
 
-  // Filter ads by volume and limits
-  const filterAdList = (ads) => {
-    return ads.filter(ad => {
-      const price = parseFloat(ad.price) || 0;
-      const qty = parseFloat(ad.lastQuantity) || 0;
-      const minLmt = parseFloat(ad.minAmount || ad.minSingleTransAmount) || 0;
-      const maxLmt = parseFloat(ad.maxAmount || ad.maxSingleTransAmount) || 0;
-
-      // Dust filter: ignore ads with less than 2 USDT or 5% of target volume
-      const minQty = Math.max(2, avgVolume * 0.05);
-      if (qty < minQty) return false;
-
-      // Limit filter
-      if (filterLimits) {
-        const tradeAmount = avgVolume * price;
-        if (minLmt > 0 && tradeAmount < minLmt) return false;
-        if (maxLmt > 0 && tradeAmount > maxLmt) return false;
-      }
-
-      return true;
-    });
-  };
-
-  const filteredBuyAds = filterAdList(sortedBuyAds);
-  const filteredSellAds = filterAdList(sortedSellAds);
+  // Filter ads by volume and limits via extracted pricing engine
+  const filteredBuyAds = filterCompetitorAds(sortedBuyAds, avgVolume, filterLimits);
+  const filteredSellAds = filterCompetitorAds(sortedSellAds, avgVolume, filterLimits);
 
   // Fallback to sorted list if filtered list is empty to prevent blank screen
   const activeBuyAds = filteredBuyAds.length > 0 ? filteredBuyAds : sortedBuyAds;
@@ -224,44 +208,23 @@ function calculateMargins() {
   // -------------------------------------------------------------
   // A. BUY SIDE: prices you should buy at
   // -------------------------------------------------------------
-  // Exit price is the cheapest seller online (index 0 of sorted sell ads)
-  const topSellCompetitor = sortedSellAds[0];
-  const exitPrice = topSellCompetitor ? parseFloat(topSellCompetitor.price) || 0 : 0;
+  const buyAnalysis = calculateBuyPricing({
+    activeBuyAds,
+    sortedSellAds,
+    targetSpread,
+    inflowFee,
+    avgVolume,
+    pricingMode
+  });
 
   const elExitPrice = document.getElementById('pricing-exit-price');
-  if (elExitPrice) elExitPrice.textContent = exitPrice > 0 ? formatNGN(exitPrice) : '—';
-
-  // Calculate Reference Buy Price
-  let referenceBuyPrice = 0;
-  if (activeBuyAds.length > 0) {
-    if (pricingMode === 'competitor') {
-      referenceBuyPrice = parseFloat(activeBuyAds[0].price) || 0;
-    } else {
-      const parts = pricingMode.split('-');
-      const type = parts[0];
-      const n = parseInt(parts[1]) || 10;
-      const subset = activeBuyAds.slice(0, n);
-
-      if (type === 'avg') {
-        const sum = subset.reduce((acc, ad) => acc + (parseFloat(ad.price) || 0), 0);
-        referenceBuyPrice = sum / subset.length;
-      } else if (type === 'vwap') {
-        let totalVal = 0;
-        let totalQty = 0;
-        subset.forEach(ad => {
-          const p = parseFloat(ad.price) || 0;
-          const q = parseFloat(ad.lastQuantity) || 0;
-          totalVal += p * q;
-          totalQty += q;
-        });
-        referenceBuyPrice = totalQty > 0 ? (totalVal / totalQty) : (parseFloat(subset[0].price) || 0);
-      }
-    }
+  if (elExitPrice) {
+    elExitPrice.textContent = buyAnalysis.exitPrice > 0 ? formatNGN(buyAnalysis.exitPrice) : '—';
   }
 
   const elTopBuyComp = document.getElementById('pricing-top-buy-competitor');
   if (elTopBuyComp) {
-    elTopBuyComp.textContent = referenceBuyPrice > 0 ? formatNGN(referenceBuyPrice) : '—';
+    elTopBuyComp.textContent = buyAnalysis.referenceBuyPrice > 0 ? formatNGN(buyAnalysis.referenceBuyPrice) : '—';
     const label = elTopBuyComp.previousElementSibling;
     if (label) {
       if (pricingMode === 'competitor') {
@@ -278,23 +241,13 @@ function calculateMargins() {
   const elSuggestedBuy = document.getElementById('pricing-suggested-buy');
   const elBuyStatus = document.getElementById('pricing-buy-status');
 
-  if (exitPrice > 0) {
-    // Max Buy limit to protect target spread: Exit Price - targetSpread - (Inflow Fee / Vol)
-    const maxBuyPrice = exitPrice - targetSpread - (inflowFee / avgVolume);
-    if (elMaxBuy) elMaxBuy.textContent = formatNGN(maxBuyPrice);
+  if (!buyAnalysis.isOffline) {
+    if (elMaxBuy) elMaxBuy.textContent = formatNGN(buyAnalysis.maxBuyPrice);
+    if (elSuggestedBuy) elSuggestedBuy.textContent = formatNGN(buyAnalysis.suggestedBuy);
 
-    // Suggested Buy Price: outbid the reference price by +0.10 NGN
-    const rawSuggestedBuy = referenceBuyPrice > 0 ? (referenceBuyPrice + 0.10) : maxBuyPrice;
-    
-    // Cap at maxBuyPrice to protect target spread!
-    const suggestedBuy = Math.min(rawSuggestedBuy, maxBuyPrice);
-    if (elSuggestedBuy) elSuggestedBuy.textContent = formatNGN(suggestedBuy);
-
-    // Dynamic Safe check
-    if (rawSuggestedBuy <= maxBuyPrice) {
+    if (buyAnalysis.isSafe) {
       if (elBuyStatus) {
-        const excessSpread = exitPrice - suggestedBuy - (inflowFee / avgVolume);
-        elBuyStatus.innerHTML = `<span class="badge badge-success">🟢 Safe to Outbid • Spread: +₦${excessSpread.toFixed(2)}</span>`;
+        elBuyStatus.innerHTML = `<span class="badge badge-success">🟢 Safe to Outbid • Spread: +₦${buyAnalysis.excessSpread.toFixed(2)}</span>`;
       }
       if (elSuggestedBuy) elSuggestedBuy.className = 'font-mono text-success fw-bold my-1';
     } else {
@@ -312,37 +265,18 @@ function calculateMargins() {
   // -------------------------------------------------------------
   // B. SELL SIDE: prices you should sell at
   // -------------------------------------------------------------
-  // Calculate Reference Sell Price
-  let referenceSellPrice = 0;
-  if (activeSellAds.length > 0) {
-    if (pricingMode === 'competitor') {
-      referenceSellPrice = parseFloat(activeSellAds[0].price) || 0;
-    } else {
-      const parts = pricingMode.split('-');
-      const type = parts[0];
-      const n = parseInt(parts[1]) || 10;
-      const subset = activeSellAds.slice(0, n);
-
-      if (type === 'avg') {
-        const sum = subset.reduce((acc, ad) => acc + (parseFloat(ad.price) || 0), 0);
-        referenceSellPrice = sum / subset.length;
-      } else if (type === 'vwap') {
-        let totalVal = 0;
-        let totalQty = 0;
-        subset.forEach(ad => {
-          const p = parseFloat(ad.price) || 0;
-          const q = parseFloat(ad.lastQuantity) || 0;
-          totalVal += p * q;
-          totalQty += q;
-        });
-        referenceSellPrice = totalQty > 0 ? (totalVal / totalQty) : (parseFloat(subset[0].price) || 0);
-      }
-    }
-  }
+  const sellAnalysis = calculateSellPricing({
+    activeSellAds,
+    costBasis,
+    targetSpread,
+    outflowFee,
+    avgVolume,
+    pricingMode
+  });
 
   const elTopSellComp = document.getElementById('pricing-top-sell-competitor');
   if (elTopSellComp) {
-    elTopSellComp.textContent = referenceSellPrice > 0 ? formatNGN(referenceSellPrice) : '—';
+    elTopSellComp.textContent = sellAnalysis.referenceSellPrice > 0 ? formatNGN(sellAnalysis.referenceSellPrice) : '—';
     const label = elTopSellComp.previousElementSibling;
     if (label) {
       if (pricingMode === 'competitor') {
@@ -360,28 +294,16 @@ function calculateMargins() {
   const elSuggestedSell = document.getElementById('pricing-suggested-sell');
   const elSellStatus = document.getElementById('pricing-sell-status');
 
-  if (costBasis > 0) {
-    // Break-even sell price = average cost + (outflow fee / vol)
-    const breakEven = costBasis + (outflowFee / avgVolume);
-    if (elBreakEven) elBreakEven.textContent = formatNGN(breakEven);
+  if (sellAnalysis.hasCostBasis) {
+    if (elBreakEven) elBreakEven.textContent = formatNGN(sellAnalysis.breakEven);
+    if (elTargetSell) elTargetSell.textContent = formatNGN(sellAnalysis.targetSellPrice);
 
-    // Target Sell price = cost + targetSpread + (outflow fee / vol)
-    const targetSellPrice = costBasis + targetSpread + (outflowFee / avgVolume);
-    if (elTargetSell) elTargetSell.textContent = formatNGN(targetSellPrice);
+    if (sellAnalysis.hasCompetitors) {
+      if (elSuggestedSell) elSuggestedSell.textContent = formatNGN(sellAnalysis.suggestedSell);
 
-    if (referenceSellPrice > 0) {
-      // Suggested Sell price: undercut the reference price by -0.10 NGN
-      const rawSuggestedSell = referenceSellPrice - 0.10;
-      
-      // Floor at targetSellPrice to guarantee target spread is met!
-      const suggestedSell = Math.max(rawSuggestedSell, targetSellPrice);
-      if (elSuggestedSell) elSuggestedSell.textContent = formatNGN(suggestedSell);
-
-      // Dynamic Safe check
-      if (rawSuggestedSell >= targetSellPrice) {
+      if (sellAnalysis.isSafe) {
         if (elSellStatus) {
-          const sellSpread = suggestedSell - costBasis - (outflowFee / avgVolume);
-          elSellStatus.innerHTML = `<span class="badge badge-success">🟢 Safe to Undercut • Spread: +₦${sellSpread.toFixed(2)}</span>`;
+          elSellStatus.innerHTML = `<span class="badge badge-success">🟢 Safe to Undercut • Spread: +₦${sellAnalysis.sellSpread.toFixed(2)}</span>`;
         }
         if (elSuggestedSell) elSuggestedSell.className = 'font-mono text-success fw-bold my-1';
       } else {

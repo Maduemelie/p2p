@@ -86,3 +86,36 @@ Implement a lightweight snapshot system that lets the user record their balances
 ### Comparison & Visualizations
 - [ ] Delta metric correctly displays positive/negative percentage changes relative to the previous day/cycle.
 - [ ] A line chart displays cumulative net worth value in NGN and USDT.
+
+## 2026-08-26T07:19:57Z
+
+# Teamwork Project Prompt — Draft
+
+> Status: Launched
+> Goal: Craft prompt → get user approval → delegate to teamwork_preview
+> Requested team: small, focused team
+
+This is a single self-contained fix; keep it small and focused.
+Analyze the Bybit NGN P2P Trade Tracker application to identify and remove unused code (dead code), and refactor reusable components into separate modules. Generate a report of the changes.
+
+Working directory: c:\dev\p2p
+Integrity mode: benchmark
+
+## Requirements
+
+### R1. Dead Code Removal
+Identify and safely remove unused functions, variables, files, and unreachable code paths across the codebase.
+
+### R2. Component Extraction
+Identify components or utility functions that have high reuse potential but are currently tightly coupled, and extract them into separate, cleanly imported ES modules.
+
+### R3. Refactoring Report
+Generate a detailed report named `refactor_report.md` in the working directory that lists exactly what dead code was removed and which components were extracted.
+
+## Acceptance Criteria
+
+### Verification
+- [ ] All existing automated tests must pass after the removals and refactoring are complete.
+- [ ] `refactor_report.md` is present in the working directory and documents the changes.
+- [ ] No application functionality is broken (verified via test suite).
+

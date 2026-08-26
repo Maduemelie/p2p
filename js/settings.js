@@ -7,7 +7,7 @@
 import { store } from './store.js';
 import { exportTradesToCSV, exportFullBackupJSON, importBackupJSON } from './export.js';
 import { bybitService } from './bybitService.js';
-import { calculateTradeBreakdown, calculateFIFOInventoryAndPnL, escapeHtml, formatNGN, formatUSDT } from './utils.js';
+import { calculateTradeBreakdown, escapeHtml } from './utils.js';
 import { calculateFintechTradeFees } from './fees.js';
 
 export function initSettings() {

@@ -1,6 +1,4 @@
-# Original User Request
-
-## Initial Request — 2026-08-26T08:20:42+01:00
+## 2026-08-26T08:20:42+01:00
 
 <USER_REQUEST>
 You are the SWE Light Orchestrator for the Bybit NGN P2P Trade Tracker project.

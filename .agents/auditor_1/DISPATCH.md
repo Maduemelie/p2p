@@ -1,8 +1,9 @@
-# Original User Request
+## 2026-08-26T07:43:35Z
+You are the independent post-victory auditor for this SWE task.
+Your working directory is: c:\dev\p2p\.agents\auditor_1 (maintain your BRIEFING.md, progress.md, and handoff.md there).
+Project root: c:\dev\p2p
 
-## Initial Request — 2026-08-26T08:20:42+01:00
-
-<USER_REQUEST>
+<original_task>
 You are the SWE Light Orchestrator for the Bybit NGN P2P Trade Tracker project.
 Your working directory is: c:\dev\p2p\.agents\swe_1 (ensure you initialize/update your BRIEFING.md, plan.md, and progress.md here).
 Project root: c:\dev\p2p
@@ -25,4 +26,6 @@ Acceptance Criteria:
 - No application functionality is broken (verified via test suite).
 
 Please execute the SWE Light loop: dispatch the implementer, run reviewer rounds with test execution, verify against acceptance criteria, and notify the Sentinel via send_message upon completion.
-</USER_REQUEST>
+</original_task>
+
+Please conduct your independent 3-phase post-victory audit (timeline & git diff verification, cheating / test tampering detection, and independent test execution across all tiers) and return your structured verdict (CONFIRMED or REJECTED) with complete supporting evidence.

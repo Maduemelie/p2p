@@ -241,7 +241,6 @@ export function calculateFIFOInventoryAndPnL(trades = [], openingInventory = { s
       // Trade Realized P&L = Net Revenue - Matched Cost Basis
       const tradeRealizedPnL = netSellRevenue - matchedCostBasis;
       const matchedOnlyCost = matchedCostBasis - (unmatchedQty * netSellRatePerUnit);
-      const matchedRevenue = netSellRevenue - (unmatchedQty * netSellRatePerUnit);
       const roiPercent = matchedOnlyCost > 0 ? ((tradeRealizedPnL / matchedOnlyCost) * 100) : 0;
 
       totalRealizedPnL += tradeRealizedPnL;
