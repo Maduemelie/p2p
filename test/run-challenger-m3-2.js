@@ -9,6 +9,7 @@ const { globalContext, TestRunner } = require('./harness/test-runner');
 
 // Load Challenger M3-2 Stress Test Suite
 require('./challenger-m3-bank-reconciliation-stress.test');
+require('./challenger-m3-persistence-events.test');
 
 async function runChallengerM3_2() {
   const runner = new TestRunner(globalContext);

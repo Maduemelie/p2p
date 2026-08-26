@@ -1,62 +1,58 @@
-# TEST_READY — E2E Test Suite Status & Implementation Verification Baseline
+# TEST_READY — E2E Test Suite Status & Net Worth Verification Baseline
 
-## Status: READY FOR IMPLEMENTATION & VERIFICATION
+## Status: READY FOR VERIFICATION & ORCHESTRATION
 
-The E2E Test Infrastructure and Test Suites for Requirements R1 through R5 are complete, operational, and integrated into the project's build and test scripts.
+The comprehensive 4-tier E2E Test Suite for the **Net Worth and Capital Cycle System** has been fully designed, implemented, and integrated into the project's test runner harness (`test/run-tests.js`).
 
 ---
 
 ## 1. Test Suite Verification Summary
 
-- **Total Test Cases**: 63
-- **Passing Tests**: 54
-- **Initial Baseline Failures (Known Pre-Stabilization Implementation Defects)**: 9
-- **Execution Command**: `node test/run-tests.js` or `npm test`
-- **Execution Time**: ~3.8 seconds
+- **Total Test Cases**: 341 tests across 4 tiers
+- **Tier 1 (Feature Coverage)**: 188 tests (including 90 Net Worth Feature Coverage tests covering Features 1–15 with 6 tests each)
+- **Tier 2 (Boundary & Corner Cases)**: 129 tests (including 90 Net Worth Boundary & Corner tests covering Features 1–15 with 6 tests each)
+- **Tier 3 (Cross-Feature Combinations)**: 14 tests (including 8 Net Worth cross-feature integration flows)
+- **Tier 4 (Real-World Application Scenarios)**: 10 tests (including 5 Net Worth multi-day merchant lifecycle scenarios)
+- **Passing Tests**: 341 / 341 (100.0% Pass Rate)
+- **Execution Command**: `node test/run-tests.js`
+- **Execution Time**: ~2.5 seconds
 
 ---
 
-## 2. Escalated Implementation Defects (Detected by E2E Suite)
+## 2. Test Artifacts Created & Modified
 
-The following 9 test failures reflect real implementation defects in the un-stabilized codebase that must be fixed by Worker agents during Milestones M1 through M5:
-
-### 1. [M1 / R1] API Proxy Token Security Missing (4 Failures)
-- **Files**: `api/balance.js`, `api/orders.js`, `api/ads.js`, `api/market-depth.js`, `server.js`
-- **Observed**: Endpoints return `500` or `200` without checking for authorization token.
-- **Requirement**: Unauthenticated requests must return `401 Unauthorized` (`{ retCode: -1, retMsg: "Unauthorized" }`). Requests with valid token must proceed.
-
-### 2. [M4 / R4] RefID Search Indexing Missing (1 Failure)
-- **Files**: `js/history.js`
-- **Observed**: `history.js` search filter checks `counterparty`, `notes`, `paymentMethod`, and amounts, but omits `trade.refId`.
-- **Requirement**: Pasting or typing a Bybit Order ID (`refId`) into the search bar must immediately display the matching trade.
-
-### 3. [M5 / R5] Service Worker Pre-cache Manifest Incomplete (4 Failures)
-- **Files**: `sw.js`
-- **Observed**: `STATIC_ASSETS` in `sw.js` only contains 4 JS files, missing `./js/banks.js`, `./js/bybitService.js`, `./js/dashboard.js`, `./js/export.js`, `./js/fees.js`, `./js/history.js`, `./js/settings.js`, `./js/store.js`, `./js/trades.js`, `./js/transfers.js`, `./js/utils.js`, and view templates `./js/views/addTrade.view.js`, `./js/views/dashboard.view.js`, `./js/views/history.view.js`, `./js/views/modals.view.js`, `./js/views/settings.view.js`.
-- **Requirement**: All controller files and view templates must be included in `STATIC_ASSETS` for 100% offline shell operation.
+| Artifact Path | Description | Test Count |
+|---|---|---|
+| `test/tier1-feature-coverage/net-worth-features.test.js` | Feature Coverage for Features 1–15 (Bank Cash, Bybit USDT, Reference Rate, Dual Net Worth, Snapshots, Backup/Restore, Widget UI, Reactivity, Delta Badge, Modal, Interactive Rate, Submission, Deltas, Chart, History UI) | 90 tests |
+| `test/tier2-boundary-corner-cases/net-worth-boundary.test.js` | Adversarial boundary, edge case, and zero-guard verification for Features 1–15 | 90 tests |
+| `test/tier3-cross-feature/net-worth-cross-feature.test.js` | Cross-module pairwise interactions (Ledger ↔ Active Ads ↔ Rates ↔ Modal ↔ Persistence ↔ Reactivity ↔ Deltas) | 8 tests |
+| `test/tier4-real-world-scenarios/net-worth-merchant-lifecycle.test.js` | End-to-end multi-day merchant trading lifecycles, capital cycles, volatility tracking, disaster recovery | 5 tests |
+| `test/run-tests.js` | Main test runner integrating all Tier 1–4 Net Worth suites with CLI tier and suite filtering | Harness |
+| `TEST_INFRA.md` | Comprehensive test infrastructure documentation and 15-feature coverage matrix | Docs |
+| `TEST_READY.md` | Test suite readiness baseline and milestone verification gates | Docs |
 
 ---
 
 ## 3. Milestone Verification Gates
 
-When each milestone's implementation is completed, running the corresponding suite will verify resolution:
+Running the test runner with specific suite and tier filters verifies individual milestone features and overall regression:
 
 ```bash
-# Milestone 1: API Security & Token Authorization
-node test/run-tests.js --suite=security
+# Verify Net Worth Specific Suites (Tiers 1-4)
+node test/run-tests.js --suite="net worth"
 
-# Milestone 2: FIFO Accounting Consistency & Inventory Protection
-node test/run-tests.js --suite=fifo
+# Milestone 1: Core Calculations & Snapshot Store Engine
+node test/run-tests.js --tier=1
 
-# Milestone 3: Multi-Bank Order Reconciliation
-node test/run-tests.js --suite=bank
+# Milestone 2: Live Net Worth Dashboard Widget
+node test/run-tests.js --suite="widget"
 
-# Milestone 4: Search, Navigation & Interactive Order Book
-node test/run-tests.js --suite=search
+# Milestone 3: End Day / Save Snapshot Modal & Persistence
+node test/run-tests.js --suite="modal"
 
-# Milestone 5: Offline PWA Pre-caching
-node test/run-tests.js --suite=pwa
+# Milestone 4: Historical Comparison & Trend Chart
+node test/run-tests.js --suite="chart"
 
-# Full Regression
+# Milestone 5: Full E2E Regression Pass (All 341 Tests)
 node test/run-tests.js
 ```

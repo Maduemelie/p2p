@@ -1776,3 +1776,711 @@ img { max-width: 100%; display: block; }
   animation: highlightPulse 2.5s ease-in-out;
   border: 1px solid #3b82f6 !important;
 }
+
+/* ==========================================================================
+   LIVE NET WORTH HERO WIDGET (M2)
+   ========================================================================== */
+
+.net-worth-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(18, 28, 47, 0.85) 0%, rgba(14, 22, 38, 0.92) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .net-worth-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 245, 249, 0.9) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.net-worth-badge-group {
+  margin-bottom: var(--sp-1);
+}
+
+.net-worth-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* Primary Hero Display Section */
+.net-worth-hero-section {
+  padding: var(--sp-4) 0;
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.net-worth-hero-label {
+  font-size: var(--text-tiny);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.net-worth-hero-value {
+  font-size: clamp(1.85rem, 4.5vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 2px 0 var(--sp-2) 0;
+}
+
+.net-worth-hero-secondary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.net-worth-usdt-pill {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-elevated);
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-supporting);
+}
+
+.net-worth-delta-wrapper {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Sub-metric Breakdown Grid */
+.net-worth-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-3);
+}
+
+.net-worth-breakdown-cell {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  transition: transform var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+}
+
+.net-worth-breakdown-cell:hover {
+  border-color: var(--border-elevated);
+  transform: translateY(-1px);
+}
+
+.nw-cell-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--sp-1);
+}
+
+.nw-cell-label {
+  font-size: var(--text-tiny);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.nw-cell-value {
+  font-size: var(--text-subheading);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.nw-cell-sub {
+  font-size: var(--text-tiny);
+}
+
+.nw-icon-sm {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+}
+
+.nw-icon-sm svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 768px) {
+  .net-worth-breakdown-grid {
+    grid-template-columns: 1fr;
+    gap: var(--sp-2);
+  }
+
+  .net-worth-breakdown-cell {
+    padding: var(--sp-3);
+  }
+}
+
+@media (max-width: 480px) {
+  .net-worth-hero-section {
+    padding: var(--sp-3) 0;
+  }
+
+  .card-header-flex {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-3);
+  }
+
+  .net-worth-header-actions {
+    width: 100%;
+  }
+
+  .net-worth-header-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ==========================================================================
+   SNAPSHOT MODAL & FORM STYLES (Milestone 3)
+   ========================================================================== */
+
+/* Extended Modal Card Width for Multi-column Content */
+.modal-card-lg {
+  max-width: 540px;
+}
+
+/* Modal Header Icon Badge */
+.modal-icon-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.modal-icon-badge svg {
+  width: 18px;
+  height: 18px;
+}
+
+.modal-icon-badge.primary-tint {
+  background: var(--primary-subtle);
+  color: var(--primary-text);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+/* Live Balances Summary Grid (2-Column Stat Cards) */
+.snapshot-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-3);
+}
+
+.snapshot-stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  transition: transform var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+}
+
+.snapshot-stat-card:hover {
+  border-color: var(--border-elevated);
+  transform: translateY(-1px);
+}
+
+.stat-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat-card-label {
+  font-size: var(--text-tiny);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-icon-wrapper {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-icon-wrapper svg {
+  width: 13px;
+  height: 13px;
+}
+
+.stat-icon-wrapper.success-tint {
+  background: var(--success-subtle);
+  color: var(--success);
+}
+
+.stat-icon-wrapper.primary-tint {
+  background: var(--primary-subtle);
+  color: var(--primary-text);
+}
+
+.stat-card-value {
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 2px;
+}
+
+.stat-card-meta {
+  font-size: var(--text-tiny);
+  color: var(--text-muted);
+}
+
+/* Live Recalculated Net Worth Preview Banner */
+.snapshot-preview-banner {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(16, 185, 129, 0.08) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-4);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  position: relative;
+  overflow: hidden;
+}
+
+[data-theme="light"] .snapshot-preview-banner {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(5, 150, 105, 0.06) 100%);
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.preview-banner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--sp-3);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="light"] .preview-banner-header {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+.preview-badge-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-subtle);
+  color: var(--primary-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-badge-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.preview-banner-title {
+  font-size: var(--text-caption);
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.preview-metric-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-4);
+}
+
+.preview-metric-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.preview-metric-divider {
+  width: 1px;
+  background: var(--border-default);
+  margin: 0 var(--sp-1);
+}
+
+.preview-metric-label {
+  font-size: var(--text-tiny);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.preview-metric-value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.preview-formula-hint {
+  font-size: var(--text-tiny);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Modal Form Actions & Icon Spacing */
+.modal-footer .btn svg {
+  width: 15px;
+  height: 15px;
+  margin-right: 4px;
+}
+
+/* Mobile Responsive Breakpoints */
+@media (max-width: 520px) {
+  .snapshot-stats-grid {
+    grid-template-columns: 1fr;
+    gap: var(--sp-2);
+  }
+
+  .preview-metric-row {
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+
+  .preview-metric-divider {
+    width: 100%;
+    height: 1px;
+    margin: var(--sp-1) 0;
+  }
+
+  .preview-metric-value {
+    font-size: 1.2rem;
+  }
+}
+
+/* ==========================================================================
+   NET WORTH GROWTH TREND & SNAPSHOT HISTORY (Milestone 4)
+   ========================================================================== */
+
+/* Main Card Wrapper */
+.net-worth-trend-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(18, 28, 47, 0.82) 0%, rgba(14, 22, 38, 0.90) 100%);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="light"] .net-worth-trend-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.88) 100%);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.trend-card-badge-group {
+  margin-bottom: var(--sp-1);
+}
+
+/* Header Controls & Filter Group */
+.trend-header-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+#chart-currency-filter .seg-btn {
+  padding: 4px 10px;
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+
+#chart-currency-filter .seg-btn.active {
+  background: var(--primary);
+  color: #FFFFFF;
+  box-shadow: 0 2px 6px var(--primary-glow);
+}
+
+/* Chart Canvas Container */
+.net-worth-chart-container {
+  position: relative;
+  width: 100%;
+  height: 280px;
+  border-radius: var(--radius-md);
+  background: rgba(7, 11, 20, 0.40);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  padding: var(--sp-2);
+}
+
+[data-theme="light"] .net-worth-chart-container {
+  background: rgba(241, 245, 249, 0.60);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Empty State Canvas Overlay */
+#chart-networth-empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-elevated);
+  padding: var(--sp-4);
+  text-align: center;
+  z-index: 2;
+}
+
+#chart-networth-empty-state .empty-icon-box {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--primary-subtle);
+  color: var(--primary-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#chart-networth-empty-state .empty-icon-box svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* ==========================================================================
+   SNAPSHOT HISTORY TABLE & LEDGER STYLES
+   ========================================================================== */
+
+.snapshot-history-section {
+  border-top: 1px solid var(--border-default);
+}
+
+.snapshot-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.table-responsive.snapshot-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+.snapshot-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-supporting);
+  white-space: nowrap;
+}
+
+.snapshot-history-table thead th {
+  background: var(--bg-surface-elevated);
+  color: var(--text-muted);
+  font-size: var(--text-tiny);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border-elevated);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.snapshot-history-table tbody td {
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border-default);
+  vertical-align: middle;
+}
+
+.snapshot-history-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.snapshot-history-table tbody tr {
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.snapshot-history-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+/* Table Column Widths & Alignments */
+.snapshot-history-table .th-date,
+.snapshot-history-table .td-date {
+  min-width: 155px;
+}
+
+.snapshot-history-table .th-bank,
+.snapshot-history-table .td-bank {
+  min-width: 130px;
+}
+
+.snapshot-history-table .th-usdt,
+.snapshot-history-table .td-usdt {
+  min-width: 120px;
+}
+
+.snapshot-history-table .th-rate,
+.snapshot-history-table .td-rate {
+  min-width: 110px;
+}
+
+.snapshot-history-table .th-networth,
+.snapshot-history-table .td-networth {
+  min-width: 145px;
+}
+
+.snapshot-history-table .th-networth-usdt,
+.snapshot-history-table .td-networth-usdt {
+  min-width: 130px;
+}
+
+.snapshot-history-table .th-delta,
+.snapshot-history-table .td-delta {
+  min-width: 175px;
+}
+
+.snapshot-history-table .th-notes,
+.snapshot-history-table .td-notes {
+  min-width: 160px;
+  max-width: 260px;
+}
+
+.snapshot-history-table .th-actions,
+.snapshot-history-table .td-actions {
+  min-width: 70px;
+}
+
+/* Date Icon Alignment */
+.td-date-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.td-icon-muted {
+  width: 13px;
+  height: 13px;
+  color: var(--text-muted);
+}
+
+/* Sequential Delta Badge & Subtext Stack */
+.snapshot-delta-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.snapshot-delta-sub {
+  font-size: var(--text-tiny);
+  line-height: 1;
+}
+
+/* Notes Text Truncation */
+.snapshot-notes-text {
+  display: block;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Delete Action Button */
+.btn-delete-snapshot {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.btn-delete-snapshot:hover {
+  background: var(--danger-subtle);
+  color: var(--danger);
+  border-color: var(--danger-subtle);
+  transform: scale(1.05);
+}
+
+.btn-delete-snapshot svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ==========================================================================
+   RESPONSIVE BREAKPOINTS (Mobile & Tablet)
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .net-worth-chart-container {
+    height: 240px;
+  }
+
+  .trend-header-controls {
+    width: 100%;
+    justify-content: space-between;
+    margin-top: var(--sp-2);
+  }
+
+  .snapshot-history-table thead th,
+  .snapshot-history-table tbody td {
+    padding: var(--sp-2) var(--sp-3);
+  }
+}
+
+@media (max-width: 480px) {
+  .net-worth-chart-container {
+    height: 200px;
+    padding: var(--sp-1);
+  }
+
+  .trend-header-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-2);
+  }
+
+  #chart-currency-filter {
+    width: 100%;
+  }
+
+  #chart-currency-filter .seg-btn {
+    flex: 1;
+    text-align: center;
+    padding: 6px 4px;
+    font-size: var(--text-tiny);
+  }
+
+  #btn-toggle-snapshot-log {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .snapshot-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-2);
+  }
+}
+
+

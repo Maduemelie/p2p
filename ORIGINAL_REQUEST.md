@@ -47,3 +47,42 @@ Update the Service Worker caching manifest to pre-cache all local JavaScript mod
 ### PWA Offline Resilience
 - [ ] All local JS controller files (`js/*.js`) and view templates (`js/views/*.js`) are included in the Service Worker pre-cache list.
 - [ ] The application successfully loads the shell and navigates between views when offline.
+
+## 2026-08-25T13:06:54Z
+
+Implement a Net Worth and Capital Cycle tracking system in the Bybit NGN P2P Trade Tracker application.
+
+Working directory: c:/dev/p2p
+Integrity mode: benchmark
+
+## Requirements
+
+### R1. Live Net Worth Dashboard Widget
+Calculate and display the user's current Net Worth in both Naira (NGN) and USDT on the Dashboard view.
+* Sum all bank cash from the app's reactive bank ledger.
+* Fetch/display the Bybit USDT funding balance (combining active ad listings and free balances).
+* Provide a real-time conversion between NGN and USDT using either the active Sell ad rate or a fallback rate.
+
+### R2. Net Worth Snapshot Logging
+Implement a lightweight snapshot system that lets the user record their balances at the end of a day or trading cycle.
+* Add an "End Day / Save Snapshot" button on the Dashboard.
+* The button opens a modal showing calculated bank cash and Bybit USDT balances, with an editable Reference Exchange Rate field.
+* Save the completed snapshot (timestamp, bank cash, USDT balance, reference rate, net worth in NGN & USDT, and optional notes) to `localStorage` under `bybit_p2p_net_worth_snapshots`.
+
+### R3. Historical Comparison & Trend Chart
+* Display the difference (delta) in Net Worth (both absolute amount and percentage) compared to the previous snapshot.
+* Add a "Net Worth Trend" line chart (using Chart.js) that visualizes the growth of total assets (NGN and USDT) across historical snapshots.
+
+## Acceptance Criteria
+
+### Net Worth Calculation
+- [ ] The dashboard correctly calculates total bank cash and Bybit USDT balance.
+- [ ] Net worth is displayed in both NGN and USDT base valuations.
+
+### Snapshot Lifecycle
+- [ ] Users can manually save a snapshot with a custom or prefilled exchange rate.
+- [ ] Snapshots are persisted in LocalStorage and can be exported/imported.
+
+### Comparison & Visualizations
+- [ ] Delta metric correctly displays positive/negative percentage changes relative to the previous day/cycle.
+- [ ] A line chart displays cumulative net worth value in NGN and USDT.

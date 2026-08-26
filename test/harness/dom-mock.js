@@ -252,6 +252,21 @@ class MockElement {
   }
 
   scrollIntoView() {}
+
+  getContext(type) {
+    return {
+      createLinearGradient: () => ({
+        addColorStop: () => {}
+      }),
+      clearRect: () => {},
+      fillRect: () => {},
+      stroke: () => {},
+      beginPath: () => {},
+      moveTo: () => {},
+      lineTo: () => {},
+      measureText: () => ({ width: 0 })
+    };
+  }
 }
 
 function matchesSelector(element, selector) {
@@ -322,6 +337,7 @@ function parseSimpleHtml(htmlString, parent) {
     const innerText = match[3] || '';
 
     const el = new MockElement(tagName);
+    el._innerHTML = innerText;
     
     // Extract ID
     const idMatch = rawAttrs.match(/id=["']([^"']+)["']/);
@@ -475,6 +491,17 @@ function setupDomEnvironment() {
   global.localStorage = localStorage;
   global.CustomEvent = MockCustomEvent;
   global.navigator = window.navigator;
+  global.Chart = class {
+    constructor(ctx, config = {}) {
+      this.ctx = ctx;
+      this.type = config.type || 'line';
+      this.data = config.data || { labels: [], datasets: [] };
+      this.options = config.options || {};
+    }
+    destroy() {}
+    update() {}
+  };
+  window.Chart = global.Chart;
 
   return {
     window,

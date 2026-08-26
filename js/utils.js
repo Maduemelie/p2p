@@ -307,3 +307,360 @@ export function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+/**
+ * Aggregate total cash balance across all bank accounts from computed bank balances.
+ * Supports Map (from store.getComputedBankBalances()), Array, or Object/Record.
+ * Correctly handles negative overdraft balances, null/undefined entries, and strings.
+ * 
+ * @param {Map<string, Object>|Array<Object>|Object|null|undefined} computedBankBalances
+ * @returns {number} Total bank cash in NGN
+ */
+export function calculateTotalBankCash(computedBankBalances) {
+  if (!computedBankBalances) return 0;
+
+  let total = 0;
+
+  if (computedBankBalances instanceof Map) {
+    for (const record of computedBankBalances.values()) {
+      if (record && typeof record === 'object') {
+        const rawBal = record.currentBalance !== undefined ? record.currentBalance : record.balance;
+        const bal = Number(rawBal);
+        if (!isNaN(bal) && isFinite(bal)) {
+          total += bal;
+        }
+      } else if (typeof record === 'number' && !isNaN(record) && isFinite(record)) {
+        total += record;
+      }
+    }
+  } else if (Array.isArray(computedBankBalances)) {
+    for (const item of computedBankBalances) {
+      if (item && typeof item === 'object') {
+        const rawBal = item.currentBalance !== undefined ? item.currentBalance : item.balance;
+        const bal = Number(rawBal);
+        if (!isNaN(bal) && isFinite(bal)) {
+          total += bal;
+        }
+      } else if (typeof item === 'number' && !isNaN(item) && isFinite(item)) {
+        total += item;
+      }
+    }
+  } else if (typeof computedBankBalances === 'object') {
+    for (const record of Object.values(computedBankBalances)) {
+      if (record && typeof record === 'object') {
+        const rawBal = record.currentBalance !== undefined ? record.currentBalance : record.balance;
+        const bal = Number(rawBal);
+        if (!isNaN(bal) && isFinite(bal)) {
+          total += bal;
+        }
+      } else if (typeof record === 'number' && !isNaN(record) && isFinite(record)) {
+        total += record;
+      }
+    }
+  }
+
+  return total;
+}
+
+/**
+ * Resolve authoritative reference exchange rate (NGN/USDT) by priority hierarchy.
+ * Priority:
+ *   1. Active Sell Ad price (status 10/20/2, side 1 / sell)
+ *   2. Latest Trade rate (chronologically latest trade with rate > 0)
+ *   3. FIFO avg buy cost (> 0)
+ *   4. Opening default cost basis (> 0)
+ *   5. Fallback rate (> 0, defaults to 1500.00)
+ * 
+ * @param {Object} [options={}]
+ * @param {Object|number|null} [options.activeSellAd] - Active Sell Ad object or numeric price
+ * @param {Object|Array|number|null} [options.latestTrade] - Latest trade object, trades array, or numeric rate
+ * @param {number|null} [options.fifoAvgBuyCost] - FIFO holding cost per USDT
+ * @param {number|null} [options.openingDefaultRate] - Opening inventory default cost basis
+ * @param {Object|null} [options.openingInventory] - Opening inventory object with defaultCostBasis
+ * @param {number} [options.fallbackRate=1500.00] - Fallback rate
+ * @returns {number} Resolved exchange rate in NGN per USDT
+ */
+export function resolveReferenceRate(options = {}) {
+  if (!options || typeof options !== 'object') {
+    return 1500.00;
+  }
+
+  // 1. Active Sell Ad price
+  if (options.activeSellAd) {
+    let adPrice = null;
+    if (typeof options.activeSellAd === 'object') {
+      const side = options.activeSellAd.side;
+      const status = options.activeSellAd.status;
+      // side: 1 or '1' is SELL in Bybit P2P; status: 10 (ONLINE), 20, 2 (ACTIVE)
+      const isSellSide = side === undefined || side === null || Number(side) === 1;
+      const isActiveStatus = status === undefined || status === null || [10, 20, 2].includes(Number(status));
+
+      if (isSellSide && isActiveStatus && options.activeSellAd.price !== undefined) {
+        adPrice = parseFloat(options.activeSellAd.price);
+      }
+    } else if (typeof options.activeSellAd === 'number' || typeof options.activeSellAd === 'string') {
+      adPrice = parseFloat(options.activeSellAd);
+    }
+
+    if (adPrice !== null && !isNaN(adPrice) && isFinite(adPrice) && adPrice > 0) {
+      return adPrice;
+    }
+  }
+
+  // 2. Latest Trade rate
+  if (options.latestTrade) {
+    let tradeRate = null;
+    if (Array.isArray(options.latestTrade)) {
+      if (options.latestTrade.length > 0) {
+        const sorted = [...options.latestTrade].sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+        const latest = sorted[0];
+        const raw = latest?.rate !== undefined ? latest.rate : latest?.price;
+        tradeRate = parseFloat(raw);
+      }
+    } else if (typeof options.latestTrade === 'object') {
+      const raw = options.latestTrade.rate !== undefined ? options.latestTrade.rate : options.latestTrade.price;
+      tradeRate = parseFloat(raw);
+    } else if (typeof options.latestTrade === 'number' || typeof options.latestTrade === 'string') {
+      tradeRate = parseFloat(options.latestTrade);
+    }
+
+    if (tradeRate !== null && !isNaN(tradeRate) && isFinite(tradeRate) && tradeRate > 0) {
+      return tradeRate;
+    }
+  }
+
+  // 3. FIFO Average Buy Cost
+  if (options.fifoAvgBuyCost !== undefined && options.fifoAvgBuyCost !== null) {
+    const fifoCost = parseFloat(options.fifoAvgBuyCost);
+    if (!isNaN(fifoCost) && isFinite(fifoCost) && fifoCost > 0) {
+      return fifoCost;
+    }
+  }
+
+  // 4. Opening Inventory Default Cost Basis
+  let openingRate = options.openingDefaultRate;
+  if (openingRate === undefined && options.openingInventory) {
+    openingRate = options.openingInventory.defaultCostBasis;
+  }
+  if (openingRate !== undefined && openingRate !== null) {
+    const openCost = parseFloat(openingRate);
+    if (!isNaN(openCost) && isFinite(openCost) && openCost > 0) {
+      return openCost;
+    }
+  }
+
+  // 5. Fallback rate
+  if (options.fallbackRate !== undefined && options.fallbackRate !== null) {
+    const fb = parseFloat(options.fallbackRate);
+    if (!isNaN(fb) && isFinite(fb) && fb > 0) {
+      return fb;
+    }
+  }
+
+  return 1500.00;
+}
+
+/**
+ * Calculate Net Worth in both NGN and USDT base valuations.
+ * Formulas:
+ *   NW_NGN = Total Bank Cash NGN + (Total USDT * Reference Rate)
+ *   NW_USDT = Total USDT + (Total Bank Cash NGN / Reference Rate)
+ * 
+ * @param {number} totalBankCashNgn - Liquid cash across bank accounts
+ * @param {number} totalUsdt - Total USDT balance (funding + active ads)
+ * @param {number} referenceRate - Reference exchange rate in NGN per USDT
+ * @returns {{ netWorthNgn: number, netWorthUsdt: number, bankCashNgn: number, totalUsdt: number, referenceRate: number }}
+ */
+export function calculateNetWorth(totalBankCashNgn, totalUsdt, referenceRate) {
+  const bankCash = Number(totalBankCashNgn) || 0;
+  const usdt = Number(totalUsdt) || 0;
+  const rate = Number(referenceRate) || 0;
+
+  if (rate <= 0 || !isFinite(rate)) {
+    return {
+      netWorthNgn: Math.round(bankCash * 100) / 100,
+      netWorthUsdt: Math.round(usdt * 100) / 100,
+      bankCashNgn: bankCash,
+      totalUsdt: usdt,
+      referenceRate: rate
+    };
+  }
+
+  const netWorthNgn = Math.round((bankCash + (usdt * rate)) * 100) / 100;
+  const netWorthUsdt = Math.round((usdt + (bankCash / rate)) * 100) / 100;
+
+  return {
+    netWorthNgn,
+    netWorthUsdt,
+    bankCashNgn: bankCash,
+    totalUsdt: usdt,
+    referenceRate: rate
+  };
+}
+
+/**
+ * Calculate absolute and percentage deltas between current and previous Net Worth.
+ * Handles division by zero, null baselines, and negative baselines safely.
+ * Returns values rounded to 2 decimal places.
+ * 
+ * @param {Object|number|null|undefined} current - Current Net Worth object or number
+ * @param {Object|number|null|undefined} previous - Previous Net Worth object or number
+ * @returns {{ deltaNgn: number, pctDeltaNgn: number, deltaUsdt: number, pctDeltaUsdt: number }}
+ */
+export function calculateSnapshotDelta(current, previous) {
+  if (!current || !previous) {
+    return {
+      deltaNgn: 0,
+      pctDeltaNgn: 0,
+      deltaUsdt: 0,
+      pctDeltaUsdt: 0
+    };
+  }
+
+  const currentNgn = Number(current.netWorthNgn !== undefined ? current.netWorthNgn : (typeof current === 'number' ? current : 0)) || 0;
+  const currentUsdt = Number(current.netWorthUsdt !== undefined ? current.netWorthUsdt : 0) || 0;
+  const prevNgn = Number(previous.netWorthNgn !== undefined ? previous.netWorthNgn : (typeof previous === 'number' ? previous : 0)) || 0;
+  const prevUsdt = Number(previous.netWorthUsdt !== undefined ? previous.netWorthUsdt : 0) || 0;
+
+  const deltaNgn = currentNgn - prevNgn;
+  const deltaUsdt = currentUsdt - prevUsdt;
+
+  const pctDeltaNgn = Math.abs(prevNgn) > 0.000001
+    ? (deltaNgn / Math.abs(prevNgn)) * 100
+    : 0;
+
+  const pctDeltaUsdt = Math.abs(prevUsdt) > 0.000001
+    ? (deltaUsdt / Math.abs(prevUsdt)) * 100
+    : 0;
+
+  return {
+    deltaNgn: Math.round(deltaNgn * 100) / 100,
+    pctDeltaNgn: Math.round(pctDeltaNgn * 100) / 100,
+    deltaUsdt: Math.round(deltaUsdt * 100) / 100,
+    pctDeltaUsdt: Math.round(pctDeltaUsdt * 100) / 100
+  };
+}
+
+/**
+ * Validate and sanitize a snapshot record prior to storage or import.
+ * 
+ * @param {Object} snapshotData
+ * @returns {{ isValid: boolean, errors: string[], sanitized: Object|null }}
+ */
+export function validateSnapshot(snapshotData) {
+  const errors = [];
+
+  if (!snapshotData || typeof snapshotData !== 'object' || Array.isArray(snapshotData)) {
+    return {
+      isValid: false,
+      errors: ['Snapshot data must be a valid object.'],
+      sanitized: null
+    };
+  }
+
+  // 1. Reference Rate validation
+  let rate = 1500.00;
+  if (snapshotData.referenceRate !== undefined && snapshotData.referenceRate !== null) {
+    rate = Number(snapshotData.referenceRate);
+    if (isNaN(rate) || !isFinite(rate) || rate <= 0) {
+      errors.push('Reference exchange rate must be a positive number greater than 0.');
+    }
+  }
+
+  // 2. Timestamp validation
+  let timestampIso = snapshotData.timestamp;
+  if (!timestampIso) {
+    timestampIso = new Date().toISOString();
+  } else {
+    const d = new Date(timestampIso);
+    if (isNaN(d.getTime())) {
+      errors.push('Snapshot timestamp must be a valid ISO date string or timestamp.');
+    } else {
+      timestampIso = d.toISOString();
+    }
+  }
+
+  // 3. Bank Cash validation
+  const rawBankCash = snapshotData.bankCash !== undefined ? snapshotData.bankCash : snapshotData.bankCashNGN;
+  let bankCash = 0;
+  if (rawBankCash !== undefined && rawBankCash !== null) {
+    bankCash = Number(rawBankCash);
+    if (isNaN(bankCash) || !isFinite(bankCash)) {
+      errors.push('Bank cash balance must be a valid finite number.');
+    }
+  }
+
+  // 4. USDT Balance validation
+  const rawUsdt = snapshotData.usdtBalance !== undefined ? snapshotData.usdtBalance : snapshotData.totalUsdt;
+  let usdtBalance = 0;
+  if (rawUsdt !== undefined && rawUsdt !== null) {
+    usdtBalance = Number(rawUsdt);
+    if (isNaN(usdtBalance) || !isFinite(usdtBalance) || usdtBalance < 0) {
+      errors.push('USDT balance must be a non-negative finite number.');
+    }
+  }
+
+  if (errors.length > 0) {
+    return {
+      isValid: false,
+      errors,
+      sanitized: null
+    };
+  }
+
+  // Calculate or verify net worth values
+  const { netWorthNgn, netWorthUsdt } = calculateNetWorth(bankCash, usdtBalance, rate);
+
+  const sanitized = {
+    id: snapshotData.id || generateId('snp'),
+    timestamp: timestampIso,
+    bankCash: bankCash,
+    usdtBalance: usdtBalance,
+    referenceRate: rate,
+    netWorthNgn: snapshotData.netWorthNgn !== undefined && !isNaN(Number(snapshotData.netWorthNgn)) ? Number(snapshotData.netWorthNgn) : netWorthNgn,
+    netWorthUsdt: snapshotData.netWorthUsdt !== undefined && !isNaN(Number(snapshotData.netWorthUsdt)) ? Number(snapshotData.netWorthUsdt) : netWorthUsdt,
+    notes: typeof snapshotData.notes === 'string' ? snapshotData.notes.trim() : '',
+    createdAt: typeof snapshotData.createdAt === 'number' && !isNaN(snapshotData.createdAt) ? snapshotData.createdAt : (new Date(timestampIso).getTime() || Date.now())
+  };
+
+  return {
+    isValid: true,
+    errors: [],
+    sanitized
+  };
+}
+
+/**
+ * Format delta badge text with explicit sign (+ or -) and 2-decimal percentage.
+ * 
+ * @param {number} deltaNgn - Difference in NGN
+ * @param {number} pctDeltaNgn - Percentage difference
+ * @returns {string} e.g. "+₦150,000.00 (+5.00%)" or "-₦75,000.00 (-2.50%)"
+ */
+export function formatDeltaBadgeText(deltaNgn, pctDeltaNgn) {
+  const dNgn = Number(deltaNgn) || 0;
+  const pNgn = Number(pctDeltaNgn) || 0;
+  
+  if (Math.abs(dNgn) <= 0.005) {
+    return '₦0.00 (0.00%)';
+  }
+  
+  const sign = dNgn > 0 ? '+' : '';
+  const pctSign = pNgn > 0 ? '+' : '';
+  return `${sign}${formatNGN(dNgn)} (${pctSign}${pNgn.toFixed(2)}%)`;
+}
+
+/**
+ * Format delta USDT string.
+ * @param {number} deltaUsdt
+ * @returns {string} e.g. "+150.00 USDT" or "-50.00 USDT"
+ */
+export function formatDeltaUsdtText(deltaUsdt) {
+  const dUsdt = Number(deltaUsdt) || 0;
+  if (Math.abs(dUsdt) <= 0.005) {
+    return '0.00 USDT';
+  }
+  const sign = dUsdt > 0 ? '+' : '-';
+  return `${sign}${Math.abs(dUsdt).toFixed(2)} USDT`;
+}
+

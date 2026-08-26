@@ -101,7 +101,7 @@ function escapeCSVField(field) {
 }
 
 /**
- * Export full JSON backup (Trades, Bank Accounts, Transfers)
+ * Export full JSON backup (Trades, Bank Accounts, Transfers, Net Worth Snapshots, Opening Inventory)
  */
 export function exportFullBackupJSON() {
   const backupData = store.exportAllData();
@@ -125,14 +125,21 @@ export function importBackupJSON(file) {
     try {
       const data = JSON.parse(event.target.result);
 
-      if (!data || typeof data !== 'object' || (!data.trades && !data.bankAccounts)) {
+      if (!data || typeof data !== 'object' || (!data.trades && !data.bankAccounts && !data.snapshots && !data.transfers)) {
         throw new Error('Invalid or unrecognised JSON backup schema.');
       }
 
       const tradeCount = Array.isArray(data.trades) ? data.trades.length : 0;
       const bankCount = Array.isArray(data.bankAccounts) ? data.bankAccounts.length : 0;
+      const snapshotCount = Array.isArray(data.snapshots) ? data.snapshots.length : 0;
 
-      const confirmMsg = `Restore backup containing ${tradeCount} trades and ${bankCount} bank accounts?\n\nThis will restore your data to this device.`;
+      const details = [];
+      if (tradeCount > 0 || (!bankCount && !snapshotCount)) details.push(`${tradeCount} trades`);
+      if (bankCount > 0) details.push(`${bankCount} bank accounts`);
+      if (snapshotCount > 0) details.push(`${snapshotCount} net worth snapshots`);
+
+      const summaryStr = details.join(', ');
+      const confirmMsg = `Restore backup containing ${summaryStr}?\n\nThis will restore your data to this device.`;
       if (confirm(confirmMsg)) {
         store.importAllData(data, true);
         if (window.showToast) window.showToast('Backup restored successfully!', 'success');

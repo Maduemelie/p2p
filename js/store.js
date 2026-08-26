@@ -3,15 +3,16 @@
  * Handles LocalStorage read/write, migrations, opening inventory, and reactive update events
  */
 
-import { generateId } from './utils.js';
+import { generateId, validateSnapshot } from './utils.js';
 
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   VERSION: 'bybit_p2p_version',
   TRADES: 'bybit_p2p_trades',
   BANKS: 'bybit_p2p_banks',
   TRANSFERS: 'bybit_p2p_transfers',
   SETTINGS: 'bybit_p2p_settings',
-  OPENING_INVENTORY: 'bybit_p2p_opening_inventory'
+  OPENING_INVENTORY: 'bybit_p2p_opening_inventory',
+  NET_WORTH_SNAPSHOTS: 'bybit_p2p_net_worth_snapshots'
 };
 
 const CURRENT_SCHEMA_VERSION = 1;
@@ -300,6 +301,113 @@ class Store {
     this.notify('settings', inventory);
   }
 
+  // --- Net Worth Snapshots CRUD ---
+
+  /**
+   * Retrieve all recorded Net Worth snapshots sorted chronologically ascending (oldest first).
+   * @returns {Array<Object>} Cloned and sorted snapshot array
+   */
+  getSnapshots() {
+    const raw = this.getItem(STORAGE_KEYS.NET_WORTH_SNAPSHOTS, []);
+    if (!Array.isArray(raw)) return [];
+
+    return [...raw]
+      .filter(item => item && typeof item === 'object')
+      .sort((a, b) => {
+        const timeA = new Date(a.timestamp || a.createdAt || 0).getTime();
+        const timeB = new Date(b.timestamp || b.createdAt || 0).getTime();
+        if (timeA !== timeB) return timeA - timeB;
+        const createA = Number(a.createdAt) || 0;
+        const createB = Number(b.createdAt) || 0;
+        if (createA !== createB) return createA - createB;
+        return 0;
+      });
+  }
+
+  /**
+   * Retrieve a single snapshot by ID.
+   * @param {string} id - Snapshot ID
+   * @returns {Object|null}
+   */
+  getSnapshotById(id) {
+    if (!id) return null;
+    const snapshots = this.getSnapshots();
+    return snapshots.find(s => s.id === id) || null;
+  }
+
+  /**
+   * Save or update a Net Worth snapshot in localStorage.
+   * Auto-generates unique ID and timestamp if omitted.
+   * Validates positive reference rate and numerical fields.
+   * Sorts chronologically and notifies reactive listeners.
+   * 
+   * @param {Object} snapshotData
+   * @returns {Object} Saved snapshot record
+   */
+  saveSnapshot(snapshotData) {
+    const validation = validateSnapshot(snapshotData);
+    if (!validation.isValid) {
+      throw new Error(`Invalid snapshot data: ${validation.errors.join(' ')}`);
+    }
+
+    const newSnapshot = validation.sanitized;
+    const snapshots = this.getItem(STORAGE_KEYS.NET_WORTH_SNAPSHOTS, []);
+    const existingIndex = Array.isArray(snapshots) ? snapshots.findIndex(s => s.id === newSnapshot.id) : -1;
+
+    let updatedList;
+    if (existingIndex >= 0) {
+      updatedList = [...snapshots];
+      updatedList[existingIndex] = newSnapshot;
+    } else {
+      updatedList = Array.isArray(snapshots) ? [...snapshots, newSnapshot] : [newSnapshot];
+    }
+
+    updatedList.sort((a, b) => {
+      const timeA = new Date(a.timestamp || a.createdAt || 0).getTime();
+      const timeB = new Date(b.timestamp || b.createdAt || 0).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      const createA = Number(a.createdAt) || 0;
+      const createB = Number(b.createdAt) || 0;
+      if (createA !== createB) return createA - createB;
+      return 0;
+    });
+
+    this.saveItem(STORAGE_KEYS.NET_WORTH_SNAPSHOTS, updatedList);
+    this.notify('snapshots', newSnapshot);
+    this.notify('SNAPSHOTS_UPDATED', newSnapshot);
+
+    return newSnapshot;
+  }
+
+  /**
+   * Delete a snapshot by ID from localStorage.
+   * @param {string} id - Snapshot ID to remove
+   * @returns {boolean} True if deleted, false if not found
+   */
+  deleteSnapshot(id) {
+    if (!id) return false;
+    const snapshots = this.getItem(STORAGE_KEYS.NET_WORTH_SNAPSHOTS, []);
+    if (!Array.isArray(snapshots)) return false;
+
+    const exists = snapshots.some(s => s.id === id);
+    if (!exists) return false;
+
+    const filtered = snapshots.filter(s => s.id !== id);
+    this.saveItem(STORAGE_KEYS.NET_WORTH_SNAPSHOTS, filtered);
+    this.notify('snapshots', { deletedId: id });
+    this.notify('SNAPSHOTS_UPDATED', { deletedId: id });
+    return true;
+  }
+
+  /**
+   * Remove all Net Worth snapshots from localStorage.
+   */
+  clearSnapshots() {
+    this.saveItem(STORAGE_KEYS.NET_WORTH_SNAPSHOTS, []);
+    this.notify('snapshots', { cleared: true, action: 'clear' });
+    this.notify('SNAPSHOTS_UPDATED', { cleared: true, action: 'clear' });
+  }
+
   // --- Backup, Restore & Reset ---
 
   exportAllData() {
@@ -309,7 +417,8 @@ class Store {
       trades: this.getTrades(),
       bankAccounts: this.getBankAccounts(),
       transfers: this.getTransfers(),
-      openingInventory: this.getOpeningInventory()
+      openingInventory: this.getOpeningInventory(),
+      snapshots: this.getSnapshots()
     };
   }
 
@@ -318,11 +427,43 @@ class Store {
       throw new Error('Invalid JSON backup data format.');
     }
 
+    const sanitizeSnapshot = (raw) => {
+      if (!raw || typeof raw !== 'object') return null;
+      const val = validateSnapshot(raw);
+      if (val.isValid && val.sanitized) return val.sanitized;
+
+      const now = Date.now();
+      const id = (typeof raw.id === 'string' && raw.id.trim()) ? raw.id.trim() : generateId('snp');
+      let timestamp = raw.timestamp;
+      if (!timestamp || isNaN(new Date(timestamp).getTime())) {
+        timestamp = new Date(Number(raw.createdAt) || now).toISOString();
+      } else {
+        timestamp = new Date(timestamp).toISOString();
+      }
+      const createdAt = Number(raw.createdAt) || new Date(timestamp).getTime() || now;
+      const bankCash = Number(raw.bankCash !== undefined ? raw.bankCash : raw.bankCashNGN) || 0;
+      const usdtBalance = Math.max(0, Number(raw.usdtBalance !== undefined ? raw.usdtBalance : raw.totalUsdt) || 0);
+      const referenceRate = Number(raw.referenceRate) > 0 ? Number(raw.referenceRate) : 1500.00;
+      const netWorthNgn = (raw.netWorthNgn !== undefined && !isNaN(Number(raw.netWorthNgn)))
+        ? Number(raw.netWorthNgn)
+        : (bankCash + (usdtBalance * referenceRate));
+      const netWorthUsdt = (raw.netWorthUsdt !== undefined && !isNaN(Number(raw.netWorthUsdt)))
+        ? Number(raw.netWorthUsdt)
+        : (usdtBalance + (referenceRate > 0 ? bankCash / referenceRate : 0));
+      const notes = typeof raw.notes === 'string' ? raw.notes.trim() : '';
+      return { id, timestamp, bankCash, usdtBalance, referenceRate, netWorthNgn, netWorthUsdt, notes, createdAt };
+    };
+
     if (replace) {
       if (Array.isArray(data.trades)) this.saveItem(STORAGE_KEYS.TRADES, data.trades);
       if (Array.isArray(data.bankAccounts)) this.saveItem(STORAGE_KEYS.BANKS, data.bankAccounts);
       if (Array.isArray(data.transfers)) this.saveItem(STORAGE_KEYS.TRANSFERS, data.transfers);
       if (data.openingInventory) this.saveItem(STORAGE_KEYS.OPENING_INVENTORY, data.openingInventory);
+      if (Array.isArray(data.snapshots)) {
+        const cleanSnapshots = data.snapshots.map(sanitizeSnapshot).filter(Boolean);
+        cleanSnapshots.sort((a, b) => new Date(a.timestamp || a.createdAt || 0).getTime() - new Date(b.timestamp || b.createdAt || 0).getTime());
+        this.saveItem(STORAGE_KEYS.NET_WORTH_SNAPSHOTS, cleanSnapshots);
+      }
     } else {
       // Merge
       if (Array.isArray(data.trades)) {
@@ -337,6 +478,14 @@ class Store {
         const newBanks = data.bankAccounts.filter(b => !existingIds.has(b.id));
         this.saveItem(STORAGE_KEYS.BANKS, [...existing, ...newBanks]);
       }
+      if (Array.isArray(data.snapshots)) {
+        const cleanSnapshots = data.snapshots.map(sanitizeSnapshot).filter(Boolean);
+        const existing = this.getSnapshots();
+        const existingIds = new Set(existing.map(s => s.id));
+        const newSnapshots = cleanSnapshots.filter(s => !existingIds.has(s.id));
+        const combined = [...existing, ...newSnapshots].sort((a, b) => new Date(a.timestamp || a.createdAt || 0).getTime() - new Date(b.timestamp || b.createdAt || 0).getTime());
+        this.saveItem(STORAGE_KEYS.NET_WORTH_SNAPSHOTS, combined);
+      }
     }
 
     this.notify('all');
@@ -348,6 +497,7 @@ class Store {
     localStorage.removeItem(STORAGE_KEYS.BANKS);
     localStorage.removeItem(STORAGE_KEYS.TRANSFERS);
     localStorage.removeItem(STORAGE_KEYS.OPENING_INVENTORY);
+    localStorage.removeItem(STORAGE_KEYS.NET_WORTH_SNAPSHOTS);
     this.init();
     this.notify('all');
   }

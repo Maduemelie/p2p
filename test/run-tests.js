@@ -14,10 +14,15 @@
 const { globalContext, TestRunner } = require('./harness/test-runner');
 
 // 1. Load Tier 1 Suites: Feature Coverage
+require('./tier1-feature-coverage/r1-m1-calculation-engine.test');
+require('./tier1-feature-coverage/r1-m2-net-worth-widget.test');
+require('./tier1-feature-coverage/r1-m3-snapshot-modal.test');
+require('./tier1-feature-coverage/net-worth-features.test');
 require('./tier1-feature-coverage/r1-api-security.test');
 require('./tier1-feature-coverage/r2-fifo-accounting.test');
 require('./tier1-feature-coverage/r3-multi-bank-reconciliation.test');
 require('./tier1-feature-coverage/r4-search-navigation.test');
+require('./tier1-feature-coverage/r4-m4-historical-analytics.test');
 require('./tier1-feature-coverage/r5-offline-pwa.test');
 
 // 2. Load Tier 2 Suites: Boundary & Corner Cases
@@ -26,21 +31,36 @@ require('./tier2-boundary-corner-cases/r2-boundary.test');
 require('./tier2-boundary-corner-cases/r3-boundary.test');
 require('./tier2-boundary-corner-cases/r4-boundary.test');
 require('./tier2-boundary-corner-cases/r5-boundary.test');
+require('./tier2-boundary-corner-cases/net-worth-boundary.test');
 
 // 3. Load Tier 3 Suites: Cross-Feature Combinations
 require('./tier3-cross-feature/cross-feature-combinations.test');
 require('./tier3-cross-feature/integration-flows.test');
+require('./tier3-cross-feature/net-worth-cross-feature.test');
 
 // 4. Load Tier 4 Suites: Real-World Scenarios
 require('./tier4-real-world-scenarios/full-merchant-lifecycle.test');
 require('./tier4-real-world-scenarios/arbitrage-reconciliation.test');
 require('./tier4-real-world-scenarios/disaster-recovery-offline.test');
+require('./tier4-real-world-scenarios/net-worth-merchant-lifecycle.test');
 
 // 5. Load Challenger Suites
+require('./challenger-m1-math-stress.test');
+require('./challenger-m1-store-persistence-stress.test');
 require('./challenger-m2-fifo-stress.test');
+require('./challenger-m2-delta-badge-stress.test');
+require('./challenger-m2-reactivity-adversarial.test');
 require('./challenger-m3-multibank-stress.test');
+require('./challenger-m3-persistence-events.test');
+require('./challenger-m3-modal-validation-stress.test');
+require('./empirical-bybit-offline-fallback-stress.test');
 require('./challenger-m4-1-adversarial.test');
+require('./challenger-m4-2-history-backup-stress.test');
+require('./challenger-m4-chart-stress.test');
 require('./challenger-m5-offline-stress.test');
+require('./challenger-m5-2-stress.test');
+require('./challenger-m5-1-capital-cycle-concurrency.test');
+require('./challenger-m5-boundary-recovery-stress.test');
 require('./challenger-final-day-simulation.test');
 
 // Parse CLI flags
