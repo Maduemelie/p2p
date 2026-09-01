@@ -151,7 +151,7 @@ export function renderPricingView() {
             <div class="action-icon-box bg-emerald-glow">
               <i data-lucide="arrow-up-right"></i>
             </div>
-            <h3 class="card-title">Sell Ad Assistant <span class="badge badge-buy">Outflow</span></h3>
+            <h3 class="card-title">Sell Ad Assistant <span class="badge badge-primary">Outflow</span></h3>
           </div>
           <p class="text-secondary small mb-3" style="line-height: 1.4;">
             Prices competitor ads for your <strong>Sell Ad</strong> (which appears under Bybit P2P <strong>"Buy"</strong> tab for takers).

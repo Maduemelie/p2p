@@ -1,31 +1,34 @@
-## 2026-08-26T07:43:35Z
-You are the independent post-victory auditor for this SWE task.
-Your working directory is: c:\dev\p2p\.agents\auditor_1 (maintain your BRIEFING.md, progress.md, and handoff.md there).
-Project root: c:\dev\p2p
+# Forensic Auditor 1 Assignment: Integrity Verification
 
-<original_task>
-You are the SWE Light Orchestrator for the Bybit NGN P2P Trade Tracker project.
-Your working directory is: c:\dev\p2p\.agents\swe_1 (ensure you initialize/update your BRIEFING.md, plan.md, and progress.md here).
-Project root: c:\dev\p2p
-Original request file: c:\dev\p2p\.agents\ORIGINAL_REQUEST.md
+## Role & Mission
+You are `auditor_1`. Your working directory is `c:\dev\p2p\.agents\auditor_1`.
+You are the Forensic Integrity Auditor (`teamwork_preview_auditor`).
 
-Mission:
-Analyze the Bybit NGN P2P Trade Tracker application to identify and remove unused code (dead code), refactor reusable components into separate cleanly imported ES modules, and generate a comprehensive refactor_report.md while maintaining all test suite passes and application integrity in benchmark integrity mode.
+## Mandatory Reading
+- `c:\dev\p2p\.agents\ORIGINAL_REQUEST.md`
+- `c:\dev\p2p\PROJECT.md`
+- `c:\dev\p2p\TEST_INFRA.md`
+- `c:\dev\p2p\.agents\worker_1\changes.md`
+- `c:\dev\p2p\.agents\worker_1\handoff.md`
 
-Key Requirements:
-1. R1. Dead Code Removal:
-   - Identify and safely remove unused functions, variables, files, and unreachable code paths across the codebase.
-2. R2. Component Extraction:
-   - Identify components or utility functions that have high reuse potential but are currently tightly coupled, and extract them into separate, cleanly imported ES modules.
-3. R3. Refactoring Report:
-   - Generate a detailed report named `refactor_report.md` in the working directory (c:\dev\p2p\refactor_report.md) that lists exactly what dead code was removed and which components were extracted.
+## Audit Objectives & Checks
+Conduct a rigorous integrity forensic audit on all modifications made by `worker_1` across `server.js`, `api/market-depth.js`, `js/views/pricing.view.js`, `test/tier1-feature-coverage/pricing-engine.test.js`, and `test/run-tests.js`:
+1. **Static Anti-Cheating Analysis**:
+   - Verify NO hardcoded test results, mock return values tailored only to pass tests, or dummy implementations.
+   - Verify that `extractItems` in `server.js` and `api/market-depth.js` is genuine and handles real Bybit data shapes.
+   - Verify that `pricing-engine.test.js` tests real functions from `js/pricingEngine.js` with genuine assertions, not empty/trivial tautological assertions (e.g. `assert(true)`).
+2. **Behavioral & Runtime Tracing**:
+   - Inspect the execution of the test suite and verify that tests genuinely execute code paths in `js/pricingEngine.js`.
+3. **Spec Alignment**:
+   - Verify that requirements R1, R2, R3, R4 are authentically met.
+4. **Binary Verdict**:
+   - Write an audit report in `c:\dev\p2p\.agents\auditor_1\audit_report.md` and `c:\dev\p2p\.agents\auditor_1\handoff.md`.
+   - Provide a clear, binary verdict: `CLEAN` or `INTEGRITY VIOLATION`.
+5. Send a message to parent when done.
 
-Acceptance Criteria:
-- All existing automated tests must pass after the removals and refactoring are complete.
-- `refactor_report.md` is present in the working directory (c:\dev\p2p\refactor_report.md) and documents the changes.
-- No application functionality is broken (verified via test suite).
-
-Please execute the SWE Light loop: dispatch the implementer, run reviewer rounds with test execution, verify against acceptance criteria, and notify the Sentinel via send_message upon completion.
-</original_task>
-
-Please conduct your independent 3-phase post-victory audit (timeline & git diff verification, cheating / test tampering detection, and independent test execution across all tiers) and return your structured verdict (CONFIRMED or REJECTED) with complete supporting evidence.
+## 2026-09-01T14:10:07Z
+You are auditor_1. Your working directory is c:\dev\p2p\.agents\auditor_1.
+Read c:\dev\p2p\.agents\ORIGINAL_REQUEST.md, c:\dev\p2p\PROJECT.md, c:\dev\p2p\TEST_INFRA.md, c:\dev\p2p\.agents\worker_1\changes.md, and c:\dev\p2p\.agents\auditor_1\DISPATCH.md.
+Conduct forensic integrity audit on worker_1 changes for anti-cheating, authentic math, real assertions, and spec compliance.
+Write audit_report.md and handoff.md with binary verdict CLEAN or INTEGRITY VIOLATION.
+Communicate via send_message.

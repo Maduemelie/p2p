@@ -1,5 +1,22 @@
 const { API_KEY, API_SECRET, executeWithFailover, verifyAuth } = require('./_bybit');
 
+const extractItems = (data) => {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.result)) return data.result;
+  if (data.result && typeof data.result === 'object') {
+    if (Array.isArray(data.result.items)) return data.result.items;
+    if (Array.isArray(data.result.list)) return data.result.list;
+    if (Array.isArray(data.result.data)) return data.result.data;
+    if (Array.isArray(data.result.rows)) return data.result.rows;
+    if (Array.isArray(data.result.records)) return data.result.records;
+    if (Array.isArray(data.result.itemList)) return data.result.itemList;
+  }
+  if (Array.isArray(data.items)) return data.items;
+  if (Array.isArray(data.list)) return data.list;
+  return [];
+};
+
 module.exports = async function handler(req, res) {
   if (!verifyAuth(req, res)) return;
 
@@ -14,7 +31,17 @@ module.exports = async function handler(req, res) {
     const fiat = req.query.fiat || req.body?.fiat || 'NGN';
     const limit = req.query.limit || req.body?.limit || '5';
 
-    // Build Buy side (competitors trying to BUY crypto from users -> users are selling -> side 1)
+    /**
+     * Bybit P2P Side Conventions for /v5/p2p/item/online (Public Market Depth):
+     * The public orderbook API is formulated from the Taker's (retail user's) perspective:
+     * - side: '1' (Taker Sells) -> Returns merchant BUY advertisements (Market Bids / buyDepth).
+     * - side: '0' (Taker Buys)  -> Returns merchant SELL advertisements (Market Asks / sellDepth).
+     *
+     * In contrast, Merchant Personal Ads (/v5/p2p/item/personal/list) are from the Merchant's perspective:
+     * - side: 0 -> Merchant Buy Ad
+     * - side: 1 -> Merchant Sell Ad
+     */
+    // Build Buy side: Taker sells crypto -> Competitors are buying -> side: '1' -> buyDepth (bids)
     const buyPayload = {
       tokenId: coin,
       currencyId: fiat,
@@ -23,7 +50,7 @@ module.exports = async function handler(req, res) {
       size: String(limit)
     };
 
-    // Build Sell side (competitors trying to SELL crypto to users -> users are buying -> side 0)
+    // Build Sell side: Taker buys crypto -> Competitors are selling -> side: '0' -> sellDepth (asks)
     const sellPayload = {
       tokenId: coin,
       currencyId: fiat,
@@ -46,8 +73,8 @@ module.exports = async function handler(req, res) {
       result: {
         coin,
         fiat,
-        buyDepth: buyRes.data?.result?.items || [],
-        sellDepth: sellRes.data?.result?.items || []
+        buyDepth: extractItems(buyRes.data),
+        sellDepth: extractItems(sellRes.data)
       }
     });
   } catch (error) {
