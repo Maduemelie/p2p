@@ -147,7 +147,9 @@ export async function syncAndRenderActiveAd(showToast = false) {
     const isOnlineStatus = (status) => {
       if (status === undefined || status === null) return false;
       const s = String(status).trim().toUpperCase();
-      return s === '10' || s === '20' || s === '2' || s === '1' || s === 'ONLINE' || s === 'ACTIVE';
+      // Status 10 or 1 or 'ONLINE' or 'ACTIVE' = Live on orderbook.
+      // Status 20, 30, 2 = Offline / Paused / Removed / Inactive.
+      return s === '10' || s === '1' || s === 'ONLINE' || s === 'ACTIVE';
     };
 
     // Extract Sell Ad (Strictly active online ads only)
