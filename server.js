@@ -337,36 +337,41 @@ app.all('/api/ads', async (req, res) => {
   }
 
   try {
-    const fetchSide = async (sideStr) => {
-      const payload = {
-        side: sideStr,
-        tokenId: req.query.tokenId || req.body?.tokenId || 'USDT',
-        status: '2', // 2 is AVAILABLE
-        page: '1',
-        size: '10'
-      };
-      const jsonBodyString = JSON.stringify(payload);
-      const endpointPath = `/v5/p2p/item/personal/list`;
-      const response = await executeWithFailover('POST', endpointPath, jsonBodyString, payload);
-      return response.data?.result?.items || [];
+    const fetchAdsWithPayload = async (payload) => {
+      try {
+        const jsonBodyString = JSON.stringify(payload);
+        const endpointPath = `/v5/p2p/item/personal/list`;
+        const response = await executeWithFailover('POST', endpointPath, jsonBodyString, payload);
+        return response.data?.result?.items || [];
+      } catch (e) {
+        return [];
+      }
     };
 
-    const reqSide = req.query.side || req.body?.side;
-    if (reqSide) {
-      const items = await fetchSide(String(reqSide));
-      return res.json({ retCode: 0, retMsg: 'SUCCESS', result: { items } });
-    }
-
-    const [buyItems, sellItems] = await Promise.all([
-      fetchSide('0'), // 0 is BUY ad
-      fetchSide('1')  // 1 is SELL ad
+    const tokenId = req.query.tokenId || req.body?.tokenId || 'USDT';
+    
+    // Fetch without side filter, and explicitly with side '0' and side '1'
+    const [allAds, side0Ads, side1Ads] = await Promise.all([
+      fetchAdsWithPayload({ tokenId, page: '1', size: '30' }),
+      fetchAdsWithPayload({ side: '0', tokenId, page: '1', size: '30' }),
+      fetchAdsWithPayload({ side: '1', tokenId, page: '1', size: '30' })
     ]);
+
+    // Deduplicate by ad ID
+    const map = new Map();
+    [...allAds, ...side0Ads, ...side1Ads].forEach(item => {
+      if (item && item.id) {
+        map.set(String(item.id), item);
+      }
+    });
+
+    const combinedItems = Array.from(map.values());
 
     res.json({
       retCode: 0,
       retMsg: 'SUCCESS',
       result: {
-        items: [...buyItems, ...sellItems]
+        items: combinedItems
       }
     });
   } catch (error) {

@@ -100,17 +100,27 @@ export async function syncAndRenderActiveAd(showToast = false) {
   const metricProjectedPnl = document.getElementById('metric-ad-projected-pnl');
 
   try {
-    // Fetch all ads (side='' fetches both buy and sell)
+    // Fetch all ads
     const ads = await bybitService.fetchActiveAds('', 'USDT');
+    console.log('[Dashboard] Fetched P2P ads:', ads);
     
-    // Extract Sell Ad (side 1 = Sell)
-    const activeSellAd = ads.find(a => Number(a.side) === 1 && Number(a.status) === 10)
-      || ads.find(a => Number(a.side) === 1 && (Number(a.status) === 20 || Number(a.status) === 2))
+    const isBuySide = (side) => String(side) === '0' || String(side).toUpperCase() === 'BUY';
+    const isSellSide = (side) => String(side) === '1' || String(side).toUpperCase() === 'SELL';
+    const isActiveStatus = (status) => {
+      const s = String(status).toUpperCase();
+      return s === '10' || s === '20' || s === '2' || s === '1' || s === 'ONLINE' || s === 'ACTIVE';
+    };
+
+    // Extract Sell Ad
+    const activeSellAd = ads.find(a => isSellSide(a.side) && isActiveStatus(a.status))
+      || ads.find(a => isSellSide(a.side) && String(a.status) !== '30')
+      || ads.find(a => isSellSide(a.side))
       || null;
       
-    // Extract Buy Ad (side 0 = Buy)
-    const activeBuyAd = ads.find(a => Number(a.side) === 0 && Number(a.status) === 10)
-      || ads.find(a => Number(a.side) === 0 && (Number(a.status) === 20 || Number(a.status) === 2))
+    // Extract Buy Ad
+    const activeBuyAd = ads.find(a => isBuySide(a.side) && isActiveStatus(a.status))
+      || ads.find(a => isBuySide(a.side) && String(a.status) !== '30')
+      || ads.find(a => isBuySide(a.side))
       || null;
 
     setActiveAd(activeSellAd);
