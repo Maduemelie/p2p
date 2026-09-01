@@ -337,19 +337,38 @@ app.all('/api/ads', async (req, res) => {
   }
 
   try {
-    const payload = {
-      side: '1', // 1 is SELL ad
-      tokenId: 'USDT',
-      status: '2', // 2 is AVAILABLE (excludes completed/removed)
-      page: '1',
-      size: '10'
+    const fetchSide = async (sideStr) => {
+      const payload = {
+        side: sideStr,
+        tokenId: req.query.tokenId || req.body?.tokenId || 'USDT',
+        status: '2', // 2 is AVAILABLE
+        page: '1',
+        size: '10'
+      };
+      const jsonBodyString = JSON.stringify(payload);
+      const endpointPath = `/v5/p2p/item/personal/list`;
+      const response = await executeWithFailover('POST', endpointPath, jsonBodyString, payload);
+      return response.data?.result?.items || [];
     };
 
-    const jsonBodyString = JSON.stringify(payload);
-    const endpointPath = `/v5/p2p/item/personal/list`;
+    const reqSide = req.query.side || req.body?.side;
+    if (reqSide) {
+      const items = await fetchSide(String(reqSide));
+      return res.json({ retCode: 0, retMsg: 'SUCCESS', result: { items } });
+    }
 
-    const response = await executeWithFailover('POST', endpointPath, jsonBodyString, payload);
-    res.json(response.data);
+    const [buyItems, sellItems] = await Promise.all([
+      fetchSide('0'), // 0 is BUY ad
+      fetchSide('1')  // 1 is SELL ad
+    ]);
+
+    res.json({
+      retCode: 0,
+      retMsg: 'SUCCESS',
+      result: {
+        items: [...buyItems, ...sellItems]
+      }
+    });
   } catch (error) {
     console.error('[Proxy] Error fetching active ads:', error.response?.data || error.message);
     const statusCode = error.response ? error.response.status : 500;
