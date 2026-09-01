@@ -946,17 +946,50 @@ export function renderSnapshotHistoryTable() {
 
   // 2. Reverse for UI display (newest snapshot on row 1)
   const reversedSnapshots = [...enrichedSnapshots].reverse();
-  
-  // 3. Render Desktop Table Rows
-  if (tbody) {
-    tbody.innerHTML = reversedSnapshots.map((item, idx) => {
-      return renderSnapshotHistoryRow(item, item.isBaseline ? null : item, idx);
-    }).join('');
+
+  // 3. Calculate 5-item-per-page Pagination
+  const SNAPSHOTS_PER_PAGE = 5;
+  const totalPages = Math.ceil(reversedSnapshots.length / SNAPSHOTS_PER_PAGE) || 1;
+  if (!window._snapshotCurrentPage || window._snapshotCurrentPage < 1) {
+    window._snapshotCurrentPage = 1;
+  }
+  if (window._snapshotCurrentPage > totalPages) {
+    window._snapshotCurrentPage = totalPages;
   }
 
-  // 4. Render Mobile Card List (if present)
+  const startIndex = (window._snapshotCurrentPage - 1) * SNAPSHOTS_PER_PAGE;
+  const displaySnapshots = reversedSnapshots.slice(startIndex, startIndex + SNAPSHOTS_PER_PAGE);
+
+  // Pagination UI Bar Generator
+  const renderPaginationBar = (isMobile = false) => {
+    const prevDisabled = window._snapshotCurrentPage <= 1 ? 'disabled' : '';
+    const nextDisabled = window._snapshotCurrentPage >= totalPages ? 'disabled' : '';
+    return `
+      <div class="d-flex justify-content-between align-items-center mt-3 mb-2 px-2 ${isMobile ? 'w-100' : ''}">
+        <button type="button" class="btn btn-sm btn-outline btn-pagination-prev" ${prevDisabled}>
+          <i data-lucide="chevron-left"></i> Prev
+        </button>
+        <span class="small text-muted font-mono">Page ${window._snapshotCurrentPage} of ${totalPages}</span>
+        <button type="button" class="btn btn-sm btn-outline btn-pagination-next" ${nextDisabled}>
+          Next <i data-lucide="chevron-right"></i>
+        </button>
+      </div>
+    `;
+  };
+
+  // 4. Render Desktop Table Rows
+  if (tbody) {
+    let rowsHtml = displaySnapshots.map((item, idx) => {
+      return renderSnapshotHistoryRow(item, item.isBaseline ? null : item, idx);
+    }).join('');
+
+    rowsHtml += `<tr><td colspan="9">${renderPaginationBar(false)}</td></tr>`;
+    tbody.innerHTML = rowsHtml;
+  }
+
+  // 5. Render Mobile Card List (if present)
   if (listContainer) {
-    listContainer.innerHTML = reversedSnapshots.map((item) => {
+    let cardsHtml = displaySnapshots.map((item) => {
       const dateFormatted = item.timestamp ? formatDateTime(item.timestamp) : '—';
       const bankCashFormatted = formatNGN(item.bankCash || 0);
       const usdtFormatted = formatUSDT(item.usdtBalance || 0);
@@ -1019,6 +1052,9 @@ export function renderSnapshotHistoryTable() {
         </div>
       `;
     }).join('');
+
+    cardsHtml += renderPaginationBar(true);
+    listContainer.innerHTML = cardsHtml;
   }
 
   // 5. Bind Actions (Delete buttons & View Note handlers)

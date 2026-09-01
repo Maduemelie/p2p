@@ -150,19 +150,11 @@ export async function syncAndRenderActiveAd(showToast = false) {
       return s === '10' || s === '20' || s === '2' || s === '1' || s === 'ONLINE' || s === 'ACTIVE';
     };
 
-    // Extract Sell Ad
-    const activeSellAd = ads.find(a => isSellSide(a) && (String(a.status) === '10' || String(a.status) === '1' || String(a.status) === '2' || String(a.status).toUpperCase() === 'ONLINE'))
-      || ads.find(a => isSellSide(a) && isOnlineStatus(a.status))
-      || ads.find(a => isSellSide(a) && String(a.status) !== '30')
-      || ads.find(a => isSellSide(a))
-      || null;
+    // Extract Sell Ad (Strictly active online ads only)
+    const activeSellAd = ads.find(a => isSellSide(a) && isOnlineStatus(a.status)) || null;
       
-    // Extract Buy Ad
-    const activeBuyAd = ads.find(a => isBuySide(a) && (String(a.status) === '10' || String(a.status) === '1' || String(a.status) === '2' || String(a.status).toUpperCase() === 'ONLINE'))
-      || ads.find(a => isBuySide(a) && isOnlineStatus(a.status))
-      || ads.find(a => isBuySide(a) && String(a.status) !== '30')
-      || ads.find(a => isBuySide(a))
-      || null;
+    // Extract Buy Ad (Strictly active online ads only)
+    const activeBuyAd = ads.find(a => isBuySide(a) && isOnlineStatus(a.status)) || null;
 
     setActiveAd(activeSellAd);
 
