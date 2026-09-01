@@ -100,10 +100,17 @@ export async function syncAndRenderActiveAd(showToast = false) {
   const metricProjectedPnl = document.getElementById('metric-ad-projected-pnl');
 
   try {
-    const ads = await bybitService.fetchActiveAds('1', 'USDT');
-    // Pick the ONLINE sell ad (status 10), or ACTIVE (20/2), or first available
+    // Fetch all ads (side='' fetches both buy and sell)
+    const ads = await bybitService.fetchActiveAds('', 'USDT');
+    
+    // Extract Sell Ad (side 1 = Sell)
     const activeSellAd = ads.find(a => Number(a.side) === 1 && Number(a.status) === 10)
       || ads.find(a => Number(a.side) === 1 && (Number(a.status) === 20 || Number(a.status) === 2))
+      || null;
+      
+    // Extract Buy Ad (side 0 = Buy)
+    const activeBuyAd = ads.find(a => Number(a.side) === 0 && Number(a.status) === 10)
+      || ads.find(a => Number(a.side) === 0 && (Number(a.status) === 20 || Number(a.status) === 2))
       || null;
 
     setActiveAd(activeSellAd);
@@ -113,6 +120,7 @@ export async function syncAndRenderActiveAd(showToast = false) {
     const fifoResult = calculateFIFOInventoryAndPnL(trades, openingInventory);
     const avgBuyCost = fifoResult.avgHoldingCostPerUSDT || openingInventory.defaultCostBasis || 0;
 
+    // --- Render Sell Ad ---
     if (metricAdPrice) {
       if (activeSellAd) {
         const adPrice = parseFloat(activeSellAd.price) || 0;
@@ -153,7 +161,7 @@ export async function syncAndRenderActiveAd(showToast = false) {
         }
 
         if (showToast && window.showToast) {
-          window.showToast(`Synced Live Bybit Ad @ ₦${adPrice.toFixed(2)} (+₦${spreadPerUsdt.toFixed(2)}/USDT spread)!`, 'success');
+          window.showToast(`Synced Live Bybit Ads successfully!`, 'success');
         }
       } else {
         if (adBadge) {
@@ -180,6 +188,53 @@ export async function syncAndRenderActiveAd(showToast = false) {
 
         if (showToast && window.showToast) {
           window.showToast('No active Bybit sell advertisements found.', 'info');
+        }
+      }
+    }
+
+    // --- Render Buy Ad ---
+    const metricBuyPrice = document.getElementById('metric-ad-buy-price');
+    const metricBuyQty = document.getElementById('metric-ad-qty-buy');
+    const metricBuyFiat = document.getElementById('metric-ad-buy-fiat');
+    const metricBuyStatus = document.getElementById('metric-ad-buy-status');
+    const buyBadge = document.getElementById('active-buy-ad-badge');
+    const buyTitle = document.getElementById('active-buy-ad-title');
+    
+    if (metricBuyPrice) {
+      if (activeBuyAd) {
+        const adPrice = parseFloat(activeBuyAd.price) || 0;
+        const lastQty = parseFloat(activeBuyAd.lastQuantity) || 0;
+        const frozenQty = parseFloat(activeBuyAd.frozenQuantity) || 0;
+        const totalTargetUsdt = lastQty + frozenQty;
+        const fiatAllocated = totalTargetUsdt * adPrice;
+        
+        if (buyBadge) {
+          buyBadge.className = 'live-badge';
+          buyBadge.innerHTML = '<span class="live-badge-dot" style="background-color: var(--color-danger);"></span>Active Buy Ad';
+        }
+        if (buyTitle) buyTitle.textContent = `Bybit Buy Ad #${activeBuyAd.id}`;
+        
+        metricBuyPrice.textContent = `₦${adPrice.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+        metricBuyQty.textContent = `${totalTargetUsdt.toFixed(2)} USDT targeted`;
+        
+        if (metricBuyFiat) metricBuyFiat.textContent = `₦${fiatAllocated.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+        if (metricBuyStatus) {
+          metricBuyStatus.textContent = 'Online / Active';
+          metricBuyStatus.className = 'ad-submetric-value font-mono text-success';
+        }
+      } else {
+        if (buyBadge) {
+          buyBadge.className = 'badge badge-neutral';
+          buyBadge.innerHTML = 'No Active Ad';
+        }
+        if (buyTitle) buyTitle.textContent = 'No Live Buy Ad on Bybit';
+        
+        metricBuyPrice.textContent = '—';
+        metricBuyQty.textContent = 'Post a Buy Ad on Bybit';
+        if (metricBuyFiat) metricBuyFiat.textContent = '₦0.00';
+        if (metricBuyStatus) {
+          metricBuyStatus.textContent = 'Offline';
+          metricBuyStatus.className = 'ad-submetric-value font-mono text-muted';
         }
       }
     }

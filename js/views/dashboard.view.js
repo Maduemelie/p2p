@@ -241,12 +241,12 @@ export function renderDashboardView() {
           </div>
           <button class="btn btn-xs btn-outline" id="btn-sync-active-ad" title="Refresh Live Bybit Ad">
             <i data-lucide="refresh-cw"></i>
-            <span>Refresh Ad</span>
+            <span>Refresh Ads</span>
           </button>
         </div>
 
         <div class="ad-hero-section mb-3">
-          <div class="ad-hero-label">Live Ad Price</div>
+          <div class="ad-hero-label">Live Sell Price</div>
           <div class="ad-hero-value font-mono text-success" id="metric-ad-sell-price">₦0.00</div>
           <div class="ad-hero-sub text-muted" id="metric-ad-qty-stock">0.00 USDT listed</div>
         </div>
@@ -264,6 +264,36 @@ export function renderDashboardView() {
           <div class="ad-submetric-cell">
             <span class="ad-submetric-label">Projected Profit</span>
             <span class="ad-submetric-value font-mono text-success" id="metric-ad-projected-pnl">+₦0.00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ②b Current Position Card (Active Buy Ad) -->
+      <div class="card mb-4" id="card-active-buy-ad">
+        <div class="card-header-flex mb-3">
+          <div>
+            <span class="live-badge" id="active-buy-ad-badge">
+              <span class="live-badge-dot" style="background-color: var(--color-danger);"></span>
+              Active Buy Ad
+            </span>
+            <h3 class="card-title mt-1" id="active-buy-ad-title">Bybit Buy Ad</h3>
+          </div>
+        </div>
+
+        <div class="ad-hero-section mb-3">
+          <div class="ad-hero-label">Live Buy Price</div>
+          <div class="ad-hero-value font-mono text-danger" id="metric-ad-buy-price">₦0.00</div>
+          <div class="ad-hero-sub text-muted" id="metric-ad-qty-buy">0.00 USDT targeted</div>
+        </div>
+
+        <div class="ad-submetrics-grid">
+          <div class="ad-submetric-cell">
+            <span class="ad-submetric-label">Fiat Allocation</span>
+            <span class="ad-submetric-value font-mono" id="metric-ad-buy-fiat">₦0.00</span>
+          </div>
+          <div class="ad-submetric-cell" style="grid-column: span 2;">
+            <span class="ad-submetric-label">Status</span>
+            <span class="ad-submetric-value font-mono text-muted" id="metric-ad-buy-status">Waiting for ad...</span>
           </div>
         </div>
       </div>

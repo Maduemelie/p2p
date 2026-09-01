@@ -945,13 +945,26 @@ export function renderSnapshotHistoryTable() {
   });
 
   // 2. Reverse for UI display (newest snapshot on row 1)
-  const displaySnapshots = [...enrichedSnapshots].reverse();
+  let displaySnapshots = [...enrichedSnapshots].reverse();
+  
+  const MAX_DISPLAY = window._snapshotDisplayLimit || 5;
+  const isTruncated = displaySnapshots.length > MAX_DISPLAY;
+  if (isTruncated) {
+    displaySnapshots = displaySnapshots.slice(0, MAX_DISPLAY);
+  }
 
   // 3. Render Desktop Table Rows
   if (tbody) {
-    tbody.innerHTML = displaySnapshots.map((item, idx) => {
+    let html = displaySnapshots.map((item, idx) => {
       return renderSnapshotHistoryRow(item, item.isBaseline ? null : item, idx);
     }).join('');
+    
+    if (isTruncated) {
+      html += `<tr><td colspan="9" class="text-center py-3">
+        <button type="button" class="btn btn-outline btn-sm" id="btn-view-all-snapshots-desktop">View All ${totalCount} Snapshots</button>
+      </td></tr>`;
+    }
+    tbody.innerHTML = html;
   }
 
   // 4. Render Mobile Card List (if present)
@@ -1019,6 +1032,14 @@ export function renderSnapshotHistoryTable() {
         </div>
       `;
     }).join('');
+    
+    if (isTruncated) {
+      listContainer.innerHTML += `
+        <div class="text-center mt-3 mb-2">
+          <button type="button" class="btn btn-outline btn-sm w-100" id="btn-view-all-snapshots-mobile">View All ${totalCount} Snapshots</button>
+        </div>
+      `;
+    }
   }
 
   // 5. Bind Actions (Delete buttons & View Note handlers)
@@ -1174,6 +1195,24 @@ export function bindSnapshotHistoryActions() {
       }
     });
   });
+  
+  const btnViewAllDesktop = document.getElementById('btn-view-all-snapshots-desktop');
+  if (btnViewAllDesktop) {
+    btnViewAllDesktop.addEventListener('click', (e) => {
+      e.preventDefault();
+      window._snapshotDisplayLimit = 9999;
+      renderSnapshotHistoryTable();
+    });
+  }
+  
+  const btnViewAllMobile = document.getElementById('btn-view-all-snapshots-mobile');
+  if (btnViewAllMobile) {
+    btnViewAllMobile.addEventListener('click', (e) => {
+      e.preventDefault();
+      window._snapshotDisplayLimit = 9999;
+      renderSnapshotHistoryTable();
+    });
+  }
 }
 
 /**
