@@ -388,17 +388,23 @@ export function resolveReferenceRate(options = {}) {
   if (options.activeSellAd) {
     let adPrice = null;
     if (typeof options.activeSellAd === 'object') {
-      const side = options.activeSellAd.side;
-      const status = options.activeSellAd.status;
-      // side: 1 or '1' is SELL in Bybit P2P; status: 10 (ONLINE), 20, 2 (ACTIVE)
-      const isSellSide = side === undefined || side === null || Number(side) === 1;
-      const isActiveStatus = status === undefined || status === null || [10, 20, 2].includes(Number(status));
+      const rawSide = (options.activeSellAd.side !== undefined && options.activeSellAd.side !== null) 
+        ? options.activeSellAd.side 
+        : (options.activeSellAd.tradeType ?? options.activeSellAd.sideName ?? options.activeSellAd.type ?? options.activeSellAd.action ?? '');
+      const sSide = String(rawSide).trim().toUpperCase();
+      const isSellSide = rawSide === undefined || rawSide === null || rawSide === '' || sSide === '1' || sSide === 'SELL';
 
-      if (isSellSide && isActiveStatus && options.activeSellAd.price !== undefined) {
-        adPrice = parseFloat(options.activeSellAd.price);
+      const rawStatus = options.activeSellAd.status;
+      const sStatus = String(rawStatus ?? '').trim().toUpperCase();
+      const isActiveStatus = rawStatus === undefined || rawStatus === null || rawStatus === '' || 
+        ['10', '20', '2', '1', 'ONLINE', 'ACTIVE', 'OFFLINE', 'PAUSED'].includes(sStatus) ||
+        (sStatus !== '30' && sStatus !== 'CANCELLED' && sStatus !== 'CANCELED' && sStatus !== 'DELETED');
+
+      if (isSellSide && isActiveStatus && options.activeSellAd.price !== undefined && options.activeSellAd.price !== null) {
+        adPrice = parseFloat(String(options.activeSellAd.price).replace(/,/g, ''));
       }
     } else if (typeof options.activeSellAd === 'number' || typeof options.activeSellAd === 'string') {
-      adPrice = parseFloat(options.activeSellAd);
+      adPrice = parseFloat(String(options.activeSellAd).replace(/,/g, ''));
     }
 
     if (adPrice !== null && !isNaN(adPrice) && isFinite(adPrice) && adPrice > 0) {
@@ -414,13 +420,13 @@ export function resolveReferenceRate(options = {}) {
         const sorted = [...options.latestTrade].sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
         const latest = sorted[0];
         const raw = latest?.rate !== undefined ? latest.rate : latest?.price;
-        tradeRate = parseFloat(raw);
+        tradeRate = parseFloat(String(raw ?? '').replace(/,/g, ''));
       }
     } else if (typeof options.latestTrade === 'object') {
       const raw = options.latestTrade.rate !== undefined ? options.latestTrade.rate : options.latestTrade.price;
-      tradeRate = parseFloat(raw);
+      tradeRate = parseFloat(String(raw ?? '').replace(/,/g, ''));
     } else if (typeof options.latestTrade === 'number' || typeof options.latestTrade === 'string') {
-      tradeRate = parseFloat(options.latestTrade);
+      tradeRate = parseFloat(String(options.latestTrade).replace(/,/g, ''));
     }
 
     if (tradeRate !== null && !isNaN(tradeRate) && isFinite(tradeRate) && tradeRate > 0) {
@@ -430,7 +436,7 @@ export function resolveReferenceRate(options = {}) {
 
   // 3. FIFO Average Buy Cost
   if (options.fifoAvgBuyCost !== undefined && options.fifoAvgBuyCost !== null) {
-    const fifoCost = parseFloat(options.fifoAvgBuyCost);
+    const fifoCost = parseFloat(String(options.fifoAvgBuyCost).replace(/,/g, ''));
     if (!isNaN(fifoCost) && isFinite(fifoCost) && fifoCost > 0) {
       return fifoCost;
     }
@@ -438,11 +444,11 @@ export function resolveReferenceRate(options = {}) {
 
   // 4. Opening Inventory Default Cost Basis
   let openingRate = options.openingDefaultRate;
-  if (openingRate === undefined && options.openingInventory) {
+  if ((openingRate === undefined || openingRate === null || isNaN(Number(openingRate))) && options.openingInventory) {
     openingRate = options.openingInventory.defaultCostBasis;
   }
   if (openingRate !== undefined && openingRate !== null) {
-    const openCost = parseFloat(openingRate);
+    const openCost = parseFloat(String(openingRate).replace(/,/g, ''));
     if (!isNaN(openCost) && isFinite(openCost) && openCost > 0) {
       return openCost;
     }
@@ -450,7 +456,7 @@ export function resolveReferenceRate(options = {}) {
 
   // 5. Fallback rate
   if (options.fallbackRate !== undefined && options.fallbackRate !== null) {
-    const fb = parseFloat(options.fallbackRate);
+    const fb = parseFloat(String(options.fallbackRate).replace(/,/g, ''));
     if (!isNaN(fb) && isFinite(fb) && fb > 0) {
       return fb;
     }

@@ -947,48 +947,16 @@ export function renderSnapshotHistoryTable() {
   // 2. Reverse for UI display (newest snapshot on row 1)
   const reversedSnapshots = [...enrichedSnapshots].reverse();
   
-  // Apply pagination
-  const SNAPSHOTS_PER_PAGE = 5;
-  const totalPages = Math.ceil(reversedSnapshots.length / SNAPSHOTS_PER_PAGE) || 1;
-  if (!window._snapshotCurrentPage) window._snapshotCurrentPage = 1;
-  if (window._snapshotCurrentPage > totalPages) window._snapshotCurrentPage = totalPages;
-  
-  const startIndex = (window._snapshotCurrentPage - 1) * SNAPSHOTS_PER_PAGE;
-  const endIndex = startIndex + SNAPSHOTS_PER_PAGE;
-  const displaySnapshots = reversedSnapshots.slice(startIndex, endIndex);
-  const isPaginated = totalPages > 1;
-
-  // Pagination UI Generator
-  const generatePaginationHtml = (isMobile) => {
-    if (!isPaginated) return '';
-    return `
-      <div class="d-flex justify-content-between align-items-center mt-3 mb-2 px-2 ${isMobile ? 'w-100' : ''}">
-        <button type="button" class="btn btn-sm btn-outline btn-pagination-prev" ${window._snapshotCurrentPage === 1 ? 'disabled' : ''}>
-          <i data-lucide="chevron-left"></i> Prev
-        </button>
-        <span class="small text-muted font-mono">Page ${window._snapshotCurrentPage} of ${totalPages}</span>
-        <button type="button" class="btn btn-sm btn-outline btn-pagination-next" ${window._snapshotCurrentPage >= totalPages ? 'disabled' : ''}>
-          Next <i data-lucide="chevron-right"></i>
-        </button>
-      </div>
-    `;
-  };
-
   // 3. Render Desktop Table Rows
   if (tbody) {
-    let html = displaySnapshots.map((item, idx) => {
+    tbody.innerHTML = reversedSnapshots.map((item, idx) => {
       return renderSnapshotHistoryRow(item, item.isBaseline ? null : item, idx);
     }).join('');
-    
-    if (isPaginated) {
-      html += `<tr><td colspan="9">${generatePaginationHtml(false)}</td></tr>`;
-    }
-    tbody.innerHTML = html;
   }
 
   // 4. Render Mobile Card List (if present)
   if (listContainer) {
-    listContainer.innerHTML = displaySnapshots.map((item) => {
+    listContainer.innerHTML = reversedSnapshots.map((item) => {
       const dateFormatted = item.timestamp ? formatDateTime(item.timestamp) : '—';
       const bankCashFormatted = formatNGN(item.bankCash || 0);
       const usdtFormatted = formatUSDT(item.usdtBalance || 0);
@@ -1051,10 +1019,6 @@ export function renderSnapshotHistoryTable() {
         </div>
       `;
     }).join('');
-    
-    if (isPaginated) {
-      listContainer.innerHTML += generatePaginationHtml(true);
-    }
   }
 
   // 5. Bind Actions (Delete buttons & View Note handlers)

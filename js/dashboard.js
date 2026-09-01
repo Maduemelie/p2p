@@ -61,9 +61,20 @@ export function initDashboard() {
   setupNetWorthChartFilters();
 
   const btnSyncAd = document.getElementById('btn-sync-active-ad');
-  btnSyncAd?.addEventListener('click', () => {
-    syncAndRenderActiveAd(true);
-    syncBybitLiveInventory();
+  let isSyncingActiveAd = false;
+  btnSyncAd?.addEventListener('click', async () => {
+    if (isSyncingActiveAd) return;
+    try {
+      isSyncingActiveAd = true;
+      if (btnSyncAd) btnSyncAd.disabled = true;
+      await Promise.all([
+        syncAndRenderActiveAd(true),
+        syncBybitLiveInventory()
+      ]);
+    } finally {
+      isSyncingActiveAd = false;
+      if (btnSyncAd) btnSyncAd.disabled = false;
+    }
   });
 
   // Listen for store updates across all collections
@@ -84,11 +95,15 @@ export function initDashboard() {
   });
 }
 
+let lastAdSyncId = 0;
+
 /**
  * Fetch and render Active Bybit Sell Ad & Live Spread Monitor
  * @param {boolean} [showToast=false]
  */
 export async function syncAndRenderActiveAd(showToast = false) {
+  const currentSyncId = ++lastAdSyncId;
+
   const adBadge = document.getElementById('active-ad-badge');
   const adTitle = document.getElementById('active-ad-title');
   const metricAdPrice = document.getElementById('metric-ad-sell-price');
@@ -99,28 +114,54 @@ export async function syncAndRenderActiveAd(showToast = false) {
   const metricMarginPct = document.getElementById('metric-ad-margin-pct');
   const metricProjectedPnl = document.getElementById('metric-ad-projected-pnl');
 
+  const metricBuyPrice = document.getElementById('metric-ad-buy-price');
+  const metricBuyQty = document.getElementById('metric-ad-qty-buy');
+  const metricBuyFiat = document.getElementById('metric-ad-buy-fiat');
+  const metricBuyStatus = document.getElementById('metric-ad-buy-status');
+  const buyBadge = document.getElementById('active-buy-ad-badge');
+  const buyTitle = document.getElementById('active-buy-ad-title');
+
   try {
     // Fetch all ads
     const ads = await bybitService.fetchActiveAds('', 'USDT');
+    if (currentSyncId !== lastAdSyncId) {
+      // Discard stale out-of-order response
+      return;
+    }
     console.log('[Dashboard] Fetched P2P ads:', ads);
     
-    const isBuySide = (side) => String(side) === '0' || String(side).toUpperCase() === 'BUY';
-    const isSellSide = (side) => String(side) === '1' || String(side).toUpperCase() === 'SELL';
-    const isActiveStatus = (status) => {
-      const s = String(status).toUpperCase();
+    const isBuySide = (ad) => {
+      if (!ad) return false;
+      const raw = (ad.side !== undefined && ad.side !== null) ? ad.side : (ad.tradeType ?? ad.sideName ?? ad.type ?? ad.action ?? '');
+      const s = String(raw).trim().toUpperCase();
+      return s === '0' || s === 'BUY';
+    };
+
+    const isSellSide = (ad) => {
+      if (!ad) return false;
+      const raw = (ad.side !== undefined && ad.side !== null) ? ad.side : (ad.tradeType ?? ad.sideName ?? '');
+      const s = String(raw).trim().toUpperCase();
+      return s === '1' || s === 'SELL';
+    };
+
+    const isOnlineStatus = (status) => {
+      if (status === undefined || status === null) return false;
+      const s = String(status).trim().toUpperCase();
       return s === '10' || s === '20' || s === '2' || s === '1' || s === 'ONLINE' || s === 'ACTIVE';
     };
 
     // Extract Sell Ad
-    const activeSellAd = ads.find(a => isSellSide(a.side) && isActiveStatus(a.status))
-      || ads.find(a => isSellSide(a.side) && String(a.status) !== '30')
-      || ads.find(a => isSellSide(a.side))
+    const activeSellAd = ads.find(a => isSellSide(a) && (String(a.status) === '10' || String(a.status) === '1' || String(a.status) === '2' || String(a.status).toUpperCase() === 'ONLINE'))
+      || ads.find(a => isSellSide(a) && isOnlineStatus(a.status))
+      || ads.find(a => isSellSide(a) && String(a.status) !== '30')
+      || ads.find(a => isSellSide(a))
       || null;
       
     // Extract Buy Ad
-    const activeBuyAd = ads.find(a => isBuySide(a.side) && isActiveStatus(a.status))
-      || ads.find(a => isBuySide(a.side) && String(a.status) !== '30')
-      || ads.find(a => isBuySide(a.side))
+    const activeBuyAd = ads.find(a => isBuySide(a) && (String(a.status) === '10' || String(a.status) === '1' || String(a.status) === '2' || String(a.status).toUpperCase() === 'ONLINE'))
+      || ads.find(a => isBuySide(a) && isOnlineStatus(a.status))
+      || ads.find(a => isBuySide(a) && String(a.status) !== '30')
+      || ads.find(a => isBuySide(a))
       || null;
 
     setActiveAd(activeSellAd);
@@ -133,9 +174,9 @@ export async function syncAndRenderActiveAd(showToast = false) {
     // --- Render Sell Ad ---
     if (metricAdPrice) {
       if (activeSellAd) {
-        const adPrice = parseFloat(activeSellAd.price) || 0;
-        const lastQty = parseFloat(activeSellAd.lastQuantity) || 0;
-        const frozenQty = parseFloat(activeSellAd.frozenQuantity) || 0;
+        const adPrice = parseFloat(String(activeSellAd.price).replace(/,/g, '')) || 0;
+        const lastQty = parseFloat(String(activeSellAd.lastQuantity ?? activeSellAd.quantity ?? 0).replace(/,/g, '')) || 0;
+        const frozenQty = parseFloat(String(activeSellAd.frozenQuantity ?? 0).replace(/,/g, '')) || 0;
         const totalInAd = lastQty + frozenQty;
 
         // Spread and margin based on THIS ad's price vs actual buy cost
@@ -146,11 +187,12 @@ export async function syncAndRenderActiveAd(showToast = false) {
         const projectedGross = spreadPerUsdt * totalInAd;
         const projectedNet = Math.max(0, projectedGross);
 
+        const sellAdId = activeSellAd.id || activeSellAd.itemId || activeSellAd.adId || activeSellAd.advId || activeSellAd.idStr || '';
         if (adBadge) {
           adBadge.className = 'live-badge';
           adBadge.innerHTML = '<span class="live-badge-dot"></span>Active Sell Ad';
         }
-        if (adTitle) adTitle.textContent = `Bybit Sell Ad #${activeSellAd.id}`;
+        if (adTitle) adTitle.textContent = sellAdId ? `Bybit Sell Ad #${sellAdId}` : 'Bybit Sell Ad';
         if (metricAdPrice) metricAdPrice.textContent = `₦${adPrice.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
         if (metricAdQty) metricAdQty.textContent = `${totalInAd.toFixed(2)} USDT listed`;
 
@@ -168,10 +210,6 @@ export async function syncAndRenderActiveAd(showToast = false) {
         if (metricProjectedPnl) {
           metricProjectedPnl.textContent = `${projectedNet >= 0 ? '+' : ''}₦${projectedNet.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
           metricProjectedPnl.className = `ad-submetric-value font-mono ${projectedNet >= 0 ? 'text-success' : 'text-danger'}`;
-        }
-
-        if (showToast && window.showToast) {
-          window.showToast(`Synced Live Bybit Ads successfully!`, 'success');
         }
       } else {
         if (adBadge) {
@@ -195,42 +233,43 @@ export async function syncAndRenderActiveAd(showToast = false) {
           metricProjectedPnl.textContent = '₦0.00';
           metricProjectedPnl.className = 'ad-submetric-value font-mono';
         }
-
-        if (showToast && window.showToast) {
-          window.showToast('No active Bybit sell advertisements found.', 'info');
-        }
       }
     }
 
     // --- Render Buy Ad ---
-    const metricBuyPrice = document.getElementById('metric-ad-buy-price');
-    const metricBuyQty = document.getElementById('metric-ad-qty-buy');
-    const metricBuyFiat = document.getElementById('metric-ad-buy-fiat');
-    const metricBuyStatus = document.getElementById('metric-ad-buy-status');
-    const buyBadge = document.getElementById('active-buy-ad-badge');
-    const buyTitle = document.getElementById('active-buy-ad-title');
-    
     if (metricBuyPrice) {
       if (activeBuyAd) {
-        const adPrice = parseFloat(activeBuyAd.price) || 0;
-        const lastQty = parseFloat(activeBuyAd.lastQuantity) || 0;
-        const frozenQty = parseFloat(activeBuyAd.frozenQuantity) || 0;
+        const buyPrice = parseFloat(String(activeBuyAd.price).replace(/,/g, '')) || 0;
+        const lastQty = parseFloat(String(activeBuyAd.lastQuantity ?? activeBuyAd.quantity ?? activeBuyAd.targetQuantity ?? 0).replace(/,/g, '')) || 0;
+        const frozenQty = parseFloat(String(activeBuyAd.frozenQuantity ?? 0).replace(/,/g, '')) || 0;
         const totalTargetUsdt = lastQty + frozenQty;
-        const fiatAllocated = totalTargetUsdt * adPrice;
-        
+        const fiatAllocated = totalTargetUsdt * buyPrice;
+
+        const isOnline = String(activeBuyAd.status) === '10' || String(activeBuyAd.status) === '1' || String(activeBuyAd.status) === '2' || String(activeBuyAd.status).toUpperCase() === 'ONLINE' || String(activeBuyAd.status).toUpperCase() === 'ACTIVE';
+        const isPaused = String(activeBuyAd.status) === '20' || String(activeBuyAd.status).toUpperCase() === 'OFFLINE' || String(activeBuyAd.status).toUpperCase() === 'PAUSED';
+
+        const buyAdId = activeBuyAd.id || activeBuyAd.itemId || activeBuyAd.adId || activeBuyAd.advId || activeBuyAd.idStr || '';
         if (buyBadge) {
           buyBadge.className = 'live-badge';
-          buyBadge.innerHTML = '<span class="live-badge-dot" style="background-color: var(--color-danger);"></span>Active Buy Ad';
+          buyBadge.innerHTML = '<span class="live-badge-dot" style="background-color: var(--danger, #F43F5E);"></span>Active Buy Ad';
         }
-        if (buyTitle) buyTitle.textContent = `Bybit Buy Ad #${activeBuyAd.id}`;
+        if (buyTitle) buyTitle.textContent = buyAdId ? `Bybit Buy Ad #${buyAdId}` : 'Bybit Buy Ad';
         
-        metricBuyPrice.textContent = `₦${adPrice.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
-        metricBuyQty.textContent = `${totalTargetUsdt.toFixed(2)} USDT targeted`;
+        metricBuyPrice.textContent = `₦${buyPrice.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+        if (metricBuyQty) metricBuyQty.textContent = `${totalTargetUsdt.toFixed(2)} USDT targeted`;
         
         if (metricBuyFiat) metricBuyFiat.textContent = `₦${fiatAllocated.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
         if (metricBuyStatus) {
-          metricBuyStatus.textContent = 'Online / Active';
-          metricBuyStatus.className = 'ad-submetric-value font-mono text-success';
+          if (isOnline) {
+            metricBuyStatus.textContent = 'Online / Active';
+            metricBuyStatus.className = 'ad-submetric-value font-mono text-success';
+          } else if (isPaused) {
+            metricBuyStatus.textContent = 'Paused / Offline';
+            metricBuyStatus.className = 'ad-submetric-value font-mono text-warning';
+          } else {
+            metricBuyStatus.textContent = (activeBuyAd.status !== undefined && activeBuyAd.status !== null) ? `Status: ${activeBuyAd.status}` : 'Active';
+            metricBuyStatus.className = 'ad-submetric-value font-mono text-accent';
+          }
         }
       } else {
         if (buyBadge) {
@@ -240,7 +279,7 @@ export async function syncAndRenderActiveAd(showToast = false) {
         if (buyTitle) buyTitle.textContent = 'No Live Buy Ad on Bybit';
         
         metricBuyPrice.textContent = '—';
-        metricBuyQty.textContent = 'Post a Buy Ad on Bybit';
+        if (metricBuyQty) metricBuyQty.textContent = 'Post a Buy Ad on Bybit';
         if (metricBuyFiat) metricBuyFiat.textContent = '₦0.00';
         if (metricBuyStatus) {
           metricBuyStatus.textContent = 'Offline';
@@ -249,19 +288,71 @@ export async function syncAndRenderActiveAd(showToast = false) {
       }
     }
 
+    if (showToast && window.showToast) {
+      if (activeSellAd && activeBuyAd) {
+        window.showToast('Synced Live Bybit Ads (Buy & Sell) successfully!', 'success');
+      } else if (activeSellAd) {
+        window.showToast('Synced Live Bybit Sell Ad successfully!', 'success');
+      } else if (activeBuyAd) {
+        window.showToast('Synced Live Bybit Buy Ad successfully!', 'success');
+      } else {
+        window.showToast('No active Bybit advertisements found.', 'info');
+      }
+    }
+
     // Reactively update Net Worth with fresh active ad rate
     renderNetWorthWidget();
   } catch (e) {
     console.warn('[Dashboard] Could not sync active ad:', e.message);
     setActiveAd(null);
+
+    // Reset Sell Ad UI
+    if (adBadge) {
+      adBadge.className = 'badge badge-neutral';
+      adBadge.innerHTML = 'No Active Ad';
+    }
+    if (adTitle) adTitle.textContent = 'No Live Sell Ad on Bybit';
+    if (metricAdPrice) metricAdPrice.textContent = '—';
+    if (metricAdQty) metricAdQty.textContent = 'Post a Sell Ad on Bybit';
+    if (metricSpread) {
+      metricSpread.textContent = '—';
+      metricSpread.className = 'ad-submetric-value font-mono text-accent';
+    }
+    if (metricMarginPct) {
+      metricMarginPct.textContent = 'Waiting for active ad';
+      metricMarginPct.className = 'ad-submetric-sub';
+    }
+    if (metricProjectedPnl) {
+      metricProjectedPnl.textContent = '₦0.00';
+      metricProjectedPnl.className = 'ad-submetric-value font-mono';
+    }
+
+    // Reset Buy Ad UI
+    if (buyBadge) {
+      buyBadge.className = 'badge badge-neutral';
+      buyBadge.innerHTML = 'No Active Ad';
+    }
+    if (buyTitle) buyTitle.textContent = 'No Live Buy Ad on Bybit';
+    if (metricBuyPrice) metricBuyPrice.textContent = '—';
+    if (metricBuyQty) metricBuyQty.textContent = 'Post a Buy Ad on Bybit';
+    if (metricBuyFiat) metricBuyFiat.textContent = '₦0.00';
+    if (metricBuyStatus) {
+      metricBuyStatus.textContent = 'Offline';
+      metricBuyStatus.className = 'ad-submetric-value font-mono text-muted';
+    }
+
     renderNetWorthWidget();
   }
 }
+
+let lastInventorySyncId = 0;
 
 /**
  * Fetch live Bybit wallet balance and compare against FIFO inventory.
  */
 export async function syncBybitLiveInventory() {
+  const currentSyncId = ++lastInventorySyncId;
+
   const elTotal = document.getElementById('stat-bybit-live-total');
   const elFree = document.getElementById('stat-bybit-free');
   const elLocked = document.getElementById('stat-bybit-locked');
@@ -288,14 +379,36 @@ export async function syncBybitLiveInventory() {
     let adAllocation = 0;
     try {
       const ads = await bybitService.fetchActiveAds('1', 'USDT');
-      const activeAd = ads.find(a => Number(a.side) === 1 && Number(a.status) === 10)
-        || ads.find(a => Number(a.side) === 1 && (Number(a.status) === 20 || Number(a.status) === 2))
-        || null;
+      const isSell = (a) => {
+        if (!a) return false;
+        const raw = (a.side !== undefined && a.side !== null) ? a.side : (a.tradeType ?? a.sideName ?? a.type ?? a.action ?? '');
+        const s = String(raw).trim().toUpperCase();
+        return s === '1' || s === 'SELL';
+      };
+      const isOnlineOrActive = (s) => {
+        if (s === undefined || s === null) return false;
+        const str = String(s).trim().toUpperCase();
+        return str === '10' || str === '20' || str === '2' || str === '1' || str === 'ONLINE' || str === 'ACTIVE';
+      };
+      const sellAds = ads.filter(a => isSell(a) && (isOnlineOrActive(a.status) || String(a.status) !== '30'));
+      const activeAd = sellAds.find(a => isOnlineOrActive(a.status)) || sellAds[0] || null;
+      if (sellAds.length > 0) {
+        adAllocation = sellAds.reduce((sum, a) => {
+          const lq = parseFloat(String(a.lastQuantity ?? a.quantity ?? 0).replace(/,/g, '')) || 0;
+          const fq = parseFloat(String(a.frozenQuantity ?? 0).replace(/,/g, '')) || 0;
+          return sum + lq + fq;
+        }, 0);
+      }
       if (activeAd) {
-        adAllocation = (parseFloat(activeAd.lastQuantity) || 0) + (parseFloat(activeAd.frozenQuantity) || 0);
+        setActiveAd(activeAd);
       }
     } catch (e) {
       console.warn('[Dashboard] Could not fetch active ads for live inventory:', e.message);
+    }
+
+    if (currentSyncId !== lastInventorySyncId) {
+      // Discard stale out-of-order response
+      return;
     }
 
     // Free for Buyback = Total P2P - Ad Allocation

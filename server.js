@@ -228,34 +228,72 @@ app.all('/api/balance', async (req, res) => {
     let activeAdsList = [];
 
     try {
-      const adPayload = { side: '1', tokenId: coin };
-      const adJsonString = JSON.stringify(adPayload);
       const adEndpoint = `/v5/p2p/item/personal/list`;
 
-      const adRes = await executeWithFailover('POST', adEndpoint, adJsonString, adPayload);
-      const adData = adRes.data;
+      const extractAdItems = (data) => {
+        if (!data) return [];
+        if (Array.isArray(data)) return data;
+        if (Array.isArray(data.result)) return data.result;
+        if (data.result && typeof data.result === 'object') {
+          if (Array.isArray(data.result.items)) return data.result.items;
+          if (Array.isArray(data.result.list)) return data.result.list;
+          if (Array.isArray(data.result.data)) return data.result.data;
+          if (Array.isArray(data.result.rows)) return data.result.rows;
+          if (Array.isArray(data.result.records)) return data.result.records;
+          if (Array.isArray(data.result.itemList)) return data.result.itemList;
+        }
+        if (Array.isArray(data.items)) return data.items;
+        if (Array.isArray(data.list)) return data.list;
+        return [];
+      };
 
-      if (adData?.result?.items && Array.isArray(adData.result.items)) {
-        adData.result.items.forEach(ad => {
-          const status = Number(ad.status);
-          const isSell = Number(ad.side) === 1;
-          if (isSell && status !== 30) {
-            const lastQty = parseFloat(ad.lastQuantity) || 0;
-            const frozenQty = parseFloat(ad.frozenQuantity) || 0;
-            const adTotal = lastQty + frozenQty;
-            lockedInAds += adTotal;
+      const isSellSide = (ad) => {
+        if (!ad) return false;
+        const raw = (ad.side !== undefined && ad.side !== null) ? ad.side : (ad.tradeType ?? ad.sideName ?? ad.type ?? ad.action ?? '');
+        const s = String(raw).trim().toUpperCase();
+        return s === '1' || s === 'SELL';
+      };
 
-            activeAdsList.push({
-              id: ad.id,
-              price: ad.price,
-              lastQuantity: lastQty,
-              frozenQuantity: frozenQty,
-              totalInAd: adTotal,
-              status: ad.status
-            });
-          }
-        });
-      }
+      const isNotCancelled = (status) => {
+        if (status === undefined || status === null) return true;
+        const s = String(status).trim().toUpperCase();
+        return s !== '30' && s !== 'CANCELLED' && s !== 'CANCELED' && s !== 'DELETED';
+      };
+
+      // Query both string side '1' and integer side 1 concurrently for maximum compatibility
+      const [adResStr, adResNum] = await Promise.all([
+        executeWithFailover('POST', adEndpoint, JSON.stringify({ side: '1', tokenId: coin }), { side: '1', tokenId: coin }).catch(() => null),
+        executeWithFailover('POST', adEndpoint, JSON.stringify({ side: 1, tokenId: coin }), { side: 1, tokenId: coin }).catch(() => null)
+      ]);
+
+      const itemsStr = adResStr ? extractAdItems(adResStr.data) : [];
+      const itemsNum = adResNum ? extractAdItems(adResNum.data) : [];
+
+      const map = new Map();
+      [...itemsStr, ...itemsNum].forEach((item, index) => {
+        if (!item || typeof item !== 'object') return;
+        const id = item.id || item.itemId || item.adId || item.advId || item.idStr || `ad_bal_${index}`;
+        if (!item.id) item.id = id;
+        map.set(String(id), item);
+      });
+
+      map.forEach(ad => {
+        if (isSellSide(ad) && isNotCancelled(ad.status)) {
+          const lastQty = parseFloat(String(ad.lastQuantity ?? ad.quantity ?? 0).replace(/,/g, '')) || 0;
+          const frozenQty = parseFloat(String(ad.frozenQuantity ?? 0).replace(/,/g, '')) || 0;
+          const adTotal = lastQty + frozenQty;
+          lockedInAds += adTotal;
+
+          activeAdsList.push({
+            id: ad.id || ad.itemId || ad.adId || ad.advId || ad.idStr || '',
+            price: ad.price,
+            lastQuantity: lastQty,
+            frozenQuantity: frozenQty,
+            totalInAd: adTotal,
+            status: ad.status
+          });
+        }
+      });
     } catch (adErr) {
       console.warn('[Proxy] Active Ads query warning:', adErr.message);
     }
@@ -337,41 +375,122 @@ app.all('/api/ads', async (req, res) => {
   }
 
   try {
+    const extractItems = (data) => {
+      if (!data) return [];
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.result)) return data.result;
+      if (data.result && typeof data.result === 'object') {
+        if (Array.isArray(data.result.items)) return data.result.items;
+        if (Array.isArray(data.result.list)) return data.result.list;
+        if (Array.isArray(data.result.data)) return data.result.data;
+        if (Array.isArray(data.result.rows)) return data.result.rows;
+        if (Array.isArray(data.result.records)) return data.result.records;
+        if (Array.isArray(data.result.itemList)) return data.result.itemList;
+      }
+      if (Array.isArray(data.items)) return data.items;
+      if (Array.isArray(data.list)) return data.list;
+      return [];
+    };
+
     const fetchAdsWithPayload = async (payload) => {
       try {
         const jsonBodyString = JSON.stringify(payload);
         const endpointPath = `/v5/p2p/item/personal/list`;
         const response = await executeWithFailover('POST', endpointPath, jsonBodyString, payload);
-        return response.data?.result?.items || [];
+        const data = response.data;
+        let items = extractItems(data);
+
+        // Auto-paginate when caller did not explicitly request a specific page and more items exist
+        const isDefaultPage = (!req.query?.page && !req.body?.page) || payload.page === 1 || payload.page === '1';
+        const pageSize = Number(payload.size || 30);
+        const totalCount = Number(data?.result?.count || data?.result?.total || data?.result?.totalNumber || data?.result?.totalCount || data?.result?.total_count || 0);
+
+        if (isDefaultPage && ((totalCount > items.length && items.length > 0) || items.length === pageSize)) {
+          const maxPages = totalCount > 0 ? Math.min(Math.ceil(totalCount / pageSize), 5) : 3;
+          for (let p = 2; p <= maxPages; p++) {
+            try {
+              const nextPagePayload = {
+                ...payload,
+                page: typeof payload.page === 'number' ? p : String(p)
+              };
+              const nextJson = JSON.stringify(nextPagePayload);
+              const nextRes = await executeWithFailover('POST', endpointPath, nextJson, nextPagePayload);
+              const nextItems = extractItems(nextRes.data);
+              if (!nextItems || nextItems.length === 0) break;
+              items = items.concat(nextItems);
+              if (nextItems.length < pageSize) break;
+            } catch (pageErr) {
+              console.warn(`[Proxy] Pagination page ${p} warning:`, pageErr.message);
+              break;
+            }
+          }
+        }
+
+        return items;
       } catch (e) {
         return [];
       }
     };
 
-    const tokenId = req.query.tokenId || req.body?.tokenId || 'USDT';
-    
-    // Fetch without side filter, and explicitly with side '0' and side '1'
-    const [allAds, side0Ads, side1Ads] = await Promise.all([
-      fetchAdsWithPayload({ tokenId, page: '1', size: '30' }),
-      fetchAdsWithPayload({ side: '0', tokenId, page: '1', size: '30' }),
-      fetchAdsWithPayload({ side: '1', tokenId, page: '1', size: '30' })
-    ]);
+    const tokenId = req.query?.tokenId || req.body?.tokenId || 'USDT';
+    const requestedSide = req.query?.side !== undefined && req.query?.side !== null && String(req.query.side).trim() !== ''
+      ? String(req.query.side).trim()
+      : (req.body?.side !== undefined && req.body?.side !== null && String(req.body?.side).trim() !== '' ? String(req.body?.side).trim() : null);
 
-    // Deduplicate by ad ID
-    const map = new Map();
-    [...allAds, ...side0Ads, ...side1Ads].forEach(item => {
-      if (item && item.id) {
-        map.set(String(item.id), item);
-      }
-    });
+    const page = String(req.query?.page || req.body?.page || '1');
+    const size = String(req.query?.size || req.body?.size || '30');
 
-    const combinedItems = Array.from(map.values());
+    let combinedItems = [];
+
+    const addItemsToMap = (map, items) => {
+      if (!Array.isArray(items)) return;
+      items.forEach((item, index) => {
+        if (!item || typeof item !== 'object') return;
+        const id = item.id || item.itemId || item.adId || item.advId || item.idStr || `ad_auto_${index}_${Date.now()}`;
+        if (!item.id) item.id = id;
+        map.set(String(id), item);
+      });
+    };
+
+    if (requestedSide === '0' || requestedSide === 'BUY' || requestedSide === 'buy') {
+      // User specifically requested Buy Ads
+      const [strRes, numRes] = await Promise.all([
+        fetchAdsWithPayload({ side: '0', tokenId, page, size }),
+        fetchAdsWithPayload({ side: 0, tokenId, page: Number(page), size: Number(size) })
+      ]);
+      const map = new Map();
+      addItemsToMap(map, [...strRes, ...numRes]);
+      combinedItems = Array.from(map.values());
+    } else if (requestedSide === '1' || requestedSide === 'SELL' || requestedSide === 'sell') {
+      // User specifically requested Sell Ads
+      const [strRes, numRes] = await Promise.all([
+        fetchAdsWithPayload({ side: '1', tokenId, page, size }),
+        fetchAdsWithPayload({ side: 1, tokenId, page: Number(page), size: Number(size) })
+      ]);
+      const map = new Map();
+      addItemsToMap(map, [...strRes, ...numRes]);
+      combinedItems = Array.from(map.values());
+    } else {
+      // Fetch both Buy ads and Sell ads, as well as without side filter
+      const [allAds, side0Str, side0Num, side1Str, side1Num] = await Promise.all([
+        fetchAdsWithPayload({ tokenId, page, size }),
+        fetchAdsWithPayload({ side: '0', tokenId, page, size }),
+        fetchAdsWithPayload({ side: 0, tokenId, page: Number(page), size: Number(size) }),
+        fetchAdsWithPayload({ side: '1', tokenId, page, size }),
+        fetchAdsWithPayload({ side: 1, tokenId, page: Number(page), size: Number(size) })
+      ]);
+
+      const map = new Map();
+      addItemsToMap(map, [...allAds, ...side0Str, ...side0Num, ...side1Str, ...side1Num]);
+      combinedItems = Array.from(map.values());
+    }
 
     res.json({
       retCode: 0,
       retMsg: 'SUCCESS',
       result: {
-        items: combinedItems
+        items: combinedItems,
+        count: combinedItems.length
       }
     });
   } catch (error) {

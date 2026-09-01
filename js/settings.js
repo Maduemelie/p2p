@@ -107,6 +107,8 @@ export function initSettings() {
 
 
 
+  let lastSettingsSyncId = 0;
+
   // 1. Sync Live Bybit Holdings (Manual sync also updates Starting USDT inputs)
   //
   // ACCOUNTING MODEL:
@@ -115,6 +117,8 @@ export function initSettings() {
   //   Active ad allocation = walletBalance − transferBalance (e.g. 31.70 USDT)
   //
   async function syncSettingsLiveHoldings(showToast = false) {
+    const currentSyncId = ++lastSettingsSyncId;
+
     const elFree = document.getElementById('settings-free-usdt');
     const elLocked = document.getElementById('settings-locked-usdt');
     const elTotal = document.getElementById('settings-total-usdt');
@@ -136,14 +140,32 @@ export function initSettings() {
       let adAllocation = 0;
       try {
         const ads = await bybitService.fetchActiveAds('1', 'USDT');
-        const activeAd = ads.find(a => Number(a.side) === 1 && Number(a.status) === 10)
-          || ads.find(a => Number(a.side) === 1 && (Number(a.status) === 20 || Number(a.status) === 2))
-          || null;
-        if (activeAd) {
-          adAllocation = (parseFloat(activeAd.lastQuantity) || 0) + (parseFloat(activeAd.frozenQuantity) || 0);
+        const isSell = (a) => {
+          if (!a) return false;
+          const raw = (a.side !== undefined && a.side !== null) ? a.side : (a.tradeType ?? a.sideName ?? a.type ?? a.action ?? '');
+          const s = String(raw).trim().toUpperCase();
+          return s === '1' || s === 'SELL';
+        };
+        const isOnlineOrActive = (s) => {
+          if (s === undefined || s === null) return false;
+          const str = String(s).trim().toUpperCase();
+          return str === '10' || str === '20' || str === '2' || str === '1' || str === 'ONLINE' || str === 'ACTIVE';
+        };
+        const sellAds = ads.filter(a => isSell(a) && (isOnlineOrActive(a.status) || String(a.status) !== '30'));
+        if (sellAds.length > 0) {
+          adAllocation = sellAds.reduce((sum, a) => {
+            const lq = parseFloat(String(a.lastQuantity ?? a.quantity ?? 0).replace(/,/g, '')) || 0;
+            const fq = parseFloat(String(a.frozenQuantity ?? 0).replace(/,/g, '')) || 0;
+            return sum + lq + fq;
+          }, 0);
         }
       } catch (e) {
         console.warn('[Settings] Could not fetch active ads:', e.message);
+      }
+
+      if (currentSyncId !== lastSettingsSyncId) {
+        // Discard stale out-of-order response
+        return;
       }
 
       const freeForBuyback = Math.max(0, totalP2P - adAllocation);
@@ -163,12 +185,16 @@ export function initSettings() {
     }
   }
 
+  let isSyncingBalance = false;
   btnSyncBalance?.addEventListener('click', async () => {
+    if (isSyncingBalance) return;
     try {
+      isSyncingBalance = true;
       btnSyncBalance.disabled = true;
       if (window.showToast) window.showToast('Fetching live Bybit holdings...', 'info');
       await syncSettingsLiveHoldings(true);
     } finally {
+      isSyncingBalance = false;
       btnSyncBalance.disabled = false;
     }
   });

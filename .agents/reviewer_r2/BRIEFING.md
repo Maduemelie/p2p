@@ -1,15 +1,14 @@
-# Reviewer Round 2 Briefing — Bybit NGN P2P Trade Tracker Refactoring
+# Reviewer Round 2 Briefing
 
-## Task Overview
-Adversarially review and independently verify the refactoring and dead code removal across the Bybit NGN P2P Trade Tracker codebase.
+## Original Task Requirements
+- **R1. Bybit P2P API Research & Endpoint Diagnosis**: Personal advertisements on Bybit P2P (`POST /v5/p2p/item/personal/list` or alternative endpoints). Fetching active Buy ads and Sell ads reliably.
+- **R2. Codebase Audit & Fix**: Audit `server.js` (proxy server endpoints), `api/ads.js`, `js/bybitService.js`, `js/dashboard.js`, and `js/settings.js`.
+- **R3. Verification**: Verify `fetchActiveAds` correctly returns active Buy & Sell ads. Verify Dashboard UI displays both Active Sell Ad and Active Buy Ad cards with full accurate metrics. Ensure all test suites pass.
 
-## Requirements
-1. **R1. Dead Code Removal:** Unused functions, variables, files, and unreachable code paths across the codebase.
-2. **R2. Component Extraction:** Decouple reusable components into separate cleanly imported ES modules (`js/snapshots.js`, `js/pricingEngine.js`).
-3. **R3. Refactoring Report:** Validate `refactor_report.md` presence, completeness, and accuracy in `c:\dev\p2p\refactor_report.md`.
-
-## Review Scope & Focus Areas
-- Deep verification of 597 multi-tier automated tests (Tiers 1-5).
-- Boundary and defensive check verification on extracted modules (`js/pricingEngine.js`, `js/snapshots.js`).
-- Static asset registration and service worker parity in `sw.js`.
-- Backward compatibility re-exports and runtime contracts with DOM/tests.
+## Review Round 2 Focus Areas
+1. **Multi-page ad pagination**: What happens if a merchant has >30 ads, or if `total` / `count` / `items` indicates multiple pages? Does `server.js` and `api/ads.js` paginate or truncate?
+2. **Error handling & resilience**: Proxy error handling, rate limiting response handling, malformed JSON, missing/null responses, serverless vs express divergence.
+3. **Parity between `server.js` and `api/ads.js`**: Verify that `server.js` and `api/ads.js` implement identical logic, edge case handling, and status codes.
+4. **Client-side ad sorting / selection**: If multiple active Buy or Sell ads are returned, which one is picked? Is it the latest, or first active? Does it handle status 10 vs 20 vs string status cleanly?
+5. **Race conditions & concurrency**: Concurrent ad fetching or caching in `bybitService.js` or `server.js`.
+6. **Test coverage & tampering**: Verify existing 607 tests, check if any tests were weakened or skipped, add tests for uncovered edge cases (pagination, multi-ad, error fallbacks).

@@ -273,7 +273,7 @@ export function renderDashboardView() {
         <div class="card-header-flex mb-3">
           <div>
             <span class="live-badge" id="active-buy-ad-badge">
-              <span class="live-badge-dot" style="background-color: var(--color-danger);"></span>
+              <span class="live-badge-dot" style="background-color: var(--danger, #F43F5E);"></span>
               Active Buy Ad
             </span>
             <h3 class="card-title mt-1" id="active-buy-ad-title">Bybit Buy Ad</h3>

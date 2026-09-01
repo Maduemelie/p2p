@@ -136,13 +136,29 @@ export const bybitService = {
 
   /**
    * Fetch Active Bybit P2P Advertisements (POST /v5/p2p/item/personal/list)
+   * @param {string} [side=''] - Filter by side ('0' for Buy, '1' for Sell, '' or null for all)
+   * @param {string} [tokenId='USDT'] - Coin symbol (e.g. 'USDT')
+   * @returns {Promise<Array>} Array of ad objects
    */
-  async fetchActiveAds(side = '1', tokenId = 'USDT') {
+  async fetchActiveAds(side = '', tokenId = 'USDT') {
     try {
       const baseUrl = getProxyUrl();
-      const response = await fetch(`${baseUrl}/api/ads?_t=${Date.now()}`, {
+      const params = new URLSearchParams();
+      if (tokenId) params.append('tokenId', tokenId);
+      if (side !== undefined && side !== null && String(side).trim() !== '') {
+        params.append('side', String(side).trim());
+      }
+      params.append('_t', Date.now().toString());
+
+      const payload = {
+        tokenId: tokenId || 'USDT',
+        ...(side !== undefined && side !== null && String(side).trim() !== '' ? { side: String(side).trim() } : {})
+      };
+
+      const response = await fetch(`${baseUrl}/api/ads?${params.toString()}`, {
         method: 'POST',
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload)
       });
       if (!response.ok) {
         if (response.status === 401) {
@@ -156,7 +172,20 @@ export const bybitService = {
       if (data.retCode !== 0 && data.ret_code !== 0) {
         throw new Error(data.retMsg || `Error code: ${data.retCode}`);
       }
-      return data.result?.items || [];
+      if (Array.isArray(data.result)) return data.result;
+      if (data.result && typeof data.result === 'object') {
+        return (
+          data.result.items ||
+          data.result.list ||
+          data.result.rows ||
+          data.result.data ||
+          data.result.records ||
+          []
+        );
+      }
+      if (Array.isArray(data.items)) return data.items;
+      if (Array.isArray(data.list)) return data.list;
+      return [];
     } catch (e) {
       console.warn('[Bybit Service] Error fetching active ads:', e.message);
       return [];

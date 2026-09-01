@@ -1,13 +1,17 @@
-# Reviewer Round 3 Briefing: SWE Light Adversarial Review
+# Reviewer Round 3 Briefing: Active Bybit Buy & Sell Ads Audit
 
-## Objectives
-1. Independently review the entire refactored codebase against requirements R1 (Dead Code Removal), R2 (Component Extraction into ES Modules), and R3 (Refactoring Report).
-2. Verify all test suite tiers (Tier 1-5) and confirm no tests were skipped, deleted, weakened, or broken.
-3. Conduct adversarial probes on all modules: `js/pricingEngine.js`, `js/snapshots.js`, `js/pricing.js`, `js/dashboard.js`, `js/settings.js`, `js/utils.js`, and `sw.js`.
-4. Audit `refactor_report.md` for complete accuracy against physical code changes.
-5. Identify any remaining defects or edge case vulnerabilities, fix them if found, and document the verification record.
+## Mission & Scope
+Adversarially audit the codebase and test suite for the Bybit NGN P2P Trade Tracker active ad fetching and rendering system.
+Specifically verify:
+1. Endpoints & Proxy logic (`server.js`, `api/ads.js`)
+2. Client services (`js/bybitService.js`, `js/dashboard.js`, `js/settings.js`)
+3. Concurrency, race conditions, edge cases, intense load/rapid refresh resilience (ISSUE-4)
+4. Robustness of pagination, multi-ad calculations, data format conversions, error resilience.
 
-## Workspace & Artifacts
-- Reviewer directory: `c:\dev\p2p\.agents\reviewer_r3\`
-- Report file: `c:\dev\p2p\refactor_report.md`
-- Core modules tested: `js/pricingEngine.js`, `js/snapshots.js`, `js/pricing.js`, `js/dashboard.js`, `js/settings.js`, `js/utils.js`, `sw.js`
+## Plan
+1. Run full test suite to establish baseline.
+2. Adversarially inspect `server.js`, `api/ads.js`, `js/bybitService.js`, `js/dashboard.js`, and `js/settings.js`.
+3. Probe potential race conditions, concurrency bugs, error handling bugs, memory leaks, unhandled rejections.
+4. Implement fixes and harden tests.
+5. Re-verify with full test suite.
+6. Write handoff report and notify Sentinel/Orchestrator.
