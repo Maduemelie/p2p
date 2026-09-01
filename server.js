@@ -254,10 +254,10 @@ app.all('/api/balance', async (req, res) => {
         return s === '1' || s === 'SELL';
       };
 
-      const isNotCancelled = (status) => {
-        if (status === undefined || status === null) return true;
+      const isOnlineAd = (status) => {
+        if (status === undefined || status === null) return false;
         const s = String(status).trim().toUpperCase();
-        return s !== '30' && s !== 'CANCELLED' && s !== 'CANCELED' && s !== 'DELETED';
+        return s === '10' || s === '1' || s === 'ONLINE' || s === 'ACTIVE';
       };
 
       // Query both string side '1' and integer side 1 concurrently for maximum compatibility
@@ -278,7 +278,7 @@ app.all('/api/balance', async (req, res) => {
       });
 
       map.forEach(ad => {
-        if (isSellSide(ad) && isNotCancelled(ad.status)) {
+        if (isSellSide(ad) && isOnlineAd(ad.status)) {
           const lastQty = parseFloat(String(ad.lastQuantity ?? ad.quantity ?? 0).replace(/,/g, '')) || 0;
           const frozenQty = parseFloat(String(ad.frozenQuantity ?? 0).replace(/,/g, '')) || 0;
           const adTotal = lastQty + frozenQty;

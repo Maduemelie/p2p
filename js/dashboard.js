@@ -382,12 +382,12 @@ export async function syncBybitLiveInventory() {
       const isOnlineOrActive = (s) => {
         if (s === undefined || s === null) return false;
         const str = String(s).trim().toUpperCase();
-        return str === '10' || str === '20' || str === '2' || str === '1' || str === 'ONLINE' || str === 'ACTIVE';
+        return str === '10' || str === '1' || str === 'ONLINE' || str === 'ACTIVE';
       };
-      const sellAds = ads.filter(a => isSell(a) && (isOnlineOrActive(a.status) || String(a.status) !== '30'));
-      const activeAd = sellAds.find(a => isOnlineOrActive(a.status)) || sellAds[0] || null;
-      if (sellAds.length > 0) {
-        adAllocation = sellAds.reduce((sum, a) => {
+      const activeSellAds = ads.filter(a => isSell(a) && isOnlineOrActive(a.status));
+      const activeAd = activeSellAds[0] || null;
+      if (activeSellAds.length > 0) {
+        adAllocation = activeSellAds.reduce((sum, a) => {
           const lq = parseFloat(String(a.lastQuantity ?? a.quantity ?? 0).replace(/,/g, '')) || 0;
           const fq = parseFloat(String(a.frozenQuantity ?? 0).replace(/,/g, '')) || 0;
           return sum + lq + fq;
