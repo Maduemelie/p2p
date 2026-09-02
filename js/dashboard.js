@@ -139,22 +139,28 @@ export async function syncAndRenderActiveAd(showToast = false) {
 
     const isSellSide = (ad) => {
       if (!ad) return false;
-      const raw = (ad.side !== undefined && ad.side !== null) ? ad.side : (ad.tradeType ?? ad.sideName ?? '');
+      const raw = (ad.side !== undefined && ad.side !== null) ? ad.side : (ad.tradeType ?? ad.sideName ?? ad.type ?? ad.action ?? '');
       const s = String(raw).trim().toUpperCase();
       return s === '1' || s === 'SELL';
     };
 
-    const isOnlineOrActiveStatus = (status) => {
+    const isOnlineStatus = (status) => {
+      if (status === undefined || status === null || status === '') return true;
+      const s = String(status).trim().toUpperCase();
+      return s === '10' || s === '1' || s === 'ONLINE' || s === 'ACTIVE';
+    };
+
+    const isNotDeletedStatus = (status) => {
       if (status === undefined || status === null || status === '') return true;
       const s = String(status).trim().toUpperCase();
       return s !== '30' && s !== 'CANCELLED' && s !== 'CANCELED' && s !== 'DELETED';
     };
 
-    // Extract Sell Ad (online or paused/offline)
-    const activeSellAd = ads.find(a => isSellSide(a) && isOnlineOrActiveStatus(a.status)) || null;
+    // Extract Sell Ad (online active preferred, paused/offline as secondary fallback)
+    const activeSellAd = ads.find(a => isSellSide(a) && isOnlineStatus(a.status)) || ads.find(a => isSellSide(a) && isNotDeletedStatus(a.status)) || null;
       
-    // Extract Buy Ad (online or paused/offline)
-    const activeBuyAd = ads.find(a => isBuySide(a) && isOnlineOrActiveStatus(a.status)) || null;
+    // Extract Buy Ad (online active preferred, paused/offline as secondary fallback)
+    const activeBuyAd = ads.find(a => isBuySide(a) && isOnlineStatus(a.status)) || ads.find(a => isBuySide(a) && isNotDeletedStatus(a.status)) || null;
 
     setActiveAd(activeSellAd);
 
@@ -179,12 +185,26 @@ export async function syncAndRenderActiveAd(showToast = false) {
         const projectedGross = spreadPerUsdt * totalInAd;
         const projectedNet = Math.max(0, projectedGross);
 
+        const isSellOnline = String(activeSellAd.status) === '10' || String(activeSellAd.status) === '1' || String(activeSellAd.status) === '2' || String(activeSellAd.status).toUpperCase() === 'ONLINE' || String(activeSellAd.status).toUpperCase() === 'ACTIVE';
+        const isSellPaused = String(activeSellAd.status) === '20' || String(activeSellAd.status).toUpperCase() === 'OFFLINE' || String(activeSellAd.status).toUpperCase() === 'PAUSED';
+
         const sellAdId = activeSellAd.id || activeSellAd.itemId || activeSellAd.adId || activeSellAd.advId || activeSellAd.idStr || '';
         if (adBadge) {
-          adBadge.className = 'live-badge';
-          adBadge.innerHTML = '<span class="live-badge-dot"></span>Active Sell Ad';
+          if (isSellPaused) {
+            adBadge.className = 'badge badge-warning';
+            adBadge.innerHTML = 'Paused / Offline';
+          } else {
+            adBadge.className = 'live-badge';
+            adBadge.innerHTML = '<span class="live-badge-dot"></span>Active Sell Ad';
+          }
         }
-        if (adTitle) adTitle.textContent = sellAdId ? `Bybit Sell Ad #${sellAdId}` : 'Bybit Sell Ad';
+        if (adTitle) {
+          if (isSellPaused) {
+            adTitle.textContent = sellAdId ? `Bybit Sell Ad #${sellAdId} (Paused)` : 'Bybit Sell Ad (Paused)';
+          } else {
+            adTitle.textContent = sellAdId ? `Bybit Sell Ad #${sellAdId}` : 'Bybit Sell Ad';
+          }
+        }
         if (metricAdPrice) metricAdPrice.textContent = `₦${adPrice.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
         if (metricAdQty) metricAdQty.textContent = `${totalInAd.toFixed(2)} USDT listed`;
 

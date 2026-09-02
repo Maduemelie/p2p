@@ -206,11 +206,11 @@ export function initSettings() {
           return s === '1' || s === 'SELL';
         };
         const isOnlineOrActive = (s) => {
-          if (s === undefined || s === null) return false;
+          if (s === undefined || s === null || s === '') return true;
           const str = String(s).trim().toUpperCase();
-          return str === '10' || str === '20' || str === '2' || str === '1' || str === 'ONLINE' || str === 'ACTIVE';
+          return str === '10' || str === '1' || str === 'ONLINE' || str === 'ACTIVE';
         };
-        const sellAds = ads.filter(a => isSell(a) && (isOnlineOrActive(a.status) || String(a.status) !== '30'));
+        const sellAds = ads.filter(a => isSell(a) && isOnlineOrActive(a.status));
         if (sellAds.length > 0) {
           adAllocation = sellAds.reduce((sum, a) => {
             const lq = parseFloat(String(a.lastQuantity ?? a.quantity ?? 0).replace(/,/g, '')) || 0;
