@@ -217,6 +217,17 @@ export function renderSettingsView() {
               <p class="form-helper">Standard order batch size for fee amortization</p>
             </div>
 
+            <div class="form-group col-12 col-md-6">
+              <label for="input-setting-max-fee-drag-pct" class="form-label">
+                <i data-lucide="shield-alert"></i> Fee Drag Cap (%)
+              </label>
+              <div class="input-affix-wrapper">
+                <input type="number" step="1" min="1" max="100" id="input-setting-max-fee-drag-pct" class="form-input font-mono" value="20" required>
+                <span class="input-suffix">%</span>
+              </div>
+              <p class="form-helper">Max % of profit spread consumed by fixed fees</p>
+            </div>
+
             <div class="col-12 text-end mt-2">
               <button type="submit" class="btn btn-sm btn-primary" id="btn-save-fee-defaults">
                 <i data-lucide="check"></i> Save Fee Defaults

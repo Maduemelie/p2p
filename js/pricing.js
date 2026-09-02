@@ -50,6 +50,7 @@ function loadSavedSettings() {
   const filterLimits = localStorage.getItem('bybit_p2p_pricing_filter_limits') !== null
     ? localStorage.getItem('bybit_p2p_pricing_filter_limits') !== 'false'
     : (storeSettings.filterLimits !== undefined ? storeSettings.filterLimits : true);
+  const maxFeeDragPct = localStorage.getItem('bybit_p2p_pricing_max_fee_drag_pct') || (storeSettings.maxFeeDragPct !== undefined ? String(storeSettings.maxFeeDragPct) : '20');
 
   const elPlatformFee = document.getElementById('input-platform-fee-pct') || document.getElementById('input-platform-fee');
   const elSpread = document.getElementById('input-target-spread');
@@ -59,6 +60,7 @@ function loadSavedSettings() {
   const elMode = document.getElementById('input-pricing-mode');
   const elDepthLimit = document.getElementById('input-depth-limit');
   const elFilterLimits = document.getElementById('input-filter-limits');
+  const elMaxFeeDrag = document.getElementById('input-max-fee-drag-pct');
 
   if (elPlatformFee) elPlatformFee.value = platformFee;
   if (elSpread) elSpread.value = spread;
@@ -68,6 +70,7 @@ function loadSavedSettings() {
   if (elMode) elMode.value = mode;
   if (elDepthLimit) elDepthLimit.value = depthLimit;
   if (elFilterLimits) elFilterLimits.checked = filterLimits;
+  if (elMaxFeeDrag) elMaxFeeDrag.value = maxFeeDragPct;
 }
 
 /**
@@ -82,6 +85,7 @@ function saveSettings() {
   const elMode = document.getElementById('input-pricing-mode');
   const elDepthLimit = document.getElementById('input-depth-limit');
   const elFilterLimits = document.getElementById('input-filter-limits');
+  const elMaxFeeDrag = document.getElementById('input-max-fee-drag-pct');
 
   const platformFeeVal = elPlatformFee ? elPlatformFee.value : '0.3';
   if (elPlatformFee) {
@@ -95,6 +99,7 @@ function saveSettings() {
   if (elMode) localStorage.setItem('bybit_p2p_pricing_mode', elMode.value);
   if (elDepthLimit) localStorage.setItem('bybit_p2p_pricing_depth_limit', elDepthLimit.value);
   if (elFilterLimits) localStorage.setItem('bybit_p2p_pricing_filter_limits', elFilterLimits.checked.toString());
+  if (elMaxFeeDrag) localStorage.setItem('bybit_p2p_pricing_max_fee_drag_pct', elMaxFeeDrag.value);
 
   if (store.saveSettings) {
     store.saveSettings({
@@ -105,7 +110,8 @@ function saveSettings() {
       outflowFee: elOutflow ? (parseFloat(elOutflow.value) || 0) : 0,
       pricingMode: elMode ? elMode.value : 'avg-10',
       depthLimit: elDepthLimit ? parseInt(elDepthLimit.value, 10) || 50 : 50,
-      filterLimits: elFilterLimits ? elFilterLimits.checked : true
+      filterLimits: elFilterLimits ? elFilterLimits.checked : true,
+      maxFeeDragPct: elMaxFeeDrag ? parseInt(elMaxFeeDrag.value, 10) || 20 : 20
     });
   }
 }
@@ -123,7 +129,8 @@ function setupListeners() {
     'input-outflow-fee',
     'input-pricing-mode',
     'input-depth-limit',
-    'input-filter-limits'
+    'input-filter-limits',
+    'input-max-fee-drag-pct'
   ];
 
   inputs.forEach(id => {
@@ -225,6 +232,8 @@ export function calculateMargins() {
   const outflowFee = elOutflow ? (parseFloat(elOutflow.value) || 0) : (storeSettings.outflowFee !== undefined ? storeSettings.outflowFee : 50.0);
   const pricingMode = document.getElementById('input-pricing-mode')?.value || 'avg-10';
   const filterLimits = document.getElementById('input-filter-limits')?.checked ?? true;
+  const maxFeeDragPct = parseInt(document.getElementById('input-max-fee-drag-pct')?.value, 10) || 20;
+  const maxFeeDragRatio = Math.min(Math.max(maxFeeDragPct / 100, 0.01), 1.0);
 
   // Fetch costs from FIFO ledger
   const trades = store.getTrades();
@@ -333,7 +342,7 @@ export function calculateMargins() {
     buyAnalysis.suggestedBuy || buyAnalysis.exitPrice || 1500,
     targetSpread,
     inflowFee,
-    { platformFeePct: platformFeePct || 0.3, maxFeeDragRatio: 0.20 }
+    { platformFeePct: platformFeePct || 0.3, maxFeeDragRatio }
   );
 
   const elBuyLimitRec = document.getElementById('pricing-buy-limit-rec') || document.getElementById('pricing-recommended-buy-limit');
@@ -423,7 +432,7 @@ export function calculateMargins() {
     sellAnalysis.suggestedSell || costBasis || 1500,
     targetSpread,
     outflowFee,
-    { platformFeePct, maxFeeDragRatio: 0.20 }
+    { platformFeePct, maxFeeDragRatio }
   );
 
   const elSellLimitRec = document.getElementById('pricing-sell-limit-rec') || document.getElementById('pricing-recommended-sell-limit');

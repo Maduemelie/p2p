@@ -299,7 +299,7 @@ class Store {
    *   filterLimits: boolean
    * }}
    */
-  getSettings() {
+   getSettings() {
     const defaults = {
       platformFeePct: 0.3,
       inflowFee: 50,
@@ -308,7 +308,8 @@ class Store {
       avgVolume: 100,
       pricingMode: 'avg-10',
       depthLimit: 50,
-      filterLimits: true
+      filterLimits: true,
+      maxFeeDragPct: 20
     };
     const saved = this.getItem(STORAGE_KEYS.SETTINGS, {});
     return {
@@ -320,6 +321,7 @@ class Store {
       pricingMode: saved.pricingMode || defaults.pricingMode,
       depthLimit: saved.depthLimit !== undefined ? Number(saved.depthLimit) : defaults.depthLimit,
       filterLimits: saved.filterLimits !== undefined ? Boolean(saved.filterLimits) : defaults.filterLimits,
+      maxFeeDragPct: saved.maxFeeDragPct !== undefined ? Number(saved.maxFeeDragPct) : defaults.maxFeeDragPct,
       ...saved
     };
   }

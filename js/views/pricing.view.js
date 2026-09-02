@@ -54,6 +54,16 @@ export function renderPricingView() {
               <span class="input-suffix">USDT</span>
             </div>
           </div>
+          <div class="form-group col-12 col-md-4">
+            <label for="input-max-fee-drag-pct" class="form-label">
+              <i data-lucide="shield-alert"></i> Fee Drag Cap
+            </label>
+            <div class="input-affix-wrapper">
+              <input type="number" step="1" min="1" max="100" id="input-max-fee-drag-pct" class="form-input font-mono" value="20">
+              <span class="input-suffix">%</span>
+            </div>
+            <p class="form-helper">Max % of profit spread consumed by fixed fees</p>
+          </div>
           <div class="form-group col-12 col-md-6">
             <label for="input-inflow-fee" class="form-label">
               <i data-lucide="arrow-down-left"></i> Buy Payment Inflow Fee (Stamp Duty)

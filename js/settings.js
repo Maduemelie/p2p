@@ -59,6 +59,7 @@ export function initSettings() {
   const inputSettingOutflowFee = document.getElementById('input-setting-outflow-fee');
   const inputSettingTargetSpread = document.getElementById('input-setting-target-spread');
   const inputSettingTargetVolume = document.getElementById('input-setting-target-volume') || document.getElementById('input-setting-avg-volume');
+  const inputSettingMaxFeeDrag = document.getElementById('input-setting-max-fee-drag-pct');
 
   function populateFeeDefaults() {
     const settings = store.getSettings ? store.getSettings() : {};
@@ -77,6 +78,9 @@ export function initSettings() {
     if (inputSettingTargetVolume && settings.avgVolume !== undefined) {
       inputSettingTargetVolume.value = settings.avgVolume;
     }
+    if (inputSettingMaxFeeDrag && settings.maxFeeDragPct !== undefined) {
+      inputSettingMaxFeeDrag.value = settings.maxFeeDragPct;
+    }
   }
 
   populateOpeningInventory();
@@ -89,6 +93,7 @@ export function initSettings() {
     const outflowFee = parseFloat(inputSettingOutflowFee?.value) || 50;
     const targetSpread = parseFloat(inputSettingTargetSpread?.value) || 5.0;
     const avgVolume = parseFloat(inputSettingTargetVolume?.value) || 100;
+    const maxFeeDragPct = parseInt(inputSettingMaxFeeDrag?.value, 10) || 20;
 
     if (store.saveSettings) {
       store.saveSettings({
@@ -96,7 +101,8 @@ export function initSettings() {
         inflowFee,
         outflowFee,
         targetSpread,
-        avgVolume
+        avgVolume,
+        maxFeeDragPct
       });
     }
 
@@ -106,6 +112,7 @@ export function initSettings() {
     localStorage.setItem('bybit_p2p_pricing_outflow', String(outflowFee));
     localStorage.setItem('bybit_p2p_pricing_spread', String(targetSpread));
     localStorage.setItem('bybit_p2p_pricing_volume', String(avgVolume));
+    localStorage.setItem('bybit_p2p_pricing_max_fee_drag_pct', String(maxFeeDragPct));
 
     if (window.showToast) {
       window.showToast('Trading fee defaults and arbitrage parameters saved!', 'success');
