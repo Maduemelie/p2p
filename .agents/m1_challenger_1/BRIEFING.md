@@ -1,55 +1,50 @@
-# BRIEFING — 2026-08-25T13:27:30Z
+# BRIEFING — 2026-09-02T05:27:30Z
 
 ## Mission
-Adversarially challenge the mathematical correctness, boundaries, and precision of all M1 calculation functions in js/utils.js.
+Adversarial empirical challenge of `js/pricingEngine.js` for Milestone M1 (Bybit Maker Fee 0.3%, Fiat Inflow/Outflow Fees, Order Limit Recommendations, Mathematical Invariants).
 
 ## 🔒 My Identity
 - Archetype: EMPIRICAL CHALLENGER
-- Roles: critic, specialist
+- Roles: critic, specialist (Mathematical Stress & Invariant Challenger)
 - Working directory: c:\dev\p2p\.agents\m1_challenger_1
-- Original parent: a90fce10-da57-446a-b348-94b9b5b8c1a6
-- Milestone: Milestone 1 (M1) Mathematical Verification & Adversarial Stress Testing
+- Original parent: 51099a74-e962-4f63-9797-559839bfbef9
+- Milestone: M1
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code
-- Write and run verification/fuzzing/property tests directly (must empirically reproduce bugs)
-- Report failures as findings, do NOT fix them directly
-- Write only to .agents/m1_challenger_1/ (metadata only in .agents, test code in tests/ or standalone runner)
-- Deliver explicit verdict: APPROVE or REQUEST_CHANGES in handoff.md
+- Review-only — do NOT modify implementation code directly
+- Must empirically verify invariants with test harnesses and randomized market conditions
+- Produce challenge.md and handoff.md with verdict (APPROVE / REQUEST_CHANGES)
 
 ## Current Parent
-- Conversation ID: a90fce10-da57-446a-b348-94b9b5b8c1a6
-- Updated: 2026-08-25T13:27:30Z
+- Conversation ID: 51099a74-e962-4f63-9797-559839bfbef9
+- Updated: 2026-09-02T05:27:30Z
 
 ## Review Scope
-- **Files to review**: js/utils.js, test/tier1-feature-coverage/r1-m1-calculation-engine.test.js, test/challenger-m1-math-stress.test.js
-- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md
-- **Review criteria**: Mathematical correctness, rounding, precision, boundary cases (0, negatives, large numbers, fractional floats, NaN, null, undefined, invalid objects), sign-preserving delta calculations.
+- **Files to review**: `c:\dev\p2p\js\pricingEngine.js`
+- **Interface contracts**: Invariant 1 (Sell net profit = S_target * V), Invariant 2 (Arbitrage net profit = S_target * V), Invariant 3 (calculateRecommendedLimits fee drag <= 20%)
+- **Review criteria**: Mathematical exactness, edge cases (zero/negative spreads/fees/volumes), rounding errors, fee normalization heuristics.
 
 ## Attack Surface
-- **Hypotheses tested**:
-  - Division by zero in `calculateNetWorth` when rate is 0, negative, NaN, or non-finite -> Passed (guards prevent `Infinity`/`NaN`).
-  - Division by zero in `calculateSnapshotDelta` when previous Net Worth is 0 -> Passed (clamps % delta to 0%).
-  - Sign-preserving % delta when baseline is negative -> Passed (loss reduction yields positive growth %, deepening loss yields negative %).
-  - Polymorphic summation in `calculateTotalBankCash` across Map, Array, Object with negative overdrafts, strings, and NaNs -> Passed.
-  - Priority hierarchy in `resolveReferenceRate` across all 5 tiers and corrupt options -> Passed.
-  - Property-based fuzzing across 16,000+ synthetic random data points -> 100% Passed.
-- **Vulnerabilities found**: None in `js/utils.js`. All mathematical routines are pure, robustly guarded, and numerically sound.
-- **Untested angles**: All targeted M1 calculation functions thoroughly fuzzed and verified.
+- **Hypotheses tested**: 
+  1. `calculateSellPricing` yield exact net profit $S_{target} \cdot V$ under all $\phi, C, F_{out}, V$: CONFIRMED (error $< 10^{-12}$).
+  2. `calculateBuyPricing` yield exact net profit $S_{target} \cdot V$ when round-tripped with exit price $P_{exit}$: CONFIRMED (error $< 10^{-12}$).
+  3. `calculateRecommendedLimits` strictly guarantee fee drag $\le 20\%$: CONFIRMED (within $0.0008\%$ rounding tolerance).
+  4. `normalizeFeeRate` basis-point fees: Identified $0.05\%$ boundary heuristic (documented as caveat).
+  5. 16,000+ Monte Carlo randomized test cases: 100% pass across all 691 tests.
+- **Vulnerabilities found**: None blocking. Two minor non-blocking nuances (Math.round vs Math.ceil, sub-5 bps fee normalization).
+- **Untested angles**: None.
 
 ## Loaded Skills
-- None requested
+- None required
 
 ## Key Decisions Made
-- Executed 25 adversarial test cases with property-based and fuzz testing across 16,000+ data points in `test/challenger-m1-math-stress.test.js`.
-- Confirmed 100% pass rate (395/395 tests passing across entire project test suite).
-- Final Verdict: **APPROVE**.
+- Created `test/empirical-m1-pricing-invariants.test.js` covering 16,000+ randomized invariant trials.
+- Verdict: APPROVE.
 
 ## Artifact Index
-- c:\dev\p2p\.agents\m1_challenger_1\DISPATCH.md — Initial dispatch instructions
-- c:\dev\p2p\.agents\m1_challenger_1\BRIEFING.md — Situational awareness
-- c:\dev\p2p\.agents\m1_challenger_1\progress.md — Progress heartbeat
-- c:\dev\p2p\.agents\m1_challenger_1\handoff.md — Final verdict and challenge report
-- c:\dev\p2p\test\challenger-m1-math-stress.test.js — Adversarial mathematical stress test suite
-- c:\dev\p2p\test\run-challenger-m1.js — Standalone runner
+- `.agents/m1_challenger_1/DISPATCH.md` — Initial dispatch message
+- `.agents/m1_challenger_1/BRIEFING.md` — Agent briefing & situational awareness
+- `.agents/m1_challenger_1/progress.md` — Liveness and progress tracker
+- `.agents/m1_challenger_1/challenge.md` — Detailed challenge findings and mathematical proofs
+- `.agents/m1_challenger_1/handoff.md` — 5-component handoff report & verdict (APPROVE)

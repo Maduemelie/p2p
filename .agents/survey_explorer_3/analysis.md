@@ -1,293 +1,301 @@
-# Comprehensive UI & Visualization Architecture Analysis
+# Test Suite & Mathematical Specification Analysis Report
 
-**Agent**: `survey_explorer_3` (UI & Visualization Explorer)  
-**Date**: 2026-08-25  
-**Mission**: Investigate existing UI layout, styling, charting setup, modal patterns, and export/import UX to identify exact integration points for Net Worth and Capital Cycle tracking (R1: Live Net Worth Widget, R2: Snapshot Logging Modal, R3: Delta Badges & Net Worth Trend Line Chart).
+**Date**: 2026-09-02  
+**Author**: survey_explorer_3 (Test Suite & Spec Miner)  
+**Workspace**: `c:\dev\p2p`  
+**Target Modules**: `js/pricingEngine.js`, `js/pricing.js`, `js/utils.js`, `js/dashboard.js`, `js/views/pricing.view.js`, `test/tier1-feature-coverage/pricing-engine.test.js`
 
 ---
 
 ## Executive Summary
 
-The frontend is a vanilla ES module Single-Page Application (SPA) designed with a slate/navy glassmorphism design system (`css/styles.css`), responsive across desktop (sidebar navigation) and mobile (sticky header + bottom navigation). Dynamic views and modal structures are mounted into `#main-content` and `#modals-container` by `js/app.js`. Chart.js is loaded via CDN (`cdn.jsdelivr.net`) and cached offline by the Service Worker (`sw.js`). All state persists in `localStorage` via `js/store.js` with custom event dispatching (`store:updated`).
-
-This analysis documents the exact architecture of existing components and specifies the integration points for implementing the Net Worth & Capital Cycle tracking features.
-
----
-
-## 1. Dashboard HTML/CSS/JS Architecture
-
-### 1.1 DOM Structure & Layout Flow
-The dashboard view is generated in `js/views/dashboard.view.js` and mounted into `#main-content` as `<section class="app-view active" id="view-dashboard" data-view="dashboard">`.
-
-Current card hierarchy in `dashboard.view.js`:
-1. **View Header** (`lines 10–19`):
-   - Title: "Dashboard" (`.view-title`)
-   - Dynamic greeting (`#dashboard-greeting`: "Good morning / afternoon / evening")
-   - Action button: `#btn-dash-quick-add` ("New Trade")
-2. **Card ①: Portfolio Overview** (`lines 21–43`):
-   - Class: `.card.mb-4`
-   - Title: "Portfolio Overview" (`.card-title.mb-3`)
-   - Grid: `.portfolio-grid` (3 columns on desktop, 1 column on `<600px` mobile)
-     - Column 1: Bank Cash (`#stat-total-bank-cash`, `#stat-bank-cash-subtext`)
-     - Column 2: USDT Inventory (`#stat-inventory-holding`, `#stat-inventory-cost`)
-     - Column 3: Realized P&L (`#stat-net-pnl`, `#stat-pnl-rate`, `#pnl-roi-badge`)
-3. **Card ②: Current Position Card (Active Sell Ad)** (`lines 45–82`):
-   - ID: `#card-active-ad-spread`, Class: `.card.mb-4`
-   - Header: Live badge (`#active-ad-badge`), title (`#active-ad-title`), refresh button (`#btn-sync-active-ad`)
-   - Hero: `.ad-hero-section` displaying live ad price (`#metric-ad-sell-price`), quantity listed (`#metric-ad-qty-stock`)
-   - Submetrics: `.ad-submetrics-grid` (Cost basis `#metric-ad-avg-buy-cost`, spread `#metric-ad-spread-usdt`, margin `#metric-ad-margin-pct`, projected profit `#metric-ad-projected-pnl`)
-4. **Card ③: Capital Allocation Card** (`lines 84–122`):
-   - ID: `#card-capital-allocation`, Class: `.card.mb-4`
-   - Total P2P Balance (`#stat-bybit-live-total`)
-   - Progress bar: `.allocation-bar-container` (`#allocation-progress-bar`, `#bar-segment-active`, `#bar-segment-free`)
-   - Legend: `#stat-bybit-locked`, `#stat-bybit-free`, diff warning `#stat-inventory-diff`
-5. **Card ④: Performance Chart Card** (`lines 124–143`):
-   - Class: `.card.mb-4`
-   - Header: `.chart-header` with title "Realized P&L Trend", subtitle, and segmented time filters (`#chart-time-filter` with `.seg-btn` buttons: `all`, `30d`, `7d`)
-   - Chart canvas: `<canvas id="pnlChart"></canvas>` inside `.chart-container` (fixed height `200px`)
-   - Empty state fallback: `#chart-empty-state`
-6. **Card ⑤: Recent Activity Card** (`lines 145–160`):
-   - ID: `#recent-activity-dashboard-card`, Class: `.card.mb-4`
-   - Header: "Recent Activity" and link `#btn-view-all-history`
-   - Container: `#dashboard-recent-list` (renders latest 5 enriched trades)
-7. **Spacer**: `<div class="bottom-nav-spacer"></div>` (prevents mobile bottom nav collision).
-
-### 1.2 CSS Classes & Design Tokens (`css/styles.css`)
-- **Colors & Theme Tokens**:
-  - Backgrounds: `--bg-base` (`#070B14`), `--bg-surface` (`#0E1626`), `--bg-card` (`rgba(18, 28, 47, 0.72)`), `--bg-glass-input` (`rgba(10, 16, 28, 0.65)`)
-  - Accents: `--primary` (`#3B82F6`), `--success` (`#10B981`), `--danger` (`#F43F5E`), `--warning` (`#F59E0B`), `--info` (`#8B5CF6`)
-  - Typography: `--font-sans` ('Plus Jakarta Sans'), `--font-mono` ('JetBrains Mono')
-- **Card Styling** (`styles.css:745–785`):
-  - `.card`: `border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: var(--sp-5); backdrop-filter: blur(16px);`
-  - `.card-title`: `font-size: var(--text-subheading); font-weight: 700;`
-  - `.card-header-flex`: `display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3);`
-- **Badges** (`styles.css:1335–1344`):
-  - `.badge`: `font-size: var(--text-tiny); font-weight: 600; padding: 2px 8px; border-radius: var(--radius-full); display: inline-flex; align-items: center; gap: 4px;`
-  - Variants: `.badge-success` (green subtle), `.badge-danger` (red subtle), `.badge-warning` (amber subtle), `.badge-primary` (blue subtle), `.badge-neutral`
-- **Responsive Breakpoints**:
-  - Desktop sidebar: `@media (min-width: 960px)` displays sidebar nav (`.sidebar-nav`, width `240px`), hides mobile header/footer.
-  - Mobile: `<960px` displays sticky top header (`.app-header`) and fixed bottom nav (`.bottom-nav`).
-  - Mobile Grids:
-    - `.portfolio-grid`: `repeat(3, 1fr)` -> `@media (max-width: 600px)` drops to 1 col with dividers.
-    - `.ad-submetrics-grid`: `repeat(3, 1fr)` -> `@media (max-width: 480px)` drops to 1 col with dashed dividers.
-    - `.stat-chips`: `repeat(2, 1fr)` -> `@media (max-width: 480px)` drops to 1 col.
+This report documents the architectural investigation of the test suite and provides the complete mathematical specification for Bybit P2P arbitrage pricing, incorporating:
+1. **0.30% Bybit P2P Maker Platform Fee** ($f_{plat} = 0.003$).
+2. **Local Fiat Transfer Fees** ($F_{in}, F_{out}$ — default ₦50 fixed or threshold-based > ₦10,000).
+3. **Net Cost Basis, Net Pricing, and Effective Profit Margin Models** (Buy Ad Assistant and Sell Ad Assistant).
+4. **Recommended Minimum Order Limits** ($V_{min}, L_{min}$) to prevent fixed fiat fee margin erosion.
+5. **Trade Size Tier Verification** across ₦5,000, ₦10,000, ₦30,000, and ₦100,000.
 
 ---
 
-## 2. Modal & Dialog System
+## 1. Test Suite Architecture & Execution Mechanism
 
-### 2.1 DOM & Template Mounting
-Modals are rendered by `renderModalsView()` in `js/views/modals.view.js` and mounted into `<div id="modals-container"></div>` (in `index.html:137`) during application boot (`mountAppViews()` in `js/app.js:68`).
+### 1.1 Test Runner & Execution Structure
+- **Execution Command**: `npm test` runs `node test/run-tests.js`.
+- **Custom Multi-Tier Test Framework**: Built using `test/harness/test-runner.js` providing custom `describe`, `it`/`test`, `beforeEach`, `afterEach`, `beforeAll`, `afterAll` hooks with strict assertions (`test/harness/assertions.js`), mock DOM environment (`test/harness/dom-mock.js`), and mock HTTP client (`test/harness/http-mock.js`).
+- **CLI Filtering Flags**:
+  - `node test/run-tests.js --tier=1` (Runs Tier 1 Feature Coverage)
+  - `node test/run-tests.js --tier=2` (Runs Tier 2 Boundary & Corner Cases)
+  - `node test/run-tests.js --tier=3` (Runs Tier 3 Cross-Feature Combinations)
+  - `node test/run-tests.js --tier=4` (Runs Tier 4 Real-World Application Scenarios)
+  - `node test/run-tests.js --suite=<keyword>` (Filters by suite keyword)
+- **Standalone Runners**: Individual runner scripts exist for rapid isolated execution (e.g. `node test/run-challenger-1.js`, `node test/run-challenger-2.js`).
 
-### 2.2 Standard Modal DOM Structure
-```html
-<div class="modal-backdrop hidden" id="modal-[feature]-backdrop">
-  <div class="modal-card">
-    <div class="modal-header">
-      <div>
-        <h3 class="modal-title">[Title]</h3>
-        <p class="modal-subtitle">[Subtitle]</p>
-      </div>
-      <button class="btn-icon" id="btn-close-[feature]-modal" aria-label="Close">
-        <i data-lucide="x"></i>
-      </button>
-    </div>
-    <form id="form-[feature]" class="modal-body">
-      <!-- Input fields, preview widgets, etc. -->
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" id="btn-cancel-[feature]-modal">Cancel</button>
-        <button type="submit" class="btn btn-primary" id="btn-submit-[feature]">[Action]</button>
-      </div>
-    </form>
-  </div>
-</div>
-```
-
-### 2.3 Modal Lifecycle & Event Handling (`js/app.js:284–308`)
-- **Opening**: `backdropEl.classList.remove('hidden')`.
-- **Closing**: `backdropEl.classList.add('hidden')`.
-- **Backdrop Click**: Global click listener in `app.js:303–307` closes any modal when clicking `.modal-backdrop` outside `.modal-card`.
-- **Escape Key**: Global keydown listener in `app.js:285–300` adds `.hidden` to all `.modal-backdrop:not(.hidden)` elements.
-- **Dynamic Confirm Modal** (`window.showConfirmModal(title, message, onConfirm, type)`): Rendered on-demand into `#confirm-modal-container` (`app.js:233–279`).
-- **Toasts** (`window.showToast(message, type, duration)`): Appends notification elements into `#toast-container` (`app.js:198–223`), supports `'info'`, `'success'`, `'error'`.
+### 1.2 Test Hierarchy & Scope
+The repository contains **43 test files** comprising **676 total automated tests**:
+1. **Tier 1: Feature Coverage** (12 suites, 421 tests):
+   - `pricing-engine.test.js` (21 tests covering dust filtering, reference price calculation, buy pricing, sell pricing, boundary resilience)
+   - `r1-m1-calculation-engine.test.js` (Core math, Net Worth, reference rate priority, snapshots)
+   - `r1-m2-net-worth-widget.test.js`, `r1-m3-snapshot-modal.test.js`, `net-worth-features.test.js`
+   - `r1-api-security.test.js`, `r2-fifo-accounting.test.js`, `r3-multi-bank-reconciliation.test.js`
+   - `r4-search-navigation.test.js`, `r4-m4-historical-analytics.test.js`, `r5-offline-pwa.test.js`, `active-buy-sell-ads.test.js`
+2. **Tier 2: Boundary & Corner Cases** (6 suites, 159 tests)
+3. **Tier 3: Cross-Feature Combinations** (3 suites, 14 tests)
+4. **Tier 4: Real-World Scenarios** (4 suites, 10 tests)
+   - `arbitrage-reconciliation.test.js` (End-to-end multi-lot arbitrage flow & bank cash reconciliation)
+5. **Challenger & Stress Suites** (18 suites, 72 tests):
+   - `challenger-1-empirical-pricing-stress.test.js` (5,000 Monte Carlo fuzzed order books, spread cap/floor invariants)
+   - `challenger-2-boundary-fuzzing-stress.test.js` (2,000 dust threshold boundary tests, 2,000 trade limit boundary tests, 100 consecutive cross-feature arbitrage round-trips)
 
 ---
 
-## 3. Charting Setup & Chart.js Architecture
+## 2. Features Discovered
 
-### 3.1 Library Availability & Loading
-- Loaded via CDN script in `index.html:24`:
-  `<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>`
-- Global `Chart` object is available on `window.Chart`.
-- Offline PWA Support: `sw.js:113–128` explicitly intercepts and caches all `cdn.jsdelivr.net` requests using a Cache-First strategy.
-
-### 3.2 Existing Chart Rendering Pattern (`js/dashboard.js:445–568`)
-- **Canvas Container**: `<div class="chart-container"><canvas id="pnlChart"></canvas>...</div>` (`dashboard.view.js:136–143`).
-- **Lifecycle Management**:
-  1. Module-scoped instance variable: `let chartInstance = null;` (`dashboard.js:11`).
-  2. Before creating or updating:
-     ```javascript
-     if (chartInstance) {
-       chartInstance.destroy();
-       chartInstance = null;
-     }
-     ```
-  3. Empty state handling: If data array is empty, toggle `.hidden` on `#chart-empty-state` and destroy instance.
-- **Chart.js Configuration Standard**:
-  - Type: `'line'`
-  - Tension: `0.35` (smooth cubic bezier curves)
-  - Colors:
-    - Net positive: Border `#10B981`, linear gradient from `rgba(16, 185, 129, 0.35)` to `rgba(0, 0, 0, 0.0)`
-    - Net negative: Border `#F43F5E`, linear gradient from `rgba(244, 63, 94, 0.35)` to `rgba(0, 0, 0, 0.0)`
-  - Options:
-    ```javascript
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { intersect: false, mode: 'index' },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: 'rgba(14, 22, 38, 0.95)',
-          titleColor: '#F8FAFC',
-          bodyColor: '#94A3B8',
-          borderColor: 'rgba(255, 255, 255, 0.15)',
-          borderWidth: 1,
-          padding: 10,
-          displayColors: false,
-          callbacks: { label: (ctx) => `...` }
-        }
-      },
-      scales: {
-        x: {
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { color: '#64748B', font: { size: 11 } }
-        },
-        y: {
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { color: '#64748B', font: { size: 11 }, callback: (val) => formatNGN(val, 0) }
-        }
-      }
-    }
-    ```
+| # | Category | Feature | Description | Inputs | Outputs | Error Behavior | Discovered Via |
+|---|----------|---------|-------------|--------|---------|----------------|----------------|
+| 1 | Pricing Engine | Competitor Ad Dust Filtering | Filters out ads below dust threshold: $\max(2.0, \text{avgVol} \times 0.05)$ USDT | `ads: Array`, `avgVol: Number`, `filterLimits: Boolean` | `Array<Ad>` | Null/undefined/empty input returns `[]`; corrupt volume defaults to 100 USDT | `js/pricingEngine.js:14`, `pricing-engine.test.js:21` |
+| 2 | Pricing Engine | Transaction Limit Filtering | Rejects competitor ads where target trade fiat amount ($\text{safeAvgVol} \times \text{price}$) falls outside $[\text{minAmount}, \text{maxAmount}]$ | `ads: Array`, `avgVol: Number`, `filterLimits: true` | `Array<Ad>` | Missing/zero limits ignored; supports `minSingleTransAmount` & `maxSingleTransAmount` | `js/pricingEngine.js:31`, `pricing-engine.test.js:55` |
+| 3 | Pricing Engine | Reference Rate Calculation | Computes benchmark price via `'competitor'`, `'avg-N'`, or `'vwap-N'` modes | `ads: Array`, `pricingMode: String` | `Number` (NGN rate) | Returns 0 for empty ads; defaults to `'avg-10'` on omitted mode | `js/pricingEngine.js:47`, `pricing-engine.test.js:107` |
+| 4 | Pricing Engine | Buy Ad Pricing Assistant | Calculates suggested buy price (+₦0.10 outbid), max buy price cap, and safety gate | `activeBuyAds`, `sortedSellAds`, `targetSpread`, `inflowFee`, `avgVolume`, `pricingMode` | `{ exitPrice, referenceBuyPrice, maxBuyPrice, rawSuggestedBuy, suggestedBuy, isSafe, excessSpread, isOffline }` | Returns `isOffline: true` and 0 values when market depth is missing | `js/pricingEngine.js:95`, `pricing-engine.test.js:172` |
+| 5 | Pricing Engine | Sell Ad Pricing Assistant | Calculates suggested sell price (-₦0.10 undercut), break-even price, target sell price floor, and safety gate | `activeSellAds`, `costBasis`, `targetSpread`, `outflowFee`, `avgVolume`, `pricingMode` | `{ referenceSellPrice, breakEven, targetSellPrice, rawSuggestedSell, suggestedSell, isSafe, sellSpread, hasCostBasis, hasCompetitors }` | Returns `hasCostBasis: false` if cost basis $\le 0$; `hasCompetitors: false` if no active sell ads | `js/pricingEngine.js:156`, `pricing-engine.test.js:282` |
+| 6 | Accounting | FIFO Cost-Basis & Realized PnL | Matches BUY lots against SELL orders chronologically to compute realized PnL and remaining inventory cost basis | `trades: Array`, `openingInventory: Object` | `{ enrichedTrades, totalRealizedPnL, totalRealizedCostBasis, totalRealizedRevenue, overallROI, remainingInventoryUSDT, inventoryCostBasisNGN, avgHoldingCostPerUSDT, totalUnmatchedSoldUSDT }` | Handles overselling by creating unmatched external inventory lots at 0 profit | `js/utils.js:132`, `r2-fifo-accounting.test.js` |
+| 7 | Net Worth | Dual-Currency Net Worth | Computes total liquid assets in NGN and USDT at authoritative reference rate | `totalBankCashNgn`, `totalUsdt`, `referenceRate` | `{ netWorthNgn, netWorthUsdt, bankCashNgn, totalUsdt, referenceRate }` | Non-positive rate returns un-converted values safely | `js/utils.js:479`, `r1-m1-calculation-engine.test.js` |
+| 8 | UI View | Pricing Assistant Controller | Binds UI controls, syncs market depth from Bybit proxy, persists settings to localStorage, and updates DOM | Event triggers, DOM elements, localStorage | Rendered DOM elements | Catches proxy query failures gracefully with error toast | `js/pricing.js:19`, `js/views/pricing.view.js` |
 
 ---
 
-## 4. Export / Import UI & Mechanics
+## 3. Edge Cases Discovered
 
-### 4.1 UI Triggers & Placement
-- **History View** (`js/views/history.view.js:13–21`):
-  - `#btn-export-csv-inline` (CSV)
-  - `#btn-export-quick` (JSON)
-- **Settings View Data Tab** (`js/views/settings.view.js:194–256`):
-  - Action Card 1: "Export CSV" (`#btn-export-csv`)
-  - Action Card 2: "JSON Backup" (`#btn-export-json`)
-  - Action Card 3: "Restore" (`#input-import-json` `<input type="file" accept=".json">`)
-  - Action Card 4: "Reset All Data" (`#btn-clear-all-data`)
-
-### 4.2 File Download & Upload Mechanics (`js/export.js`)
-- **Download Utility**: `triggerFileDownload(blob, filename)` (`export.js:13–22`):
-  Creates temporary object URL via `URL.createObjectURL(blob)`, appends anchor element `<a>`, clicks, removes, and calls `URL.revokeObjectURL(url)`.
-- **JSON Backup Schema**:
-  ```javascript
-  {
-    version: 1,
-    exportedAt: "2026-08-25T14:00:00.000Z",
-    trades: [...],
-    bankAccounts: [...],
-    transfers: [...],
-    openingInventory: {...}
-    // Integration point: snapshots: [...]
-  }
-  ```
-- **JSON Import Utility**: `importBackupJSON(file)` (`export.js:120–151`):
-  Reads file with `FileReader.readAsText()`, validates structure, prompts confirmation, invokes `store.importAllData(data, true)`, and notifies via `window.showToast()`.
+| # | Feature | Input | Observed Behavior |
+|---|---------|-------|-------------------|
+| 1 | Dust Filter | `avgVolume = 10` (5% is 0.5 USDT) | Clamped to absolute floor of 2.0 USDT; ad with 1.9 USDT rejected, 2.0 USDT kept. |
+| 2 | Dust Filter | `avgVolume = 1000` (5% is 50 USDT) | Scaled threshold to 50.0 USDT; ad with 49.9 USDT rejected, 50.0 USDT kept. |
+| 3 | Limit Filter | Corrupt ads containing `null`, `undefined`, primitives, missing price/qty | Safely ignored and discarded without throwing exceptions. |
+| 4 | Reference Rate | Zero quantity ads in `vwap-N` mode | Total volume is 0; gracefully falls back to top competitor price `parseFloat(ads[0].price)`. |
+| 5 | Buy Pricing | Market sell depth is empty or offline (`sortedSellAds = []`) | Returns `{ isOffline: true, exitPrice: 0, suggestedBuy: 0, isSafe: false }`. |
+| 6 | Buy Pricing | Competitor buy bids exceed exit price / spread limit (market inversion) | `rawSuggestedBuy > maxBuyPrice`; caps `suggestedBuy = maxBuyPrice` and flags `isSafe: false`. |
+| 7 | Sell Pricing | Cost basis $\le 0$ or negative | Returns `{ hasCostBasis: false, isSafe: false, suggestedSell: 0, breakEven: 0, targetSellPrice: 0 }`. |
+| 8 | Sell Pricing | Competitor sell asks drop below cost basis + target spread (market crash) | `rawSuggestedSell < targetSellPrice`; floors `suggestedSell = targetSellPrice` and flags `isSafe: false`. |
+| 9 | Fee Amortization | Large fixed fee (e.g. ₦100,000 on 10 USDT volume) | Fee per unit is ₦10,000/USDT; `maxBuyPrice` drops to negative value without runtime crash. |
+| 10 | Volume Inputs | `avgVolume` is 0, negative, `NaN`, `null`, or string | Safely defaults to `safeAvgVol = 100` USDT across all engine functions. |
 
 ---
 
-## 5. Exact Integration Points for Net Worth System
+## 4. Mathematical Specification & Exact Arbitrage Formulas
 
-### 5.1 R1: Live Net Worth Dashboard Widget
-- **Visual Location**: At the top of `view-dashboard` (directly beneath `.view-header` or integrated as a prominent Hero Card before/above Portfolio Overview).
-- **Target Files**:
-  - `js/views/dashboard.view.js`: Add `#card-net-worth` or hero stats component.
-  - `js/dashboard.js`: Add `renderNetWorthWidget()` and call it in `initDashboard()` and inside `window.addEventListener('store:updated')`.
-- **Component Anatomy & ID Blueprint**:
-  - Container: `<div class="card mb-4" id="card-net-worth">`
-  - Header:
-    - Title: `Live Net Worth`
-    - Delta Badge: `<span class="badge badge-success" id="net-worth-delta-badge"><i data-lucide="trending-up"></i> +₦0.00 (+0.0%)</span>`
-    - Action: `<button class="btn btn-xs btn-primary" id="btn-open-snapshot-modal"><i data-lucide="camera"></i> <span>End Day / Save Snapshot</span></button>`
-  - Primary Hero Displays:
-    - NGN Total: `<div class="hero-stat-value text-success font-mono" id="stat-net-worth-ngn">₦0.00</div>`
-    - USDT Total: `<div class="hero-stat-sub font-mono text-accent" id="stat-net-worth-usdt">0.00 USDT</div>`
-  - Breakdown / Sub-metrics Grid (`.ad-submetrics-grid` or `.stat-chips`):
-    - Cell 1: **Bank Cash Total** (`#stat-nw-bank-cash`) — derived from `store.getComputedBankBalances()`
-    - Cell 2: **Bybit USDT Balance** (`#stat-nw-bybit-usdt`) — derived from Bybit total balance (free + locked in ads)
-    - Cell 3: **Conversion Rate** (`#stat-nw-conversion-rate`) — live Sell ad rate, or fallback (cost basis / market depth / opening rate) with reference badge.
-
-### 5.2 R2: Net Worth Snapshot Logging & Snapshot Modal
-- **Visual Location & Trigger**: Trigger button `#btn-open-snapshot-modal` on Dashboard view header / Net Worth Card.
-- **Target Files**:
-  - `js/views/modals.view.js`: Add `#modal-snapshot-backdrop`.
-  - `js/dashboard.js`: Wire open/close modal handlers, form submission, live calculated net worth preview on rate edit.
-  - `js/store.js`: Add storage key `bybit_p2p_net_worth_snapshots`, CRUD methods (`getSnapshots()`, `addSnapshot()`, `deleteSnapshot()`), and include snapshots in `exportAllData()`, `importAllData()`, and `clearAllData()`.
-- **Modal Structure Blueprint**:
-  - Modal ID: `#modal-snapshot-backdrop`
-  - Form ID: `#form-save-snapshot`
-  - Inputs:
-    1. Snapshot Date & Time (`#input-snapshot-date`, `datetime-local`, default now)
-    2. Bank Cash Readout (₦) (`#snapshot-preview-bank-cash`)
-    3. USDT Balance Readout (`#snapshot-preview-usdt-balance`)
-    4. Reference Exchange Rate input (`#input-snapshot-rate`, `number`, step `0.01`, required, pre-filled with live active sell ad rate or latest rate)
-    5. Calculated Live Net Worth Preview:
-       - Net Worth NGN (`#snapshot-calc-ngn`) = `Bank Cash + (USDT Balance * Reference Rate)`
-       - Net Worth USDT (`#snapshot-calc-usdt`) = `(Bank Cash / Reference Rate) + USDT Balance`
-    6. Notes (`#input-snapshot-notes`, `text`, optional)
-  - Footer: Cancel `#btn-cancel-snapshot-modal` and Save `#btn-save-snapshot-submit`.
-- **Snapshot Schema**:
-  ```javascript
-  {
-    id: "snapshot_m1abc_123",
-    timestamp: "2026-08-25T14:00:00.000Z",
-    date: "2026-08-25T14:00:00.000Z",
-    bankCashNGN: 5200000.00,
-    usdtBalance: 3500.00,
-    referenceRate: 1510.50,
-    netWorthNGN: 10486750.00,
-    netWorthUSDT: 6942.57,
-    notes: "End of trading day"
-  }
-  ```
-
-### 5.3 R3: Historical Comparison & Trend Chart + Export/Import UX
-- **Delta Indicator Integration**:
-  - Compare current live Net Worth (or latest snapshot) against the preceding snapshot in `store.getSnapshots()`.
-  - Absolute Difference: `deltaNGN = currentNetWorthNGN - prevNetWorthNGN`
-  - Percentage Difference: `pctDelta = prevNetWorthNGN > 0 ? (deltaNGN / prevNetWorthNGN) * 100 : 0`
-  - Badge Rendering: Apply `.badge-success` for positive delta (`trending-up` icon) or `.badge-danger` for negative delta (`trending-down` icon).
-- **Net Worth Trend Line Chart**:
-  - DOM Placement: In `dashboard.view.js`, either add a dedicated Net Worth Trend card or provide a tabbed selector (`Realized P&L` | `Net Worth Trend`) on the chart card.
-  - Canvas ID: `<canvas id="netWorthChart"></canvas>` (or dynamic dataset switching on the chart canvas).
-  - Chart.js Instance: Managed cleanly with destroy/create lifecycle.
-  - Data Mapping: Sorted historical snapshots chronologically (`labels: dateLabels`, `datasets: [{ label: 'Net Worth (₦)', data: [snapshot.netWorthNGN, ...], ... }]`).
-  - Empty state: Show empty state when snapshots count `< 1` or `< 2`.
-- **Export & Import UX Integration**:
-  - `js/export.js`:
-    - `exportFullBackupJSON()`: Store exports include `snapshots: store.getSnapshots()`.
-    - `importBackupJSON()`: Restores `snapshots` array to `bybit_p2p_net_worth_snapshots`.
-  - `js/store.js`:
-    - Update `exportAllData()`, `importAllData()`, and `clearAllData()` to handle `STORAGE_KEYS.SNAPSHOTS`.
+### 4.1 Platform Fee Modeling (Bybit P2P Maker Fee)
+- **Maker Platform Fee Rate**: $f_{plat} = 0.30\% = 0.003$ (applies to advertisers posting Buy or Sell ads).
+- **Taker Fee Rate**: $0.00\%$.
+- **Buy Ad Execution (Maker Buying USDT with NGN)**:
+  - Maker pays fiat: $V \times P_{buy}$
+  - Maker receives gross USDT: $V$
+  - Platform fee deducted in crypto: $Fee_{USDT} = V \times f_{plat} = 0.003 V$
+  - Net USDT received: $V_{net} = V \times (1 - f_{plat}) = 0.997 V$
+  - Fiat-equivalent fee per unit USDT: $Fee_{unit,buy} = P_{buy} \times f_{plat} = 0.003 P_{buy}$
+- **Sell Ad Execution (Maker Selling USDT for NGN)**:
+  - Maker surrenders USDT: $V \times (1 + f_{plat})$ or receives fiat net of maker fee: $V \times P_{sell} \times (1 - f_{plat})$
+  - Platform fee in fiat equivalent per unit USDT: $Fee_{unit,sell} = P_{sell} \times f_{plat} = 0.003 P_{sell}$
 
 ---
 
-## 6. Verification and Risk Assessment
+### 4.2 Local Fiat Transfer Fee Modeling (NGN Inflow & Outflow)
+- **Inflow Fee ($F_{in}$)**: Flat transfer fee / fintech debit charge incurred when sending NGN to seller during Buy trade fulfillment (default: ₦50.00).
+- **Outflow Fee ($F_{out}$)**: Stamp duty / Electronic Money Transfer Levy (EMTL) or bank fee charged when receiving/transferring NGN during Sell trade fulfillment (default: ₦50.00).
+- **Threshold-Based Model**:
+  $$F_{fiat}(S_{NGN}) = \begin{cases} ₦0.00 & \text{if } S_{NGN} \le ₦10,000 \\ ₦50.00 & \text{if } S_{NGN} > ₦10,000 \end{cases}$$
+  *(where $S_{NGN} = V \times P$ is the trade size in Naira).*
+- **Per-Unit Fiat Fee Drag**:
+  $$f_{in,unit} = \frac{F_{in}}{V}, \quad f_{out,unit} = \frac{F_{out}}{V}$$
 
-1. **Design System Consistency**:
-   All proposed UI elements use existing CSS variables (`--bg-card`, `--success`, `--danger`, `--primary`, `--font-mono`), standard card containers (`.card`), badge classes (`.badge`, `.badge-success`), and modal classes (`.modal-backdrop`, `.modal-card`).
-2. **Chart.js Memory Leaks**:
-   Ensure all chart instances (both `pnlChart` and `netWorthChart`) track instance variables and invoke `.destroy()` before re-instantiation.
-3. **PWA Offline Pre-caching**:
-   Ensure `sw.js` cache list remains aligned if new modules or templates are introduced (all existing view files are already listed in `STATIC_ASSETS`).
-4. **Zero-breaking Changes**:
-   All 133 existing tests across Tiers 1–4 passed with 100% pass rate. Adding the Net Worth card and snapshot modal adheres strictly to existing interface contracts.
+---
+
+### 4.3 Integrated Net Pricing & Profit Margin Formulas
+
+#### Notation:
+- $V$: Target trade volume in USDT (default 100 USDT).
+- $P_{buy}$: Buy rate (NGN/USDT).
+- $P_{sell}$: Sell rate (NGN/USDT).
+- $P_{exit}$: Best market exit sell rate (cheapest ask on competitor Sell order book).
+- $P_{ref,buy}$: Reference competitor buy rate (from `calculateReferencePrice`).
+- $P_{ref,sell}$: Reference competitor sell rate (from `calculateReferencePrice`).
+- $C_{FIFO}$: FIFO average inventory holding cost per USDT.
+- $S_{target}$: Target spread / margin in NGN per USDT (e.g. ₦5.00/USDT).
+- $f_{plat}$: Maker platform fee fraction ($0.003$).
+- $F_{in}, F_{out}$: Inflow and outflow fiat fees in NGN.
+
+---
+
+#### A. Buy Ad Pricing Assistant
+
+1. **Net Unit Cost of Acquisition**:
+   $$\text{Total Capital Outlay} = (V \times P_{buy}) + (V \times P_{buy} \times f_{plat}) + F_{in} = V \cdot P_{buy} \cdot (1 + f_{plat}) + F_{in}$$
+   $$\text{Net Cost Basis per USDT} = C_{net,buy} = P_{buy} \cdot (1 + f_{plat}) + \frac{F_{in}}{V}$$
+
+2. **Net Unit Exit Revenue**:
+   $$\text{Net Exit Revenue per USDT} = R_{net,exit} = P_{exit} \cdot (1 - f_{plat}) - \frac{F_{out}}{V}$$
+
+3. **Maximum Allowable Buy Price ($P_{max,buy}$)**:
+   To ensure net spread $\ge S_{target}$ ($R_{net,exit} - C_{net,buy} \ge S_{target}$):
+   $$P_{exit} \cdot (1 - f_{plat}) - \frac{F_{out}}{V} - \left[ P_{buy} \cdot (1 + f_{plat}) + \frac{F_{in}}{V} \right] \ge S_{target}$$
+   $$P_{max,buy} = \frac{P_{exit} \cdot (1 - f_{plat}) - S_{target} - \frac{F_{in} + F_{out}}{V}}{1 + f_{plat}}$$
+   *(Single-leg / Inflow-only formulation where outflow fee is accounted on sell leg)*:
+   $$P_{max,buy}^{single} = \frac{P_{exit} \cdot (1 - f_{plat}) - S_{target} - \frac{F_{in}}{V}}{1 + f_{plat}}$$
+
+4. **Suggested Buy Price ($P_{suggested,buy}$)**:
+   $$P_{raw,buy} = \begin{cases} P_{ref,buy} + 0.10 & \text{if } P_{ref,buy} > 0 \\ P_{max,buy} & \text{if } P_{ref,buy} = 0 \end{cases}$$
+   $$P_{suggested,buy} = \min(P_{raw,buy}, P_{max,buy})$$
+   $$\text{isSafe} = (P_{raw,buy} \le P_{max,buy})$$
+
+5. **Net Excess Spread**:
+   $$\text{Excess Spread} = P_{exit} \cdot (1 - f_{plat}) - P_{suggested,buy} \cdot (1 + f_{plat}) - \frac{F_{in} + F_{out}}{V}$$
+
+---
+
+#### B. Sell Ad Pricing Assistant
+
+1. **Break-Even Sell Price ($P_{break-even}$)**:
+   Net proceeds must cover FIFO cost basis $C_{FIFO}$:
+   $$P_{sell} \cdot (1 - f_{plat}) - \frac{F_{out}}{V} = C_{FIFO}$$
+   $$P_{break-even} = \frac{C_{FIFO} + \frac{F_{out}}{V}}{1 - f_{plat}}$$
+
+2. **Target Sell Price ($P_{target,sell}$)**:
+   Net proceeds must cover $C_{FIFO} + S_{target}$:
+   $$P_{target,sell} = \frac{C_{FIFO} + S_{target} + \frac{F_{out}}{V}}{1 - f_{plat}}$$
+
+3. **Suggested Sell Price ($P_{suggested,sell}$)**:
+   $$P_{raw,sell} = P_{ref,sell} - 0.10$$
+   $$P_{suggested,sell} = \max(P_{raw,sell}, P_{target,sell})$$
+   $$\text{isSafe} = (P_{raw,sell} \ge P_{target,sell})$$
+
+4. **Net Realized Spread**:
+   $$\text{Realized Sell Spread} = P_{suggested,sell} \cdot (1 - f_{plat}) - \frac{F_{out}}{V} - C_{FIFO}$$
+
+---
+
+#### C. Effective Profit Margin & Full Round-Trip Arbitrage
+
+1. **Total Net Realized Profit ($\Pi$)**:
+   $$\Pi = V \cdot \left[ P_{sell} \cdot (1 - f_{plat}) - P_{buy} \cdot (1 + f_{plat}) \right] - (F_{in} + F_{out})$$
+
+2. **Effective Profit Margin / ROI (%)**:
+   $$\text{ROI} \% = \frac{\Pi}{V \cdot P_{buy} \cdot (1 + f_{plat}) + F_{in}} \times 100\%$$
+
+---
+
+## 5. Recommended Minimum Order Limits
+
+### 5.1 The Fixed Fee Drag Problem
+Fixed fiat fees ($F_{in} + F_{out} = ₦100$) are constant regardless of trade size. On small trades, the fixed fee per unit ($\frac{F_{total}}{V}$) explodes, consuming the entire gross spread.
+
+### 5.2 Minimum Volume & Limit Derivations
+Let $k$ be the maximum allowable fraction of the target spread consumed by the fixed fee (e.g. $k = 10\%$ or $k = 20\%$):
+$$\frac{F_{in}}{V} \le k \cdot S_{target} \implies V_{min} \ge \frac{F_{in}}{k \cdot S_{target}}$$
+
+In Naira minimum transaction limit ($L_{min} = V_{min} \times P_{buy}$):
+$$L_{min} \ge \frac{F_{in} \cdot P_{buy}}{k \cdot S_{target}}$$
+
+### 5.3 Order Limit Threshold Table ($F_{in} = ₦50, P_{buy} = ₦1,500, S_{target} = ₦5.00/\text{USDT}$)
+
+| Fee Drag Tolerance ($k$) | Fee Drag per USDT | Min Volume ($V_{min}$) | Recommended Min Ad Limit ($L_{min}$) | Status / Recommendation |
+|--------------------------|-------------------|------------------------|---------------------------------------|-------------------------|
+| **100% (Break-even)** | ₦5.00 / USDT | **10.0 USDT** | **₦15,000** | **Absolute Floor**: Below ₦15,000, trade yields net loss. |
+| **50% (High Drag)** | ₦2.50 / USDT | **20.0 USDT** | **₦30,000** | **Marginal**: 50% of profit lost to transfer fee. |
+| **20% (Acceptable)** | ₦1.00 / USDT | **50.0 USDT** | **₦75,000** | **Recommended Standard Limit**. |
+| **10% (Optimal)** | ₦0.50 / USDT | **100.0 USDT** | **₦150,000** | **Institutional / High Efficiency**. |
+| **5% (Ultra-Low Drag)** | ₦0.25 / USDT | **200.0 USDT** | **₦300,000** | **Maximum Capital Yield**. |
+
+---
+
+## 6. Trade Size Tier Verification & Numerical Analysis
+
+We evaluate the mathematical behavior across four standard trade size tiers under:
+- Base Rate: $P = ₦1,500.00 / \text{USDT}$
+- Target Spread: $S_{target} = ₦5.00 / \text{USDT}$
+- Platform Fee: $f_{plat} = 0.30\%$ ($0.003$)
+- Platform Fee per unit: $1500 \times 0.003 = ₦4.50 / \text{USDT}$
+- Exit Price (Market Sell): $P_{exit} = ₦1,520.00 / \text{USDT}$
+
+### 6.1 Summary Comparison Table Across Tiers
+
+| Parameter | Tier 1 (₦5,000) | Tier 2 (₦10,000) | Tier 3 (₦30,000) | Tier 4 (₦100,000) |
+|---|---|---|---|---|
+| **Trade Volume ($V$)** | **3.33 USDT** | **6.67 USDT** | **20.00 USDT** | **66.67 USDT** |
+| **Flat Fiat Fee ($F_{in}$)** | ₦50.00 | ₦50.00 | ₦50.00 | ₦50.00 |
+| **Fiat Fee per USDT ($F_{in}/V$)** | **₦15.00 / USDT** | **₦7.50 / USDT** | **₦2.50 / USDT** | **₦0.75 / USDT** |
+| **Platform Fee per USDT ($P \times 0.003$)** | ₦4.50 / USDT | ₦4.50 / USDT | ₦4.50 / USDT | ₦4.50 / USDT |
+| **Total Buy Friction per USDT** | **₦19.50 / USDT** | **₦12.00 / USDT** | **₦7.00 / USDT** | **₦5.25 / USDT** |
+| **Max Buy Price ($P_{max,buy}$)** | **₦1,491.43** | **₦1,498.90** | **₦1,503.89** | **₦1,505.63** |
+| **Break-Even Sell (Cost Basis ₦1,500)** | **₦1,519.56** | **₦1,512.04** | **₦1,507.02** | **₦1,505.27** |
+| **Target Sell Price (Cost + ₦5)** | **₦1,524.57** | **₦1,517.05** | **₦1,512.04** | **₦1,510.28** |
+| **Fee Drag % of ₦5 Spread** | **300.0%** (Severe Loss) | **150.0%** (Loss) | **50.0%** (Viable) | **15.0%** (Optimal) |
+| **Threshold Model Fee ($F_{in}$)** | ₦0.00 | ₦0.00 | ₦50.00 | ₦50.00 |
+| **Threshold $P_{max,buy}$** | **₦1,506.38** | **₦1,506.38** | **₦1,503.89** | **₦1,505.63** |
+
+---
+
+### 6.2 Detailed Tier Profiles
+
+#### Tier 1: ₦5,000 Trade Size (Micro-Trade)
+- **Trade Volume**: $V = 3.3333 \text{ USDT}$.
+- **Flat Fee Model**:
+  - $F_{in} = ₦50.00 \implies \text{Fee per unit} = ₦15.00/\text{USDT}$.
+  - Total round-trip fixed fee drag = $₦30.00/\text{USDT}$.
+  - Combined friction (platform + fixed) = $₦30.00 + ₦9.00 = ₦39.00/\text{USDT}$ ($2.6\%$).
+  - **Verdict: UNPROFITABLE / CRITICAL LOSS**. An advertiser with min limit ₦5,000 and flat ₦50 transfer fee will lose money on every completed micro-order.
+- **Threshold Fee Model ($\le ₦10,000 \implies F = ₦0$)**:
+  - Inflow fee is waived ($₦0$).
+  - Friction is solely the 0.3% platform fee ($₦4.50/\text{USDT}$).
+  - **Verdict: PROFITABLE** only if fintech zero-fee tier applies.
+
+#### Tier 2: ₦10,000 Trade Size (Boundary Kink Point)
+- **Trade Volume**: $V = 6.6667 \text{ USDT}$.
+- **Flat Fee Model**:
+  - $F_{in} = ₦50.00 \implies \text{Fee per unit} = ₦7.50/\text{USDT}$.
+  - Fixed fee consumes 150% of the ₦5.00 target spread.
+  - **Verdict: UNPROFITABLE under flat fee**.
+- **Threshold Fee Model**:
+  - Exactly at the CBN ₦10,000 zero-stamp-duty ceiling ($F = ₦0$).
+  - **Verdict: PROFITABLE** under zero-fee threshold.
+
+#### Tier 3: ₦30,000 Trade Size (Standard Small Trade)
+- **Trade Volume**: $V = 20.0000 \text{ USDT}$.
+- **Fee Profile**:
+  - $F_{in} = ₦50.00 \implies \text{Fee per unit} = ₦2.50/\text{USDT}$.
+  - Platform fee per unit = $₦4.50/\text{USDT}$.
+  - Total buy leg friction = $₦7.00/\text{USDT}$.
+  - Round-trip break-even gross spread = $2 \times 2.50 + 2 \times 4.50 = ₦14.00/\text{USDT}$ ($0.93\%$).
+  - **Verdict: MODERATELY PROFITABLE**. The merchant can achieve a ₦5 spread if market spread $\ge ₦19.00/\text{USDT}$. Fee drag is 50% of target spread.
+
+#### Tier 4: ₦100,000 Trade Size (Optimal Commercial Tier)
+- **Trade Volume**: $V = 66.6667 \text{ USDT}$.
+- **Fee Profile**:
+  - $F_{in} = ₦50.00 \implies \text{Fee per unit} = ₦0.75/\text{USDT}$.
+  - Platform fee per unit = $₦4.50/\text{USDT}$.
+  - Total buy leg friction = $₦5.25/\text{USDT}$.
+  - Round-trip break-even gross spread = $2 \times 0.75 + 2 \times 4.50 = ₦10.50/\text{USDT}$ ($0.70\%$).
+  - Fee drag is only 15% of the ₦5 target spread.
+  - **Verdict: HIGHLY EFFICIENT & RECOMMENDED**. Optimal balance between trade velocity and margin preservation.
+
+---
+
+## 7. Recommendations for Engine & UI Implementation
+
+1. **Parameter Defaults in `pricingEngine.js`**:
+   - `platformFeePct`: default `0.003` (0.3%).
+   - `inflowFee`: default `50.0` (₦50).
+   - `outflowFee`: default `50.0` (₦50).
+   - `avgVolume`: default `100.0` (100 USDT).
+   - `targetSpread`: default `5.0` (₦5.00/USDT).
+2. **Formula Upgrades in `pricingEngine.js`**:
+   - Upgrade `maxBuyPrice` to account for `platformFeePct`:
+     $$P_{max,buy} = \frac{P_{exit} \cdot (1 - \text{platformFeePct}) - \text{targetSpread} - (\text{inflowFee} / \text{avgVolume})}{1 + \text{platformFeePct}}$$
+   - Upgrade `breakEven` and `targetSellPrice` in `calculateSellPricing`:
+     $$P_{break-even} = \frac{\text{costBasis} + (\text{outflowFee} / \text{avgVolume})}{1 - \text{platformFeePct}}$$
+     $$P_{target,sell} = \frac{\text{costBasis} + \text{targetSpread} + (\text{outflowFee} / \text{avgVolume})}{1 - \text{platformFeePct}}$$
+3. **Add Minimum Order Limit Advisor to `pricingEngine.js`**:
+   - Export helper function `calculateRecommendedLimits({ inflowFee, targetSpread, price, maxFeeDragPct = 0.20 })`:
+     $$V_{min} = \frac{\text{inflowFee}}{\text{maxFeeDragPct} \cdot \text{targetSpread}}, \quad L_{min} = V_{min} \cdot \text{price}$$
+4. **UI Additions (`pricing.view.js` and `settings.view.js`)**:
+   - Add Platform Maker Fee input field (`input-platform-fee-pct`, default `0.3%`).
+   - Add Minimum Order Limit recommendation badge/card in Pricing Assistant UI (e.g. "Recommended Min Limit: ₦75,000 to cap fee drag at 20%").
+   - Display Fee Breakdown tooltip/pills showing Maker Fee (₦/USDT) and Transfer Fee (₦/USDT).

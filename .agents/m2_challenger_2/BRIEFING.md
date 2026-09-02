@@ -1,7 +1,7 @@
-# BRIEFING — 2026-08-25T13:46:00Z
+# BRIEFING — 2026-09-02T05:42:00Z
 
 ## Mission
-Adversarially challenge the live delta comparison badge in `js/dashboard.js` with comprehensive stress testing and edge-case validation.
+Empirically challenge DOM rendering, fee breakdown accuracy under live order books, and limit advisor updates across price levels, volume settings, fiat fee scenarios (₦0, ₦50, ₦100), and spread targets.
 
 ## 🔒 My Identity
 - Archetype: Empirical Challenger
@@ -10,6 +10,12 @@ Adversarially challenge the live delta comparison badge in `js/dashboard.js` wit
 - Original parent: a90fce10-da57-446a-b348-94b9b5b8c1a6
 - Milestone: Milestone 2 (Live Delta Comparison Badge)
 - Instance: 2 of 2
+- Archetype: Empirical Challenger (Reactivity & Dynamic DOM)
+- Roles: critic, specialist
+- Working directory: c:\dev\p2p\.agents\m2_challenger_2
+- Current Parent: 51099a74-e962-4f63-9797-559839bfbef9
+- Milestone: Milestone 2 (Dynamic DOM & Order Book Reactivity)
+- Instance: 2 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code directly
@@ -17,40 +23,41 @@ Adversarially challenge the live delta comparison badge in `js/dashboard.js` wit
 - All 4 badge states must be tested: positive growth, negative drawdown, flat/zero, 0-snapshot baseline mode
 - Stress-test edge cases: negative previous snapshot, 0 previous snapshot (0 divisor), corrupted snapshot timestamp, massive integer overflow
 - Provide explicit verdict (APPROVE or REQUEST_CHANGES) in handoff.md
+- Empirically test fee breakdown rendering across diverse price levels (₦1200 - ₦2500) and volumes (10 - 1000 USDT)
+- Empirically test limit advisor text across fiat fees (₦0, ₦50, ₦100) and spread targets (₦2, ₦5, ₦10, ₦20)
+- Execute `node test/run-tests.js` and document findings
 
 ## Current Parent
-- Conversation ID: a90fce10-da57-446a-b348-94b9b5b8c1a6
-- Updated: 2026-08-25T13:46:00Z
+- Conversation ID: 51099a74-e962-4f63-9797-559839bfbef9
+- Updated: 2026-09-02T05:42:00Z
 
 ## Review Scope
-- **Files to review**: `js/dashboard.js`, `js/utils.js`, `js/views/dashboard.view.js`, `test/`
+- **Files to review**: `js/views/pricing.view.js`, `js/pricing.js`, `js/pricingEngine.js`, `js/views/settings.view.js`, `js/settings.js`, `test/`
 - **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, `m2_worker_1/handoff.md`
-- **Review criteria**: correctness, numerical stability, edge cases, DOM rendering, styling classes, baseline handling
+- **Review criteria**: DOM rendering, mathematical fee decomposition, limit advisor recommendations, Bybit live order book parsing, click-to-trade prefill, store reactive sync.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  1. 0-snapshot baseline mode renders neutral badge, info icon, placeholder text, guidance tooltip. -> Confirmed & Verified.
-  2. Positive growth state renders badge-success, trending-up icon, + signs on NGN and %, USDT delta in title. -> Confirmed & Verified.
-  3. Negative drawdown state renders badge-danger, trending-down icon, - signs on NGN and %, negative USDT delta in title. -> Confirmed & Verified.
-  4. Flat/zero delta (|deltaNgn| <= 0.005) renders badge-neutral, minus icon, ₦0.00 (0.00%). -> Confirmed & Verified.
-  5. 0 divisor on previous snapshot baseline guards against NaN/Infinity and renders 0.00%. -> Confirmed & Verified.
-  6. Negative previous snapshots divide by absolute baseline value (|prevNgn|) and handle debt recovery / deepening debt accurately. -> Confirmed & Verified.
-  7. Corrupted/invalid snapshot timestamps and malformed fields fall back gracefully without throwing exceptions. -> Confirmed & Verified.
-  8. Billion-scale numbers (50 Billion NGN) and sub-cent float drift are formatted cleanly. -> Confirmed & Verified.
-  9. Multi-snapshot stores strictly resolve newest snapshot chronologically; deletions dynamically retarget or revert to baseline. -> Confirmed & Verified.
-- **Vulnerabilities found**: 0 critical vulnerabilities in implementation code. All mathematical protections, string formatting, DOM class management, and reactivity handlers are solid.
-- **Untested angles**: All targeted angles exhaustively covered by 20 new adversarial tests.
+  1. Fee breakdown accurately decomposes platform fee, fiat fee per unit, and net cost basis/revenue across ₦1,200–₦2,500 prices and 10–1,000 USDT volumes -> Verified & Confirmed.
+  2. ₦0 fiat fee properly clamps to dust floor (2.0 USDT) and formats "0% fee drag" -> Verified & Confirmed.
+  3. ₦50 and ₦100 fiat transfer fees calculate exact volume bounds ($F / (S \times 0.20)$) and break-even limits ($F / S$) with accurate comma formatting -> Verified & Confirmed.
+  4. Platform Maker Fee adjustments (e.g. VIP 0.15% or 0.25%) dynamically update badges, pills, and calculations via direct input and `store:updated` events -> Verified & Confirmed.
+  5. Live Bybit order books correctly parse bids/asks, format limits (e.g., ₦10,000 - ₦350,000 or "No Limit"), and map click-to-trade directions accurately -> Verified & Confirmed.
+- **Vulnerabilities found**: 0 defects in pricingEngine, pricing controller, or view templates. Fixed test harness mock setup where `window.CustomEvent` needed to be attached to window instance.
+- **Untested angles**: All targeted angles covered by 8 sections with 27 sub-suites (718 tests overall).
 
 ## Loaded Skills
-- None specified by parent.
+- None specified.
 
 ## Key Decisions Made
-- Authored `test/challenger-m2-delta-badge-stress.test.js` containing 20 dedicated test cases.
-- Executed full test suite (445 tests total) with 100% pass rate.
+- Expanded `test/challenger-2-boundary-fuzzing-stress.test.js` with Sections 5, 6, 7, and 8 covering fee breakdown matrices, limit advisor scenarios, controller reactivity, and order book prefill.
+- Added `window.CustomEvent = MockCustomEvent;` in `test/harness/dom-mock.js`.
+- Verified 100% pass across all 718 tests via `node test/run-tests.js`.
 - Issued final verdict: **APPROVE**.
 
 ## Artifact Index
-- `c:\dev\p2p\.agents\m2_challenger_2\DISPATCH.md` — Initial dispatch message
-- `c:\dev\p2p\.agents\m2_challenger_2\progress.md` — Progress tracker
-- `c:\dev\p2p\.agents\m2_challenger_2\handoff.md` — Final handoff report
-- `c:\dev\p2p\test\challenger-m2-delta-badge-stress.test.js` — Adversarial stress test suite
+- `c:\dev\p2p\.agents\m2_challenger_2\DISPATCH.md` — Dispatch record
+- `c:\dev\p2p\.agents\m2_challenger_2\progress.md` — Progress log
+- `c:\dev\p2p\.agents\m2_challenger_2\challenge.md` — Empirical challenge report
+- `c:\dev\p2p\.agents\m2_challenger_2\handoff.md` — 5-Component handoff report with verdict
+- `c:\dev\p2p\test\challenger-2-boundary-fuzzing-stress.test.js` — Expanded empirical test suite

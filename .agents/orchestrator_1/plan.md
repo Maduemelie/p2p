@@ -1,12 +1,24 @@
-# Plan — Pricing & Arbitrage Assistant Refactoring
+# Execution Plan: Bybit P2P Platform Fees & Net Profit Optimization
 
-## Objectives
-1. Perform comprehensive survey of the codebase (`server.js`, `js/pricing.js`, `js/pricingEngine.js`, `js/views/pricing.view.js`, tests, api endpoints).
-2. Establish `PROJECT.md` with Feature Inventory, Architecture, Milestone Decomposition, and Interface Contracts.
-3. Establish `TEST_INFRA.md` and E2E / Unit testing strategy.
-4. Execute milestones:
-   - M1: Server Bybit P2P market depth side mapping (`server.js` `/api/market-depth`).
-   - M2: Pricing engine mathematical models (`calculateBuyPricing`, `calculateSellPricing`, spread protection, undercutting/outbidding rules).
-   - M3: UI / View rendering consistency (`pricing.view.js`, `pricing.js` DOM elements, badges, maker/taker labels, orderbook display).
-   - Final: 100% test pass verification and adversarial hardening.
-5. Synthesize results and report.
+## 1. Objective
+Enhance Bybit P2P Tracker engine and UI to support:
+- 0.3% Bybit maker platform transaction fee (and custom configurable percentage)
+- Inflow/outflow fiat transfer fees (e.g. ₦50 for transfer > ₦10,000)
+- Optimal order limit recommendations taking fixed fee overhead into account
+- Complete engine integration in `js/pricingEngine.js`, `js/pricing.js`, `js/utils.js`, `js/dashboard.js`
+- UI controls in `js/views/pricing.view.js` and `js/views/settings.view.js`
+- Comprehensive test coverage in `test/tier1-feature-coverage/pricing-engine.test.js`
+
+## 2. Phase Breakdown
+- **Phase 0: Survey & Exploration**
+  - Explorer 1: Inspect `js/pricingEngine.js`, `js/pricing.js`, `js/utils.js`, `js/dashboard.js`, existing fee calculations, rates, limits.
+  - Explorer 2: Inspect `js/views/pricing.view.js`, `js/views/settings.view.js`, UI state management, settings persistence, input controls.
+  - Explorer 3 / Spec Miner: Inspect test infrastructure (`test/tier1-feature-coverage/pricing-engine.test.js`, runner, package.json), fee math formulas, test expectations.
+- **Phase 1: Synthesis & PROJECT.md Architecture**
+  - Synthesize reports into `PROJECT.md` (Architecture, Feature Inventory, Milestones, Interface Contracts).
+- **Phase 2: Milestone Execution**
+  - M1: Pricing Engine & Utilities (Worker -> Reviewers -> Challenger -> Auditor)
+  - M2: UI & Settings Views (Worker -> Reviewers -> Challenger -> Auditor)
+  - M3: Unit & Regression Tests (Worker / Test Writer -> Reviewers -> Challenger -> Auditor)
+- **Phase 3: Final E2E Gate Verification & Handoff**
+  - Full test suite run, multi-perspective reviews, clean forensic audit.

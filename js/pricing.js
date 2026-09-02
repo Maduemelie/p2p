@@ -10,7 +10,8 @@ import { formatNGN, calculateFIFOInventoryAndPnL, escapeHtml } from './utils.js'
 import {
   filterCompetitorAds,
   calculateBuyPricing,
-  calculateSellPricing
+  calculateSellPricing,
+  calculateRecommendedLimits
 } from './pricingEngine.js';
 
 // Cache for market depth to allow local calculation runs without API spam
@@ -24,23 +25,33 @@ export function initPricing() {
   // Listen for store modifications to update cost-basis dynamically
   window.addEventListener('store:updated', (e) => {
     if (e.detail?.type === 'trades' || e.detail?.type === 'all' || e.detail?.type === 'settings') {
+      if (e.detail?.type === 'settings' || e.detail?.type === 'all') {
+        loadSavedSettings();
+      }
       calculateMargins();
     }
   });
 }
 
 /**
- * Load input preferences from localStorage or fall back to defaults
+ * Load input preferences from localStorage or fall back to store/defaults
  */
 function loadSavedSettings() {
-  const spread = localStorage.getItem('bybit_p2p_pricing_spread') || '5.0';
-  const vol = localStorage.getItem('bybit_p2p_pricing_volume') || '100';
-  const inflow = localStorage.getItem('bybit_p2p_pricing_inflow') || '50';
-  const outflow = localStorage.getItem('bybit_p2p_pricing_outflow') || '50';
-  const mode = localStorage.getItem('bybit_p2p_pricing_mode') || 'avg-10';
-  const depthLimit = localStorage.getItem('bybit_p2p_pricing_depth_limit') || '50';
-  const filterLimits = localStorage.getItem('bybit_p2p_pricing_filter_limits') !== 'false';
+  const storeSettings = store.getSettings ? store.getSettings() : {};
+  const platformFee = localStorage.getItem('bybit_p2p_pricing_platform_fee_pct') 
+    || localStorage.getItem('bybit_p2p_pricing_platform_fee')
+    || (storeSettings.platformFeePct !== undefined ? String(storeSettings.platformFeePct) : '0.3');
+  const spread = localStorage.getItem('bybit_p2p_pricing_spread') || (storeSettings.targetSpread !== undefined ? String(storeSettings.targetSpread) : '5.0');
+  const vol = localStorage.getItem('bybit_p2p_pricing_volume') || (storeSettings.avgVolume !== undefined ? String(storeSettings.avgVolume) : '100');
+  const inflow = localStorage.getItem('bybit_p2p_pricing_inflow') || (storeSettings.inflowFee !== undefined ? String(storeSettings.inflowFee) : '50');
+  const outflow = localStorage.getItem('bybit_p2p_pricing_outflow') || (storeSettings.outflowFee !== undefined ? String(storeSettings.outflowFee) : '50');
+  const mode = localStorage.getItem('bybit_p2p_pricing_mode') || (storeSettings.pricingMode || 'avg-10');
+  const depthLimit = localStorage.getItem('bybit_p2p_pricing_depth_limit') || (storeSettings.depthLimit !== undefined ? String(storeSettings.depthLimit) : '50');
+  const filterLimits = localStorage.getItem('bybit_p2p_pricing_filter_limits') !== null
+    ? localStorage.getItem('bybit_p2p_pricing_filter_limits') !== 'false'
+    : (storeSettings.filterLimits !== undefined ? storeSettings.filterLimits : true);
 
+  const elPlatformFee = document.getElementById('input-platform-fee-pct') || document.getElementById('input-platform-fee');
   const elSpread = document.getElementById('input-target-spread');
   const elVol = document.getElementById('input-avg-volume');
   const elInflow = document.getElementById('input-inflow-fee');
@@ -49,6 +60,7 @@ function loadSavedSettings() {
   const elDepthLimit = document.getElementById('input-depth-limit');
   const elFilterLimits = document.getElementById('input-filter-limits');
 
+  if (elPlatformFee) elPlatformFee.value = platformFee;
   if (elSpread) elSpread.value = spread;
   if (elVol) elVol.value = vol;
   if (elInflow) elInflow.value = inflow;
@@ -59,9 +71,10 @@ function loadSavedSettings() {
 }
 
 /**
- * Persist pricing inputs to localStorage
+ * Persist pricing inputs to localStorage and store
  */
 function saveSettings() {
+  const elPlatformFee = document.getElementById('input-platform-fee-pct') || document.getElementById('input-platform-fee');
   const elSpread = document.getElementById('input-target-spread');
   const elVol = document.getElementById('input-avg-volume');
   const elInflow = document.getElementById('input-inflow-fee');
@@ -70,6 +83,11 @@ function saveSettings() {
   const elDepthLimit = document.getElementById('input-depth-limit');
   const elFilterLimits = document.getElementById('input-filter-limits');
 
+  const platformFeeVal = elPlatformFee ? elPlatformFee.value : '0.3';
+  if (elPlatformFee) {
+    localStorage.setItem('bybit_p2p_pricing_platform_fee_pct', platformFeeVal);
+    localStorage.setItem('bybit_p2p_pricing_platform_fee', platformFeeVal);
+  }
   if (elSpread) localStorage.setItem('bybit_p2p_pricing_spread', elSpread.value);
   if (elVol) localStorage.setItem('bybit_p2p_pricing_volume', elVol.value);
   if (elInflow) localStorage.setItem('bybit_p2p_pricing_inflow', elInflow.value);
@@ -77,6 +95,19 @@ function saveSettings() {
   if (elMode) localStorage.setItem('bybit_p2p_pricing_mode', elMode.value);
   if (elDepthLimit) localStorage.setItem('bybit_p2p_pricing_depth_limit', elDepthLimit.value);
   if (elFilterLimits) localStorage.setItem('bybit_p2p_pricing_filter_limits', elFilterLimits.checked.toString());
+
+  if (store.saveSettings) {
+    store.saveSettings({
+      platformFeePct: parseFloat(platformFeeVal) || 0.3,
+      targetSpread: elSpread ? parseFloat(elSpread.value) || 5.0 : 5.0,
+      avgVolume: elVol ? parseFloat(elVol.value) || 100.0 : 100.0,
+      inflowFee: elInflow ? parseFloat(elInflow.value) || 50.0 : 50.0,
+      outflowFee: elOutflow ? parseFloat(elOutflow.value) || 50.0 : 50.0,
+      pricingMode: elMode ? elMode.value : 'avg-10',
+      depthLimit: elDepthLimit ? parseInt(elDepthLimit.value, 10) || 50 : 50,
+      filterLimits: elFilterLimits ? elFilterLimits.checked : true
+    });
+  }
 }
 
 /**
@@ -84,6 +115,8 @@ function saveSettings() {
  */
 function setupListeners() {
   const inputs = [
+    'input-platform-fee-pct',
+    'input-platform-fee',
     'input-target-spread',
     'input-avg-volume',
     'input-inflow-fee',
@@ -166,10 +199,25 @@ export async function refreshPricingData(showToast = false) {
 /**
  * Build dynamic pricing suggestions combining local FIFO state & public ad depth
  */
-function calculateMargins() {
+export function calculateMargins() {
   if (!cachedMarketDepth) return;
 
   // Retrieve user settings values
+  const elPlatformFee = document.getElementById('input-platform-fee-pct') || document.getElementById('input-platform-fee');
+  let platformFeePct = 0;
+  if (elPlatformFee) {
+    platformFeePct = parseFloat(elPlatformFee.value);
+    if (isNaN(platformFeePct)) platformFeePct = 0.3;
+  } else {
+    const savedFee = localStorage.getItem('bybit_p2p_pricing_platform_fee_pct') || localStorage.getItem('bybit_p2p_pricing_platform_fee');
+    if (savedFee !== null && savedFee !== undefined && savedFee !== '') {
+      platformFeePct = parseFloat(savedFee);
+      if (isNaN(platformFeePct)) platformFeePct = 0;
+    } else {
+      platformFeePct = 0;
+    }
+  }
+
   const targetSpread = parseFloat(document.getElementById('input-target-spread')?.value) || 5.0;
   const avgVolume = parseFloat(document.getElementById('input-avg-volume')?.value) || 100.0;
   const inflowFee = parseFloat(document.getElementById('input-inflow-fee')?.value) || 50.0;
@@ -213,6 +261,8 @@ function calculateMargins() {
     sortedSellAds,
     targetSpread,
     inflowFee,
+    outflowFee,
+    platformFeePct,
     avgVolume,
     pricingMode
   });
@@ -262,6 +312,34 @@ function calculateMargins() {
     if (elBuyStatus) elBuyStatus.innerHTML = '<span class="badge badge-neutral">Offline</span>';
   }
 
+  // Update Buy Maker Badge
+  const elBuyMakerBadge = document.getElementById('pricing-buy-maker-badge');
+  if (elBuyMakerBadge) elBuyMakerBadge.textContent = `${platformFeePct.toFixed(2)}% Maker Fee`;
+
+  // Render Buy Fee Breakdown & Limits Recommendation (if UI elements exist)
+  const elBuyFeeBreakdown = document.getElementById('pricing-buy-fee-breakdown');
+  if (elBuyFeeBreakdown && buyAnalysis.feeBreakdown) {
+    elBuyFeeBreakdown.innerHTML = `
+      <div class="fee-breakdown-pills">
+        <span class="badge badge-neutral tiny">Maker Fee: ₦${buyAnalysis.feeBreakdown.platformFeePerUnit.toFixed(2)}/USDT</span>
+        <span class="badge badge-neutral tiny">Fiat Inflow: ₦${(inflowFee / avgVolume).toFixed(2)}/USDT</span>
+        <span class="badge badge-primary tiny">Net Cost Basis: ₦${buyAnalysis.feeBreakdown.effectiveCostBasis.toFixed(2)}/USDT</span>
+      </div>
+    `;
+  }
+
+  const buyLimits = calculateRecommendedLimits(
+    buyAnalysis.suggestedBuy || buyAnalysis.exitPrice || 1500,
+    targetSpread,
+    inflowFee,
+    { platformFeePct, maxFeeDragRatio: 0.20 }
+  );
+
+  const elBuyLimitRec = document.getElementById('pricing-buy-limit-rec') || document.getElementById('pricing-recommended-buy-limit');
+  if (elBuyLimitRec) {
+    elBuyLimitRec.innerHTML = `<span class="small text-muted font-mono"><i data-lucide="shield-alert"></i> ${buyLimits.recommendedText}</span>`;
+  }
+
   // -------------------------------------------------------------
   // B. SELL SIDE: prices you should sell at
   // -------------------------------------------------------------
@@ -270,6 +348,7 @@ function calculateMargins() {
     costBasis,
     targetSpread,
     outflowFee,
+    platformFeePct,
     avgVolume,
     pricingMode
   });
@@ -322,7 +401,47 @@ function calculateMargins() {
     if (elSuggestedSell) elSuggestedSell.textContent = '—';
     if (elSellStatus) elSellStatus.innerHTML = '<span class="badge badge-neutral">No inventory costs found</span>';
   }
+
+  // Update Sell Maker Badge
+  const elSellMakerBadge = document.getElementById('pricing-sell-maker-badge');
+  if (elSellMakerBadge) elSellMakerBadge.textContent = `${platformFeePct.toFixed(2)}% Maker Fee`;
+
+  // Render Sell Fee Breakdown & Limits Recommendation (if UI elements exist)
+  const elSellFeeBreakdown = document.getElementById('pricing-sell-fee-breakdown');
+  if (elSellFeeBreakdown && sellAnalysis.feeBreakdown) {
+    elSellFeeBreakdown.innerHTML = `
+      <div class="fee-breakdown-pills">
+        <span class="badge badge-neutral tiny">Maker Fee: ₦${sellAnalysis.feeBreakdown.platformFeePerUnit.toFixed(2)}/USDT</span>
+        <span class="badge badge-neutral tiny">Fiat Outflow: ₦${(outflowFee / avgVolume).toFixed(2)}/USDT</span>
+        <span class="badge badge-success tiny">Net Revenue: ₦${sellAnalysis.feeBreakdown.netRealizedRevenue.toFixed(2)}/USDT</span>
+      </div>
+    `;
+  }
+
+  const sellLimits = calculateRecommendedLimits(
+    sellAnalysis.suggestedSell || costBasis || 1500,
+    targetSpread,
+    outflowFee,
+    { platformFeePct, maxFeeDragRatio: 0.20 }
+  );
+
+  const elSellLimitRec = document.getElementById('pricing-sell-limit-rec') || document.getElementById('pricing-recommended-sell-limit');
+  if (elSellLimitRec) {
+    elSellLimitRec.innerHTML = `<span class="small text-muted font-mono"><i data-lucide="shield-alert"></i> ${sellLimits.recommendedText}</span>`;
+  }
+
+  if (window.lucide) window.lucide.createIcons();
+
+  return {
+    buyAnalysis,
+    sellAnalysis,
+    buyLimits,
+    sellLimits
+  };
 }
+
+// Alias for calculateMargins as calculatePricing
+export const calculatePricing = calculateMargins;
 
 /**
  * Render P2P market depth items in tabular forms

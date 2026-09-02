@@ -144,19 +144,17 @@ export async function syncAndRenderActiveAd(showToast = false) {
       return s === '1' || s === 'SELL';
     };
 
-    const isOnlineStatus = (status) => {
-      if (status === undefined || status === null) return false;
+    const isOnlineOrActiveStatus = (status) => {
+      if (status === undefined || status === null || status === '') return true;
       const s = String(status).trim().toUpperCase();
-      // Status 10 or 1 or 'ONLINE' or 'ACTIVE' = Live on orderbook.
-      // Status 20, 30, 2 = Offline / Paused / Removed / Inactive.
-      return s === '10' || s === '1' || s === 'ONLINE' || s === 'ACTIVE';
+      return s !== '30' && s !== 'CANCELLED' && s !== 'CANCELED' && s !== 'DELETED';
     };
 
-    // Extract Sell Ad (Strictly active online ads only)
-    const activeSellAd = ads.find(a => isSellSide(a) && isOnlineStatus(a.status)) || null;
+    // Extract Sell Ad (online or paused/offline)
+    const activeSellAd = ads.find(a => isSellSide(a) && isOnlineOrActiveStatus(a.status)) || null;
       
-    // Extract Buy Ad (Strictly active online ads only)
-    const activeBuyAd = ads.find(a => isBuySide(a) && isOnlineStatus(a.status)) || null;
+    // Extract Buy Ad (online or paused/offline)
+    const activeBuyAd = ads.find(a => isBuySide(a) && isOnlineOrActiveStatus(a.status)) || null;
 
     setActiveAd(activeSellAd);
 

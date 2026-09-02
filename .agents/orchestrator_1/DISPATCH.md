@@ -1,24 +1,21 @@
-## 2026-09-01T13:00:38Z
+# Dispatch Log
 
-You are the Project Orchestrator for the Pricing & Arbitrage Assistant refactoring project.
+## 2026-09-02T05:08:25Z
 
-Your assigned working directory is: `c:\dev\p2p\.agents\orchestrator_1` (create this directory if needed, and maintain your `BRIEFING.md`, `plan.md`, and `progress.md` there).
-The authoritative user request is recorded in: `c:\dev\p2p\.agents\ORIGINAL_REQUEST.md`.
+You are the Project Orchestrator for the following project.
 
-Workspace root: `c:\dev\p2p`
+Identity: orchestrator_1
+Working Directory: c:\dev\p2p\.agents\orchestrator_1
+Project Workspace: c:\dev\p2p
+Original Request File: c:\dev\p2p\.agents\ORIGINAL_REQUEST.md
 
-Task Overview:
-Review and refactor the Pricing & Arbitrage Assistant page (`js/pricing.js`, `js/pricingEngine.js`, `js/views/pricing.view.js`, and `server.js`) to fix inverted market depth orderbooks, side assignment, outbidding/undercutting math, and UI badges.
+Please review the user request in c:\dev\p2p\.agents\ORIGINAL_REQUEST.md:
+"Research Bybit P2P platform maker transaction fees (0.3%) and local transfer fees (e.g. ₦50 for transactions > ₦10,000), then update the Bybit P2P Tracker engine (js/pricingEngine.js, js/pricing.js, js/utils.js, js/dashboard.js, and js/views/pricing.view.js) to incorporate percentage platform fees and transaction limits for net profit optimization."
 
 Key Requirements:
-1. R1. Market Depth & Side Classification Audit:
-   - Verify Bybit P2P API `/v5/p2p/item/online` conventions for `side: 0` (Buy crypto / Sell tab) vs `side: 1` (Sell crypto / Buy tab).
-   - Fix `server.js` `/api/market-depth` to map `buyDepth` and `sellDepth` accurately without inversion.
-2. R2. Arbitrage Math & Strategy Alignment:
-   - Verify `calculateBuyPricing` (outbidding competitor buy ads to acquire USDT at optimal rate while protecting target spread).
-   - Verify `calculateSellPricing` (undercutting competitor sell ads to offload USDT above break-even & target rates).
-3. R3. UI & Label Consistency:
-   - Align cards, orderbook tables, badges, colors (`badge-success`, `badge-primary`), and taker/maker perspective descriptions across `pricing.view.js`.
-4. R4. Verification:
-   - Verify that market depth sync accurately populates the Buy Order Book and Sell Order Book.
-   - Run automated unit tests to verify pricing math determinism.
+- R1: Bybit P2P Fee Model Research & Analysis (0.3% maker transaction fee, interaction with fixed fiat transfer fees across varying trade sizes/limits).
+- R2: Arbitrage Math & Engine Integration in js/pricingEngine.js (platformFeePct default 0.3%, inflowFee/outflowFee default ₦50, simultaneous fee accounting for net cost basis and recommended rates, recommended minimum order limits).
+- R3: UI Controls & Settings in js/views/pricing.view.js and js/views/settings.view.js, fee breakdown and optimal limit recommendations in Pricing Assistant UI.
+- R4: Verification via automated unit tests in test/tier1-feature-coverage/pricing-engine.test.js across varying trade sizes (₦5,000, ₦10,000, ₦30,000, ₦100,000) and ensure all tests pass.
+
+Maintain your plan.md and progress.md in your working directory. Decompose the task, dispatch specialists as needed, execute implementation, run tests to verify 100% accuracy, and report your final results when complete.

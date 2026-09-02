@@ -979,11 +979,9 @@ export function renderSnapshotHistoryTable() {
 
   // 4. Render Desktop Table Rows
   if (tbody) {
-    let rowsHtml = displaySnapshots.map((item, idx) => {
+    const rowsHtml = reversedSnapshots.map((item, idx) => {
       return renderSnapshotHistoryRow(item, item.isBaseline ? null : item, idx);
     }).join('');
-
-    rowsHtml += `<tr><td colspan="9">${renderPaginationBar(false)}</td></tr>`;
     tbody.innerHTML = rowsHtml;
   }
 

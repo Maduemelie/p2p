@@ -43,7 +43,7 @@ export function initSettings() {
   const btnImportTrades = document.getElementById('btn-import-bybit-trades');
 
   function populateOpeningInventory() {
-    const saved = store.getOpeningInventory();
+    const saved = store.getOpeningInventory ? store.getOpeningInventory() : {};
     if (inputOpeningUsdt && saved.startingUsdtBalance > 0) {
       inputOpeningUsdt.value = saved.startingUsdtBalance;
     }
@@ -52,7 +52,65 @@ export function initSettings() {
     }
   }
 
+  // Fee Defaults Form
+  const formFeeDefaults = document.getElementById('form-fee-defaults');
+  const inputSettingPlatformFee = document.getElementById('input-setting-platform-fee') || document.getElementById('input-setting-platform-fee-pct');
+  const inputSettingInflowFee = document.getElementById('input-setting-inflow-fee');
+  const inputSettingOutflowFee = document.getElementById('input-setting-outflow-fee');
+  const inputSettingTargetSpread = document.getElementById('input-setting-target-spread');
+  const inputSettingTargetVolume = document.getElementById('input-setting-target-volume') || document.getElementById('input-setting-avg-volume');
+
+  function populateFeeDefaults() {
+    const settings = store.getSettings ? store.getSettings() : {};
+    if (inputSettingPlatformFee && settings.platformFeePct !== undefined) {
+      inputSettingPlatformFee.value = settings.platformFeePct;
+    }
+    if (inputSettingInflowFee && settings.inflowFee !== undefined) {
+      inputSettingInflowFee.value = settings.inflowFee;
+    }
+    if (inputSettingOutflowFee && settings.outflowFee !== undefined) {
+      inputSettingOutflowFee.value = settings.outflowFee;
+    }
+    if (inputSettingTargetSpread && settings.targetSpread !== undefined) {
+      inputSettingTargetSpread.value = settings.targetSpread;
+    }
+    if (inputSettingTargetVolume && settings.avgVolume !== undefined) {
+      inputSettingTargetVolume.value = settings.avgVolume;
+    }
+  }
+
   populateOpeningInventory();
+  populateFeeDefaults();
+
+  formFeeDefaults?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const platformFeePct = parseFloat(inputSettingPlatformFee?.value) || 0.3;
+    const inflowFee = parseFloat(inputSettingInflowFee?.value) || 50;
+    const outflowFee = parseFloat(inputSettingOutflowFee?.value) || 50;
+    const targetSpread = parseFloat(inputSettingTargetSpread?.value) || 5.0;
+    const avgVolume = parseFloat(inputSettingTargetVolume?.value) || 100;
+
+    if (store.saveSettings) {
+      store.saveSettings({
+        platformFeePct,
+        inflowFee,
+        outflowFee,
+        targetSpread,
+        avgVolume
+      });
+    }
+
+    localStorage.setItem('bybit_p2p_pricing_platform_fee_pct', String(platformFeePct));
+    localStorage.setItem('bybit_p2p_pricing_platform_fee', String(platformFeePct));
+    localStorage.setItem('bybit_p2p_pricing_inflow', String(inflowFee));
+    localStorage.setItem('bybit_p2p_pricing_outflow', String(outflowFee));
+    localStorage.setItem('bybit_p2p_pricing_spread', String(targetSpread));
+    localStorage.setItem('bybit_p2p_pricing_volume', String(avgVolume));
+
+    if (window.showToast) {
+      window.showToast('Trading fee defaults and arbitrage parameters saved!', 'success');
+    }
+  });
 
   formOpening?.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -65,10 +123,11 @@ export function initSettings() {
     }
   });
 
-  // Listen for external restore/sync to refresh opening form
+  // Listen for external restore/sync to refresh opening form and fee defaults
   window.addEventListener('store:updated', (e) => {
     if (e.detail?.type === 'all' || e.detail?.type === 'settings') {
       populateOpeningInventory();
+      populateFeeDefaults();
     }
   });
 
@@ -453,6 +512,11 @@ export function initSettings() {
           store.clearAllData();
           if (inputOpeningUsdt) inputOpeningUsdt.value = '';
           if (inputOpeningCost) inputOpeningCost.value = '';
+          if (inputSettingPlatformFee) inputSettingPlatformFee.value = '0.30';
+          if (inputSettingInflowFee) inputSettingInflowFee.value = '50';
+          if (inputSettingOutflowFee) inputSettingOutflowFee.value = '50';
+          if (inputSettingTargetSpread) inputSettingTargetSpread.value = '5.0';
+          if (inputSettingTargetVolume) inputSettingTargetVolume.value = '100';
           if (window.showToast) window.showToast('All journal data has been cleared.', 'info');
         },
         'danger'

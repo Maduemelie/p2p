@@ -1,79 +1,101 @@
-# Handoff Report: Codebase Architecture Survey for Net Worth & Capital Cycle System
+# Handoff Report: Codebase Survey & Bybit P2P Fee Engine Integration
 
-**Agent**: `survey_explorer_1` (Role: Codebase Architecture Explorer)  
-**Parent**: Project Orchestrator (`a90fce10-da57-446a-b348-94b9b5b8c1a6`)  
-**Working Directory**: `c:\dev\p2p\.agents\survey_explorer_1`  
-**Artifact**: `c:\dev\p2p\.agents\survey_explorer_1\analysis.md`  
+**Agent**: `survey_explorer_1` (Role: Codebase & Engine Explorer)  
+**Working Directory**: `c:\dev\p2p\.agents\survey_explorer_1\`  
+**Target File**: `c:\dev\p2p\.agents\survey_explorer_1\handoff.md`  
+**Reference Report**: `c:\dev\p2p\.agents\survey_explorer_1\analysis.md`  
 
 ---
 
 ## 1. Observation
 
-1. **Project Architecture & Entry Points**:
-   - Web application entry point: `c:\dev\p2p\index.html` loads `<script type="module" src="js/app.js"></script>` and external CDNs `<script src="https://unpkg.com/lucide@latest"></script>` and `<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>` (lines 23–25).
-   - Express server and local proxy: `c:\dev\p2p\server.js` listening on port 3000, serving static root directory via `app.use(express.static(__dirname))` (line 17) and proxying Bybit API requests.
-   - Vercel Serverless proxy: `c:\dev\p2p\api/*.js` (`_bybit.js`, `balance.js`, `orders.js`, `ads.js`, `market-depth.js`, `status.js`).
-   - Service worker: `c:\dev\p2p\sw.js` managing cache `bybit-p2p-v9` with 24 pre-cached assets in `STATIC_ASSETS`.
+1. **`js/pricingEngine.js` Line 123**:
+   `const maxBuyPrice = exitPrice - targetSpread - (inflowFee / safeAvgVol);`
+   The buy pricing calculation accounts only for `inflowFee / safeAvgVol` and ignores Bybit's 0.30% maker percentage fee on the buy and sell sides.
 
-2. **Bank Ledger & Dynamic Balance Computation**:
-   - Located in `c:\dev\p2p\js\store.js` lines 188–257 in `getComputedBankBalances()`.
-   - Formula: `currentBalance = initialBalance - sum(BUY netAmount) + sum(SELL netAmount) - sum(outflow transfer amounts + fees) + sum(inflow transfer amounts)`.
-   - In `c:\dev\p2p\js\dashboard.js` lines 305–322 (`renderDashboardMetrics`), total bank cash is calculated by iterating over `store.getComputedBankBalances()` and summing `rec.currentBalance`.
+2. **`js/pricingEngine.js` Lines 182-185**:
+   ```javascript
+   const breakEven = costBasis + (outflowFee / safeAvgVol);
+   const targetSellPrice = costBasis + targetSpread + (outflowFee / safeAvgVol);
+   ```
+   The sell pricing calculation computes break-even and target sell price assuming gross revenue equals net revenue minus `outflowFee / safeAvgVol`, neglecting the 0.30% platform maker deduction ($P_{sell} \cdot \phi$).
 
-3. **Bybit USDT Funding Balance & Ad Listings State**:
-   - `server.js` lines 200–283 (`/api/balance`) calls Bybit `GET /v5/asset/transfer/query-account-coins-balance` and `POST /v5/p2p/item/personal/list`.
-   - `js/bybitService.js` lines 72–95 (`fetchFundingBalance`) and lines 138–164 (`fetchActiveAds`).
-   - `js/dashboard.js` lines 158–245 (`syncBybitLiveInventory`):
-     - `totalP2P`: fetched from `bybitService.fetchFundingBalance('USDT')`.
-     - `adAllocation`: calculated by summing `lastQuantity + frozenQuantity` for active sell ads (`side === 1 && status !== 30`).
-     - `freeForBuyback = Math.max(0, totalP2P - adAllocation)`.
-   - `js/dashboard.js` lines 55–153 (`syncAndRenderActiveAd`):
-     - Finds active sell ad (`status === 10` or `20`/`2`), extracts `activeSellAd.price`, computes spread vs FIFO holding cost `avgBuyCost`.
+3. **`js/pricing.js` Lines 36-59 & 172-179**:
+   User settings and margin calculation read `targetSpread`, `avgVolume`, `inflowFee`, `outflowFee`, `pricingMode`, `depthLimit`, `filterLimits`. There is no setting or state for `platformFeePct` (default 0.3%).
 
-4. **Storage Keys & Reactive Event Pipeline**:
-   - Existing keys in `c:\dev\p2p\js\store.js` line 8: `bybit_p2p_version`, `bybit_p2p_trades`, `bybit_p2p_banks`, `bybit_p2p_transfers`, `bybit_p2p_settings`, `bybit_p2p_opening_inventory`.
-   - Preferences keys in `js/pricing.js` & `js/app.js`: `bybit_p2p_theme`, `bybit_p2p_proxy_url`, `bybit_p2p_proxy_token`, `bybit_p2p_pricing_*`.
-   - Custom event notification bus: `store.notify(eventType, payload)` dispatches `window.dispatchEvent(new CustomEvent('store:updated', { detail: { type, payload, timestamp } }))` (lines 78–82).
+4. **`js/views/pricing.view.js` Lines 27-101**:
+   The Arbitrage Settings form contains inputs for target spread, target volume, inflow fee, outflow fee, pricing mode, depth limit, and filter limits checkbox. It lacks an input for Bybit Platform Fee % and lacks order limit recommendations.
 
-5. **Test Infrastructure Execution**:
-   - Executing `node test/run-tests.js` executed 133 tests across 4 tiers + challengers.
-   - Result: 133 passed, 0 failed, duration 14.2s (100% pass rate).
+5. **`js/fees.js` Lines 180-217 (`calculateFintechTradeFees`)**:
+   Calculates ₦10 inter-bank transfer fee ($\ge ₦5,000$) and ₦50 EMTL stamp duty ($\ge ₦10,000$) for BUY trades, and ₦0 for SELL trades.
+
+6. **`test/tier1-feature-coverage/pricing-engine.test.js` Lines 184-395**:
+   25 unit tests verify existing pure mathematical behavior with 0% platform fee assumption.
+
+7. **Test Runner Execution (`node test/run-tests.js`)**:
+   Executed 676 tests across all tiers; 667 passed. All existing pricing engine unit tests, dust filter tests, and challenger math stress suites passed with 100% fidelity under current baseline conditions.
 
 ---
 
 ## 2. Logic Chain
 
-1. **State Accessibility**: From Observation #2, bank balances are computed on demand in `store.getComputedBankBalances()` and total cash across all linked bank accounts is accessible via pure summation.
-2. **Crypto Valuation**: From Observation #3, total Bybit USDT funding balance is accessible via `bybitService.fetchFundingBalance('USDT')` / `syncBybitLiveInventory()`, with the live Bybit sell ad price from `syncAndRenderActiveAd()` serving as the primary real-time conversion rate.
-3. **Net Worth Synthesis**: Combining total bank cash (Observation #2) and total Bybit USDT balance multiplied by reference rate (Observation #3) yields live Net Worth in NGN and USDT (`NGN = Bank Cash + (USDT * Rate)`, `USDT = (Bank Cash / Rate) + USDT`).
-4. **Snapshot Storage Extension**: From Observation #4, adding `STORAGE_KEYS.NET_WORTH_SNAPSHOTS = 'bybit_p2p_net_worth_snapshots'` follows the identical pattern of existing store collections (`trades`, `banks`, `transfers`) with full integration into `exportAllData()` and `importAllData()`.
-5. **Chart & UI Feasibility**: From Observation #1, Chart.js is already imported in `index.html` and used in `js/dashboard.js` for realized P&L trends. Adding a Net Worth historical line chart and snapshot comparison delta follows the existing chart architecture.
+1. **Fee Asymmetry & Omission**:
+   - Bybit P2P charges makers a **0.30% (0.0030)** transaction fee on completed orders (Observation 1, 2).
+   - At a reference price of ₦1,500/USDT, a 0.30% maker fee equals **₦4.50 / USDT** per leg, or **₦9.00 / USDT** round-trip.
+   - For a standard target spread of $S_{target} = ₦5.00/\text{USDT}$, omitting this ₦9.00 fee causes the pricing engine to recommend rates that produce a net loss ($-₦4.00/\text{USDT}$) while displaying a positive spread badge to the user.
+
+2. **Derivation of Net Pricing Equations**:
+   - On the Sell side:
+     $$\text{Net Revenue} = P_{sell} \cdot (1 - \phi) - \frac{F_{out}}{V}$$
+     Setting $\text{Net Revenue} = C_{fifo}$ yields:
+     $$P_{breakEven} = \frac{C_{fifo} + \frac{F_{out}}{V}}{1 - \phi}$$
+     Setting $\text{Net Revenue} = C_{fifo} + S_{target}$ yields:
+     $$P_{targetSell} = \frac{C_{fifo} + S_{target} + \frac{F_{out}}{V}}{1 - \phi}$$
+   - On the Buy side:
+     $$\text{Net Exit Revenue} = P_{exit} \cdot (1 - \phi) - \frac{F_{out}}{V}$$
+     $$\text{Effective Buy Cost} = \frac{P_{buy}}{1 - \phi} + \frac{F_{in}}{V}$$
+     Setting $\text{Net Exit Revenue} - \text{Effective Buy Cost} = S_{target}$ yields:
+     $$P_{maxBuy} = (1 - \phi) \cdot \left[ P_{exit} \cdot (1 - \phi) - S_{target} - \frac{F_{in} + F_{out}}{V} \right]$$
+
+3. **Trade Size Regressivity & Order Limits**:
+   - Fixed fiat fees ($F_{in} + F_{out} = ₦100$) scale inversely with trade volume ($V$):
+     - ₦5,000 trade (3.33 USDT) $\implies$ ₦30.00/USDT fee drag (2.00%).
+     - ₦10,000 trade (6.67 USDT) $\implies$ ₦15.00/USDT fee drag (1.00%).
+     - ₦30,000 trade (20.00 USDT) $\implies$ ₦5.00/USDT fee drag (0.33%).
+     - ₦100,000 trade (66.67 USDT) $\implies$ ₦1.50/USDT fee drag (0.10%).
+   - Orders below ₦30,000 incur a fixed fee drag exceeding the target spread. Therefore, an automated `calculateRecommendedLimits` function is required to bound fixed fee drag $\le 20\%$ of target spread (recommending minimum limits $\ge ₦50,000$ to $₦75,000$).
 
 ---
 
 ## 3. Caveats
 
-- In a completely offline or unauthenticated proxy environment where Bybit API calls fail, Bybit USDT balances fall back gracefully to the app's internal FIFO inventory (`fifoResult.remainingInventoryUSDT`) and reference rates fall back to `fifoResult.avgHoldingCostPerUSDT` / `openingInventory.defaultCostBasis` / default rate.
-- No source code modifications were performed during this survey (read-only investigation).
+1. **Bybit Maker Fee Rate Assumption**: The analysis assumes Bybit's standard P2P maker fee of 0.30% for NGN/USDT pairs. VIP tiers or special promotional zero-fee periods can be accommodated via the configurable `platformFeePct` parameter (default 0.30%).
+2. **Taker vs Maker Liquidation on Exit**: The buy side formula assumes subsequent liquidation occurs via an active Sell Ad as maker (paying 0.30% maker fee). If a merchant liquidates as a taker, Bybit taker fee is 0.00%. The unified parameterization allows setting separate buy/sell maker fee rates if desired.
+3. **No Code Modification Undertaken**: In strict compliance with the Explorer archetype, no source files outside `.agents/survey_explorer_1/` were modified.
 
 ---
 
 ## 4. Conclusion
 
-The existing architecture is cleanly modularized and ideal for implementing Requirements R1, R2, and R3:
-- **R1 (Live Net Worth Widget)**: Can be integrated into `js/views/dashboard.view.js` and `js/dashboard.js` by combining `store.getComputedBankBalances()` with `syncBybitLiveInventory()` and `syncAndRenderActiveAd()`.
-- **R2 (Snapshot Logging)**: Can be implemented via `js/store.js` (`bybit_p2p_net_worth_snapshots`), a new modal template in `js/views/modals.view.js`, and form logic in `js/dashboard.js`.
-- **R3 (Historical Comparison & Trend Chart)**: Can be implemented via Chart.js on the dashboard and delta calculation helpers in `js/dashboard.js`, with JSON backup/restore support in `js/export.js`.
+1. The Bybit P2P Tracker engine requires simultaneous percentage fee ($\phi = 0.3\%$) and fixed fiat fee ($F_{in}, F_{out}$) integration across `js/pricingEngine.js`, `js/pricing.js`, and `js/views/pricing.view.js`.
+2. Closed-form algebraic solutions have been established and fully documented in `analysis.md` for:
+   - `calculateBuyPricing` (incorporating $P_{maxBuy}$ discount factor $(1 - \phi)$ and full round-trip fee amortization).
+   - `calculateSellPricing` (incorporating $P_{breakEven}$ and $P_{targetSell}$ divisor $(1 - \phi)$).
+   - `calculateRecommendedLimits` (recommending minimum order limits to suppress fixed fee drag).
+3. The proposed changes preserve existing modularity, require zero backend changes, and can be validated deterministically via unit test additions in `test/tier1-feature-coverage/pricing-engine.test.js`.
 
 ---
 
 ## 5. Verification Method
 
-- **Test Suite Command**:
-  ```bash
-  node test/run-tests.js
-  ```
-- **Inspect Artifact**:
-  - Review detailed survey findings in `c:\dev\p2p\.agents\survey_explorer_1\analysis.md`.
-- **Invalidation Condition**:
-  - The findings in this report would be invalidated if the project structure, store contracts in `js/store.js`, or Bybit API schemas in `server.js` were fundamentally altered without maintaining the reactive event bus or FIFO engine.
+1. **Inspect Analysis Report**:
+   Read `c:\dev\p2p\.agents\survey_explorer_1\analysis.md` for mathematical proofs, sensitivity matrices, and code blueprints.
+2. **Execute Existing Test Baseline**:
+   ```bash
+   node test/run-tests.js --tier=1
+   ```
+3. **Verification of New Mathematical Invariants**:
+   - Check that for `costBasis = 1500`, `outflowFee = 50`, `avgVolume = 100`, `platformFeePct = 0.3`:
+     $$breakEven = \frac{1500 + 0.50}{1 - 0.003} = \frac{1500.50}{0.997} \approx ₦1505.015 / \text{USDT}$$
+   - Check that for `exitPrice = 1550`, `targetSpread = 5`, `inflowFee = 50`, `outflowFee = 50`, `avgVolume = 100`, `platformFeePct = 0.3`:
+     $$P_{maxBuy} = 0.997 \cdot [ 1550 \cdot 0.997 - 5.0 - 1.00 ] = 0.997 \cdot [ 1545.35 - 6.00 ] = 0.997 \cdot 1539.35 \approx ₦1534.73 / \text{USDT}$$

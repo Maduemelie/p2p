@@ -1,60 +1,47 @@
-# BRIEFING — 2026-08-25T13:24:10Z
+# BRIEFING — 2026-09-02T05:25:00Z
 
 ## Mission
-Adversarially and objectively review Milestone 1 calculation engine, store methods, export integration, and tests for correctness, edge-case safety, test validity, and non-regression.
+Mathematical & Engine Review of Milestone 1 implementations (Bybit 0.30% maker fee, fiat transfer fee formulation, pricing engine, pricing module, and store schema/migration).
 
 ## 🔒 My Identity
 - Archetype: reviewer_critic
 - Roles: reviewer, critic
 - Working directory: c:\dev\p2p\.agents\m1_reviewer_1
-- Original parent: a90fce10-da57-446a-b348-94b9b5b8c1a6
-- Milestone: Milestone 1
+- Original parent: 51099a74-e962-4f63-9797-559839bfbef9
+- Milestone: Milestone 1 (M1) - Mathematical Engine Review
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Report any failures as findings
-- Integrity check: actively check for hardcoded test results, facade implementations, bypassed tasks, fabricated verification outputs
-- Full project test suite must be run (`node test/run-tests.js`)
+- Objective review and adversarial stress-testing of mathematical formulations and edge cases
+- Integrity violation check
 
 ## Current Parent
-- Conversation ID: a90fce10-da57-446a-b348-94b9b5b8c1a6
-- Updated: 2026-08-25T13:21:39Z
+- Conversation ID: 51099a74-e962-4f63-9797-559839bfbef9
+- Updated: 2026-09-02T05:25:00Z
 
 ## Review Scope
-- **Files to review**:
-  - `js/utils.js` (`calculateTotalBankCash`, `resolveReferenceRate`, `calculateNetWorth`, `calculateSnapshotDelta`, `validateSnapshot`)
-  - `js/store.js` (`STORAGE_KEYS.NET_WORTH_SNAPSHOTS`, snapshot CRUD, export/import/clear methods)
-  - `js/export.js` (`exportFullBackupJSON`, `importBackupJSON`)
-  - `test/tier1-feature-coverage/r1-m1-calculation-engine.test.js`
-- **Interface contracts**: `PROJECT.md`, `c:\dev\p2p\.agents\ORIGINAL_REQUEST.md`
-- **Review criteria**: correctness, mathematical rigor, edge-case safety, backward compatibility, test suite execution
-
-## Key Decisions Made
-- Confirmed mathematical formulas and zero/negative guards in `js/utils.js` adhere to specifications.
-- Verified LocalStorage CRUD, chronological ordering, and custom event dispatching in `js/store.js`.
-- Verified JSON export and schema validation integration in `js/export.js`.
-- Verified test suite pass rate: 341/341 tests passing (100%).
-- Determined final verdict: APPROVE.
-
-## Artifact Index
-- `c:\dev\p2p\.agents\m1_reviewer_1\handoff.md` — Final review report and verdict
+- **Files to review**: `js/pricingEngine.js`, `js/pricing.js`, `js/store.js`, `test/run-tests.js`, `test/tier1-feature-coverage/pricing-engine.test.js`
+- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`
+- **Review criteria**: Correctness of Bybit fee $\phi = 0.003$ and fiat transfer fee formulas, recommended limits, edge case robustness, backward compatibility, test execution and coverage.
 
 ## Review Checklist
-- **Items reviewed**:
-  - `js/utils.js`: Verified pure math, rate hierarchy, overdraft handling, delta calculation with zero-divisor guards, and snapshot validation.
-  - `js/store.js`: Verified snapshot CRUD, sorting invariants, reactive notification dispatching, backup/restore integration (both replace & merge modes), and clearAllData.
-  - `js/export.js`: Verified backup JSON generation and restore prompt logic.
-  - `test/tier1-feature-coverage/r1-m1-calculation-engine.test.js`: Verified 15 unit tests.
+- **Items reviewed**: `js/pricingEngine.js`, `js/pricing.js`, `js/store.js`, `test/run-tests.js`, `test/tier1-feature-coverage/pricing-engine.test.js`
 - **Verdict**: APPROVE
-- **Unverified claims**: None.
+- **Unverified claims**: None. Full test suite executed and verified independently (685/685 passing).
 
 ## Attack Surface
-- **Hypotheses tested**:
-  - Division by zero in reference rate and snapshot baseline: Verified guarded.
-  - Negative bank cash / overdraft in net worth: Verified preserved and computed accurately.
-  - Out of order snapshot timestamps: Verified sorted chronologically ascending.
-  - Schema corruption during JSON import: Verified sanitized and filtered.
-  - Event listeners receiving store update notifications: Verified `snapshots` and `SNAPSHOTS_UPDATED` fired.
-- **Vulnerabilities found**: 0 critical, 0 major, 0 minor.
-- **Untested angles**: UI component rendering (deferred to Milestone 2, Milestone 3, Milestone 4 reviews).
+- **Hypotheses tested**: Division-by-zero on micro/zero volumes, zero fees degradation, negative spreads, high fees, invalid fee rate representations, store event reactivity.
+- **Vulnerabilities found**: None. All edge cases handled safely with fallback guards.
+- **Untested angles**: UI elements in DOM (scheduled for Milestone 2).
+
+## Key Decisions Made
+- Confirmed mathematical validity of simultaneous maker fee formulation on buy and sell sides.
+- Executed full test suite and issued APPROVE verdict.
+
+## Artifact Index
+- `c:\dev\p2p\.agents\m1_reviewer_1\DISPATCH.md` — Dispatch log
+- `c:\dev\p2p\.agents\m1_reviewer_1\BRIEFING.md` — Persistent briefing
+- `c:\dev\p2p\.agents\m1_reviewer_1\progress.md` — Progress log & liveness heartbeat
+- `c:\dev\p2p\.agents\m1_reviewer_1\review.md` — Comprehensive review report
+- `c:\dev\p2p\.agents\m1_reviewer_1\handoff.md` — Handoff report with verdict (APPROVE)

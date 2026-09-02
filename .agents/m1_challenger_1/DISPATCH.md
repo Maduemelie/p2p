@@ -1,17 +1,9 @@
-## 2026-08-25T13:21:39Z
-You are m1_challenger_1 (Role: Milestone 1 Mathematical Challenger).
-Your working directory is: c:\dev\p2p\.agents\m1_challenger_1
-Your parent is the Project Orchestrator (Conversation ID: a90fce10-da57-446a-b348-94b9b5b8c1a6).
-
-MISSION & OBJECTIVE:
-Adversarially challenge the mathematical correctness, boundaries, and precision of all M1 calculation functions in `js/utils.js`:
-- Generate property-based, fuzzing, and stress test cases.
-- Test extreme numbers: 0, negative values, extreme large numbers, fractional floats, NaN, null, undefined, invalid objects.
-- Test sign-preserving delta calculations when previous net worth is negative or zero.
-- Run tests and deliver an explicit verdict: APPROVE or REQUEST_CHANGES in `c:\dev\p2p\.agents\m1_challenger_1\handoff.md` and send message to parent.
-
-INPUTS:
-- `c:\dev\p2p\.agents\ORIGINAL_REQUEST.md`
-- `c:\dev\p2p\PROJECT.md`
-- `c:\dev\p2p\.agents\m1_worker_1\handoff.md`
-- Codebase at `c:\dev\p2p`
+## 2026-09-02T05:22:30Z
+Task assigned to m1_challenger_1:
+Mathematical Stress & Invariant Challenger.
+Verify correctness and invariants of js/pricingEngine.js:
+- Invariant 1: Sell trade targetSellPrice net profit = S_target * V
+- Invariant 2: Round-trip arbitrage maxBuyPrice and exitPrice net profit = S_target * V
+- Invariant 3: calculateRecommendedLimits fee drag ratio <= 20%
+Empirically test thousands of randomized market conditions.
+Output challenge.md and handoff.md with verdict (APPROVE / REQUEST_CHANGES).

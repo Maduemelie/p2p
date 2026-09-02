@@ -1,40 +1,42 @@
-## 2026-08-25T13:14:42Z
-You are m1_worker_1 (Role: Milestone 1 Implementation Worker).
-Your working directory is: c:\dev\p2p\.agents\m1_worker_1
-Your parent is the Project Orchestrator (Conversation ID: a90fce10-da57-446a-b348-94b9b5b8c1a6).
+## 2026-09-02T05:13:00Z
+
+You are m1_worker_1 (role: Engine & Arbitrage Math Developer).
+Your Working Directory is: c:\dev\p2p\.agents\m1_worker_1
+Read ORIGINAL_REQUEST.md at: c:\dev\p2p\.agents\ORIGINAL_REQUEST.md
+Read PROJECT.md at: c:\dev\p2p\PROJECT.md
+Read Survey Analyses at:
+- c:\dev\p2p\.agents\survey_explorer_1\analysis.md
+- c:\dev\p2p\.agents\survey_explorer_3\analysis.md
 
 MANDATORY INTEGRITY WARNING:
 DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
 
-MISSION & OBJECTIVE:
-Implement Milestone 1 (M1: Core Calculations & Snapshot Store Engine) based on the Explorer specifications:
-1. `js/utils.js`: Implement and export pure mathematical calculation helpers:
-   - `calculateTotalBankCash(computedBankBalances)`: Aggregates balances from Map, Array, or Object, preserving negative overdraft balances and handling nulls/undefined safely.
-   - `resolveReferenceRate(options)`: Priority hierarchy (Active Sell Ad price [status 10/20/2] > Latest Trade rate > FIFO avg buy cost > Opening default cost basis > Fallback 1500.00). Must validate positive finite numbers.
-   - `calculateNetWorth(totalBankCashNgn, totalUsdt, referenceRate)`: Closed-form valuation ($\text{NW}_{\text{NGN}} = T_{\text{bank}} + (U_{\text{bybit}} \times R_{\text{ref}})$ and $\text{NW}_{\text{USDT}} = U_{\text{bybit}} + (T_{\text{bank}} / R_{\text{ref}})$) with zero/negative divisor guards.
-   - `calculateSnapshotDelta(current, previous)`: Absolute and % deltas with zero-division protection and sign-preserving negative baselines.
-   - `validateSnapshot(snapshotData)`: Schema validation, sanitization, default ID/timestamp generation, and auto-derivation of net worth.
-2. `js/store.js`:
-   - Add `STORAGE_KEYS.NET_WORTH_SNAPSHOTS = 'bybit_p2p_net_worth_snapshots'`.
-   - Implement snapshot CRUD: `getSnapshots()`, `getSnapshotById(id)`, `saveSnapshot(snapshotData)`, `deleteSnapshot(id)`, `clearSnapshots()`.
-   - Ensure snapshots are maintained in chronological order (ascending by timestamp).
-   - Ensure `saveSnapshot`, `deleteSnapshot`, and `clearSnapshots` trigger `store.notify('SNAPSHOTS_UPDATED', ...)` / `store:updated`.
-   - Integrate into `store.exportAllData()`, `store.importAllData(data, replace)`, and `store.clearAllData()`.
-3. `js/export.js`:
-   - Ensure backup JSON export and import seamlessly include and validate `snapshots`.
-4. Verification:
-   - Create unit tests for M1 functions and run `node test/run-tests.js`. Ensure 100% tests pass.
-
-WRITE OWNERSHIP:
-- You exclusively own `js/utils.js`, `js/store.js`, `js/export.js`, and new M1 unit tests in `test/`.
-
-INPUTS:
-- `c:\dev\p2p\.agents\ORIGINAL_REQUEST.md`
-- `c:\dev\p2p\PROJECT.md`
-- `c:\dev\p2p\.agents\m1_explorer_1\analysis.md`
-- `c:\dev\p2p\.agents\m1_explorer_2\analysis.md`
-- `c:\dev\p2p\.agents\m1_explorer_3\analysis.md`
-
-OUTPUTS:
-- Write `c:\dev\p2p\.agents\m1_worker_1\handoff.md`
-- Send completion message to parent with build/test results and file list.
+Your task for Milestone 1 (Engine & Arbitrage Math Integration):
+1. Write ownership: You own `js/pricingEngine.js`, `js/pricing.js`, `js/utils.js`, `js/dashboard.js`, and `js/store.js`.
+2. Implement Platform Maker Fee (default `platformFeePct = 0.3` or `0.003`) and Fiat Transfer Fees (`inflowFee`, `outflowFee`, default ₦50) in `js/pricingEngine.js`:
+   - `calculateBuyPricing`:
+     - Incorporate platform maker fee % and fiat transfer fees.
+     - Accurate formula for `maxBuyPrice`:
+       `const maxBuyPrice = (1 - phi) * (exitPrice * (1 - phi) - targetSpread - (inflowFee + outflowFee) / safeAvgVol);` (or algebraic equivalent factoring platform fee on exit and buy legs).
+       Ensure `effectiveSpread`, `feeBreakdown` ({ platformFeePerUnit, fiatFeePerUnit, totalFeePerUnit, effectiveCostBasis }), and suggested buy rates are precisely computed.
+   - `calculateSellPricing`:
+     - Incorporate platform maker fee % and fiat transfer fees.
+     - `breakEven = (costBasis + (outflowFee / safeAvgVol)) / (1 - phi)`
+     - `targetSellPrice = (costBasis + targetSpread + (outflowFee / safeAvgVol)) / (1 - phi)`
+     - Include `feeBreakdown` ({ platformFeePerUnit, fiatFeePerUnit, totalFeePerUnit, netRealizedRevenue }).
+   - `calculateRecommendedLimits(price, targetSpread, fiatFee, options)`:
+     - Compute minimum trade size ($V_{min}$) and minimum fiat limits ($L_{min}$) where fixed fiat fee drag is $\le$ maxFeeDragRatio (default 20% of target spread).
+     - Export this function cleanly in `js/pricingEngine.js`.
+3. Update `js/pricing.js`:
+   - Manage state for `platformFeePct` (default 0.3), read and write to `localStorage` key `bybit_p2p_pricing_platform_fee_pct` and sync with `store.getSettings()`.
+   - Pass `platformFeePct` to `calculateBuyPricing` and `calculateSellPricing`.
+   - Update `calculatePricing()` to output the new fee breakdown and limit recommendations to state and DOM.
+4. Update `js/store.js`:
+   - Add `getSettings()` and `saveSettings(settings)` helper methods with default fallbacks for `platformFeePct: 0.3`, `inflowFee: 50`, `outflowFee: 50`, `targetSpread: 5.0`, `avgVolume: 100`.
+   - Ensure `saveSettings` triggers `store:updated` event with `{ type: 'settings' }`.
+5. Update `js/utils.js` and `js/dashboard.js` if fee or net profit calculations are referenced there.
+6. Verify your implementation by running:
+   `node test/run-tests.js`
+   Document commands run and test output in your handoff report.
+7. Write your changes summary to `c:\dev\p2p\.agents\m1_worker_1\changes.md` and complete handoff report to `c:\dev\p2p\.agents\m1_worker_1\handoff.md`.
+8. Send a message to the orchestrator when complete with the path to your handoff report.

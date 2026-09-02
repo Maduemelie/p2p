@@ -140,6 +140,91 @@ export function renderSettingsView() {
 
       <!-- Tab: Data -->
       <div class="settings-tab-panel" data-settings-panel="data">
+        <!-- Trading Fee Defaults & Arbitrage Parameters -->
+        <div class="card mb-4">
+          <div class="card-header-flex mb-3">
+            <div>
+              <h3 class="card-title">Trading Fee Defaults & Arbitrage Parameters</h3>
+              <p class="card-subtitle">Global defaults applied across Pricing Assistant & calculations</p>
+            </div>
+            <div class="metric-icon-box warning-tint">
+              <i data-lucide="percent"></i>
+            </div>
+          </div>
+
+          <p class="text-muted small mb-3">
+            Configure your standard Bybit P2P platform maker fee percentage and local fiat bank transfer fees.
+            These defaults populate the Pricing Assistant and profit estimators.
+          </p>
+
+          <form id="form-fee-defaults" class="form-grid">
+            <div class="form-group col-12 col-md-4">
+              <label for="input-setting-platform-fee" class="form-label">
+                <i data-lucide="shield-alert"></i> Platform Maker Fee (%)
+              </label>
+              <div class="input-affix-wrapper">
+                <input type="number" step="0.01" min="0" max="10" id="input-setting-platform-fee" class="form-input font-mono" value="0.30" required>
+                <span class="input-suffix">%</span>
+              </div>
+              <p class="form-helper">Bybit P2P maker fee (0.30% standard)</p>
+            </div>
+
+            <div class="form-group col-12 col-md-4">
+              <label for="input-setting-inflow-fee" class="form-label">
+                <i data-lucide="arrow-down-left"></i> Inflow Fiat Fee (₦)
+              </label>
+              <div class="input-affix-wrapper">
+                <span class="input-prefix">₦</span>
+                <input type="number" step="1" min="0" id="input-setting-inflow-fee" class="form-input font-mono" value="50" required>
+                <span class="input-suffix">NGN</span>
+              </div>
+              <p class="form-helper">Bank transfer fee paid when buying crypto</p>
+            </div>
+
+            <div class="form-group col-12 col-md-4">
+              <label for="input-setting-outflow-fee" class="form-label">
+                <i data-lucide="arrow-up-right"></i> Outflow Fiat Fee (₦)
+              </label>
+              <div class="input-affix-wrapper">
+                <span class="input-prefix">₦</span>
+                <input type="number" step="1" min="0" id="input-setting-outflow-fee" class="form-input font-mono" value="50" required>
+                <span class="input-suffix">NGN</span>
+              </div>
+              <p class="form-helper">Bank stamp duty/fee charged when selling crypto</p>
+            </div>
+
+            <div class="form-group col-12 col-md-6">
+              <label for="input-setting-target-spread" class="form-label">
+                <i data-lucide="target"></i> Target Spread (₦)
+              </label>
+              <div class="input-affix-wrapper">
+                <span class="input-prefix">₦</span>
+                <input type="number" step="0.1" min="0.1" id="input-setting-target-spread" class="form-input font-mono" value="5.0" required>
+                <span class="input-suffix">/ USDT</span>
+              </div>
+              <p class="form-helper">Baseline net spread per USDT transacted</p>
+            </div>
+
+            <div class="form-group col-12 col-md-6">
+              <label for="input-setting-target-volume" class="form-label">
+                <i data-lucide="coins"></i> Target Volume (USDT)
+              </label>
+              <div class="input-affix-wrapper">
+                <span class="input-prefix">$</span>
+                <input type="number" step="1" min="1" id="input-setting-target-volume" class="form-input font-mono" value="100" required>
+                <span class="input-suffix">USDT</span>
+              </div>
+              <p class="form-helper">Standard order batch size for fee amortization</p>
+            </div>
+
+            <div class="col-12 text-end mt-2">
+              <button type="submit" class="btn btn-sm btn-primary" id="btn-save-fee-defaults">
+                <i data-lucide="check"></i> Save Fee Defaults
+              </button>
+            </div>
+          </form>
+        </div>
+
         <!-- Opening Inventory -->
         <div class="card mb-4">
           <div class="card-header-flex mb-3">

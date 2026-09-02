@@ -1,14 +1,17 @@
-# Progress — Milestone 1: Core Calculations & Snapshot Store Engine
+# Progress Log - m1_worker_1
 
-Last visited: 2026-08-25T14:21:00Z
+Last visited: 2026-09-02T05:22:00Z
 
+## Status
 - [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] Review input files (PROJECT.md, ORIGINAL_REQUEST.md, explorer analysis reports)
-- [x] Inspect existing codebase (`js/utils.js`, `js/store.js`, `js/export.js`, `test/run-tests.js`)
-- [x] Formulate detailed implementation plan
-- [x] Implement `js/utils.js` mathematical functions (`calculateTotalBankCash`, `resolveReferenceRate`, `calculateNetWorth`, `calculateSnapshotDelta`, `validateSnapshot`)
-- [x] Implement `js/store.js` snapshot CRUD & event handling (`getSnapshots`, `getSnapshotById`, `saveSnapshot`, `deleteSnapshot`, `clearSnapshots`)
-- [x] Implement `js/export.js` snapshot export/import integration
-- [x] Implement comprehensive unit tests in `test/tier1-feature-coverage/r1-m1-calculation-engine.test.js`
-- [x] Run test suite (`node test/run-tests.js`) and ensure 100% pass (341/341 tests pass)
-- [x] Write `handoff.md` and notify parent
+- [x] Read ORIGINAL_REQUEST.md, PROJECT.md, and survey analyses
+- [x] Inspected existing `js/pricingEngine.js`, `js/pricing.js`, `js/store.js`, `js/utils.js`, `js/dashboard.js`, and `test/`
+- [x] Baseline test suite executed
+- [x] Implemented Bybit maker fee calculations, fee breakdowns & `calculateRecommendedLimits` in `pricingEngine.js`
+- [x] Updated `pricing.js` to manage `platformFeePct`, limits, and fee breakdown rendering
+- [x] Updated `store.js` with `getSettings()` and `saveSettings()`
+- [x] Checked and updated `dashboard.js`, `snapshots.js`, and `utils.js`
+- [x] Added unit tests for fee model, limit recommendations, and trade size sensitivity in `pricing-engine.test.js`
+- [x] Ran full test suite (`node test/run-tests.js`) — 685/685 tests passed (100%)
+- [x] Write `changes.md` and `handoff.md`
+- [x] Send completion message to parent

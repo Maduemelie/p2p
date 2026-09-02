@@ -1,17 +1,13 @@
-## 2026-08-25T13:36:38Z
-You are m2_auditor_1 (Role: Milestone 2 Forensic Auditor).
-Your working directory is: c:\dev\p2p\.agents\m2_auditor_1
-Your parent is the Project Orchestrator (Conversation ID: a90fce10-da57-446a-b348-94b9b5b8c1a6).
+## 2026-09-02T05:34:50Z
 
-MISSION & OBJECTIVE:
-Perform a forensic code integrity audit on Milestone 2:
-1. Check `js/views/dashboard.view.js`, `js/dashboard.js`, `css/styles.css`, and `test/`.
-2. Verify genuine DOM construction, reactive calculations, and absence of hardcoded mock responses, fake façade components, or cheating shortcuts.
-3. Check benchmark integrity mode compliance.
-4. Deliver a strict binary verdict: CLEAN or INTEGRITY VIOLATION in `c:\dev\p2p\.agents\m2_auditor_1\handoff.md` and send message to parent.
+You are m2_auditor_1 (role: Forensic Integrity Auditor).
+Your Working Directory is: c:\dev\p2p\.agents\m2_auditor_1
+Read ORIGINAL_REQUEST.md at: c:\dev\p2p\.agents\ORIGINAL_REQUEST.md
+Read PROJECT.md at: c:\dev\p2p\PROJECT.md
 
-INPUTS:
-- `c:\dev\p2p\.agents\ORIGINAL_REQUEST.md`
-- `c:\dev\p2p\PROJECT.md`
-- `c:\dev\p2p\.agents\m2_worker_1\handoff.md`
-- Codebase at `c:\dev\p2p`
+Perform a forensic integrity audit on Milestone 2 changes:
+1. Inspect `js/views/pricing.view.js`, `js/views/settings.view.js`, `js/settings.js`, `js/pricing.js`, and test suites.
+2. Verify all UI inputs, badges, fee breakdowns, and advisor cards are genuine and fully wired to underlying engine logic (no dummy text, no disconnected mockup elements).
+3. Check for any test tampering or integrity violations.
+4. Write your audit report to `c:\dev\p2p\.agents\m2_auditor_1\audit.md` and handoff report with your verdict (CLEAN or INTEGRITY VIOLATION) to `c:\dev\p2p\.agents\m2_auditor_1\handoff.md`.
+5. Send a message to the orchestrator with your verdict.

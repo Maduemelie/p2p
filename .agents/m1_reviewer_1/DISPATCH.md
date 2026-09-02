@@ -1,23 +1,14 @@
-## 2026-08-25T13:21:39Z
-You are m1_reviewer_1 (Role: Milestone 1 Reviewer 1).
-Your working directory is: c:\dev\p2p\.agents\m1_reviewer_1
-Your parent is the Project Orchestrator (Conversation ID: a90fce10-da57-446a-b348-94b9b5b8c1a6).
+## 2026-09-02T05:22:30Z
+You are m1_reviewer_1 (role: Mathematical & Engine Reviewer).
+Your Working Directory is: c:\dev\p2p\.agents\m1_reviewer_1
+Read ORIGINAL_REQUEST.md at: c:\dev\p2p\.agents\ORIGINAL_REQUEST.md
+Read PROJECT.md at: c:\dev\p2p\PROJECT.md
+Read m1_worker_1 handoff at: c:\dev\p2p\.agents\m1_worker_1\handoff.md
+Read m1_worker_1 changes at: c:\dev\p2p\.agents\m1_worker_1\changes.md
 
-MISSION & OBJECTIVE:
-Objectively and adversarially review the code changes made for Milestone 1:
-- `js/utils.js` (bank cash aggregation, rate resolution priority, dual-currency net worth, snapshot deltas, snapshot validation)
-- `js/store.js` (snapshot storage key, CRUD methods, chronological ordering, event notifications, backup/restore/clear methods)
-- `js/export.js` (JSON backup/restore integration)
-- `test/tier1-feature-coverage/r1-m1-calculation-engine.test.js`
-
-CRITERIA:
-1. Correctness against `ORIGINAL_REQUEST.md` and `PROJECT.md`.
-2. Mathematical rigor and edge-case handling (zero divisors, negative cash, invalid rates).
-3. Run the test suite (`node test/run-tests.js`) and document results.
-4. Deliver an explicit verdict: APPROVE or REQUEST_CHANGES in `c:\dev\p2p\.agents\m1_reviewer_1\handoff.md` and send message to parent.
-
-INPUTS:
-- `c:\dev\p2p\.agents\ORIGINAL_REQUEST.md`
-- `c:\dev\p2p\PROJECT.md`
-- `c:\dev\p2p\.agents\m1_worker_1\handoff.md`
-- Codebase at `c:\dev\p2p`
+Review the mathematical and core engine implementations in `js/pricingEngine.js`, `js/pricing.js`, and `js/store.js`:
+1. Check that Bybit 0.30% platform maker fee ($\phi = 0.003$) and fiat transfer fees are correctly formulated for `calculateBuyPricing`, `calculateSellPricing`, and `calculateRecommendedLimits`.
+2. Check edge cases: zero fees, high fees, negative spreads, extreme volumes, missing options, backwards compatibility.
+3. Execute the test suite (`node test/run-tests.js`).
+4. Write your review report to `c:\dev\p2p\.agents\m1_reviewer_1\review.md` and handoff report with your clear verdict (APPROVE or REQUEST_CHANGES) to `c:\dev\p2p\.agents\m1_reviewer_1\handoff.md`.
+5. Send a message to the orchestrator with your verdict and path to your handoff report.

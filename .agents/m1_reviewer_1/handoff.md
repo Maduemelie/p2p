@@ -1,105 +1,70 @@
-# Milestone 1 Review & Adversarial Challenge Report
+# Milestone 1 Mathematical & Core Engine Review Handoff Report
 
-**Reviewer**: `m1_reviewer_1` (Milestone 1 Reviewer & Adversarial Critic)  
-**Parent**: Project Orchestrator (`a90fce10-da57-446a-b348-94b9b5b8c1a6`)  
-**Date**: 2026-08-25  
-**Milestone**: Milestone 1 (M1: Core Calculations & Snapshot Store Engine)  
+**Author**: m1_reviewer_1 (Mathematical & Engine Reviewer / Adversarial Critic)  
+**Date**: 2026-09-02  
+**Milestone**: M1 (Engine & Arbitrage Math Integration)  
+**Type**: Hard Handoff (Task Complete)  
 **Verdict**: **APPROVE**
 
 ---
 
 ## 1. Observation
 
-### 1.1 Source Code Verification
-1. **`c:\dev\p2p\js\utils.js`**:
-   - `calculateTotalBankCash(computedBankBalances)` (Lines 319–363):
-     - Verified support for `Map` instances (iterating `computedBankBalances.values()`), `Array` instances, and plain `Object` dictionaries.
-     - Correctly checks for `.currentBalance` or `.balance`, casts to finite numbers, and handles negative overdraft balances without clipping to 0.
-     - Safely returns `0` for empty, `null`, `undefined`, or non-collection inputs.
-   - `resolveReferenceRate(options)` (Lines 383–461):
-     - Implements 5-tier fallback priority hierarchy:
-       1. Active Bybit Sell Ad price (`options.activeSellAd` where `isSellSide` checks `side === 1` and `isActiveStatus` checks `status in [10, 20, 2]`).
-       2. Latest trade rate (`options.latestTrade`, supporting array sorted chronologically descending, single trade object, or numeric rate).
-       3. FIFO avg buy cost (`options.fifoAvgBuyCost > 0`).
-       4. Opening default cost basis (`options.openingDefaultRate` or `options.openingInventory.defaultCostBasis > 0`).
-       5. Fallback rate (`options.fallbackRate > 0` or default `1500.00`).
-     - Rejects non-positive or non-finite rates at each stage.
-   - `calculateNetWorth(totalBankCashNgn, totalUsdt, referenceRate)` (Lines 474–499):
-     - Mathematical formula implementation:
-       $$\text{NW}_{\text{NGN}} = T_{\text{bank}} + (U_{\text{bybit}} \times R_{\text{ref}})$$
-       $$\text{NW}_{\text{USDT}} = U_{\text{bybit}} + (T_{\text{bank}} / R_{\text{ref}})$$
-     - Division by zero and negative rate guard: when `rate <= 0 || !isFinite(rate)`, returns `netWorthNgn: bankCash` and `netWorthUsdt: usdt`, avoiding `Infinity` or `NaN`.
-     - Rounds `netWorthNgn` and `netWorthUsdt` to 2 decimal places.
-   - `calculateSnapshotDelta(current, previous)` (Lines 510–542):
-     - Absolute differences: $\Delta_{\text{NGN}} = \text{NW}_{\text{NGN, c}} - \text{NW}_{\text{NGN, p}}$, $\Delta_{\text{USDT}} = \text{NW}_{\text{USDT, c}} - \text{NW}_{\text{USDT, p}}$.
-     - Percentage deltas: $\%\Delta = \frac{\Delta}{|\text{NW}_{\text{p}}|} \times 100$.
-     - Division by zero baseline protection: when $|\text{NW}_{\text{p}}| \le 0.000001$, returns `0%`.
-     - Sign-preserving negative baseline handling: transition from negative net worth to positive net worth correctly yields a positive growth percentage.
-     - Gracefully returns all 0s when `current` or `previous` is `null` or `undefined`.
-   - `validateSnapshot(snapshotData)` (Lines 550–631):
-     - Validates object type, positive reference rate (`rate > 0`), valid date string/timestamp, finite bank cash, and non-negative USDT balance (`usdtBalance >= 0`).
-     - Auto-assigns unique ID (`snp_<timestamp>_<rand>`), ISO timestamp, and createdAt if missing.
-     - Derives `netWorthNgn` and `netWorthUsdt` if omitted.
+1. **Inspected Source Files**:
+   - `js/pricingEngine.js` (lines 89-100, 117-213, 229-339, 361-427): Evaluated `normalizeFeeRate`, `calculateBuyPricing`, `calculateSellPricing`, and `calculateRecommendedLimits`.
+   - `js/pricing.js` (lines 36-68, 73-108, 199-335, 410-434): Evaluated settings persistence, fee parameter dispatching, and limit recommendations.
+   - `js/store.js` (lines 302-341, 469-566): Evaluated `getSettings`, `saveSettings`, default constants, and backup serialization.
+   - `test/tier1-feature-coverage/pricing-engine.test.js` (lines 453-583): Evaluated tests `PE.FEE.1-2`, `PE.LIM.1-3`, and `PE.TIER.1-4`.
 
-2. **`c:\dev\p2p\js\store.js`**:
-   - `STORAGE_KEYS.NET_WORTH_SNAPSHOTS` is configured as `'bybit_p2p_net_worth_snapshots'`.
-   - `getSnapshots()` (Lines 310–326): Retrieves, validates array format, and returns snapshots sorted chronologically ascending (`oldest -> newest`).
-   - `getSnapshotById(id)` (Lines 332–336): Retrieves single snapshot or `null`.
-   - `saveSnapshot(snapshotData)` (Lines 347–380): Validates schema, performs upsert, enforces chronological ordering in storage, and dispatches `store:updated` event notifications (`snapshots` and `SNAPSHOTS_UPDATED`).
-   - `deleteSnapshot(id)` (Lines 387–400): Removes snapshot, updates LocalStorage, and dispatches `store:updated` notifications.
-   - `clearSnapshots()` (Lines 405–409): Resets snapshots to `[]` and dispatches notifications.
-   - `exportAllData()` (Lines 413–423): Serializes full application state including `snapshots: this.getSnapshots()`.
-   - `importAllData(data, replace)` (Lines 425–493): Correctly parses snapshots in both replace and merge modes with ID deduplication and sanitization.
-   - `clearAllData()` (Lines 495–504): Cleans up `STORAGE_KEYS.NET_WORTH_SNAPSHOTS` along with all other app collections.
+2. **Automated Test Suite Execution (`node test/run-tests.js`)**:
+   - Executed full test suite containing 685 tests across 5 tiers.
+   - Result:
+     ```
+     Test Execution Summary:
+     Total Tests : 685
+     Passed      : 685
+     Failed      : 0
+     Duration    : 45492ms
 
-3. **`c:\dev\p2p\js\export.js`**:
-   - `exportFullBackupJSON()` includes snapshot collection from `store.exportAllData()`.
-   - `importBackupJSON(file)` includes `snapshots` in schema validation and restore summary prompt dialog.
+     Tier Breakdown:
+       Tier 1  : 430/430 passed (100.0%)
+       Tier 2  : 159/159 passed (100.0%)
+       Tier 3  : 14/14 passed (100.0%)
+       Tier 4  : 10/10 passed (100.0%)
+       Tier 5  : 72/72 passed (100.0%)
+     ```
 
-4. **`c:\dev\p2p\test\tier1-feature-coverage\r1-m1-calculation-engine.test.js`**:
-   - 15 comprehensive unit tests exercising all mathematical edge cases, priority hierarchies, snapshot CRUD operations, and backup/restore flows.
-
-### 1.2 Test Execution Results
-- Executed `node test/run-tests.js`:
-```
-Test Execution Summary:
-Total Tests : 341
-Passed      : 341
-Failed      : 0
-Duration    : 2369ms
-
-Tier Breakdown:
-  Tier 1  : 188/188 passed (100.0%)
-  Tier 2  : 129/129 passed (100.0%)
-  Tier 3  : 14/14 passed (100.0%)
-  Tier 4  : 10/10 passed (100.0%)
-```
+3. **Integrity & Anti-Facade Audit**:
+   - Verified that no hardcoded test values, mock bypasses, or dummy implementations exist in `js/pricingEngine.js`, `js/pricing.js`, or `js/store.js`.
+   - Verified mathematical determinism across all pricing modes (`competitor`, `avg-N`, `vwap-N`).
 
 ---
 
 ## 2. Logic Chain
 
-1. **Mathematical Rigor & Zero Safety**:
-   - Observation: `calculateNetWorth` guards against `rate <= 0` and non-finite rates; `calculateSnapshotDelta` checks `Math.abs(prevNgn) > 0.000001` before dividing.
-   - Logic: No combination of invalid inputs (0 rate, negative cash, null baselines) can produce `NaN`, `Infinity`, or uncaught runtime exceptions in the calculation engine.
+1. **Buy-Side Simultaneous Fee Formulation**:
+   - $P_{maxBuy} = (1 - \phi) \cdot \left[ P_{exit}(1 - \phi) - S_{target} - \frac{F_{in} + F_{out}}{V} \right]$ accounts simultaneously for the maker percentage fee $\phi$ deducted on both legs as well as fixed fiat fees.
+   - At $P_{maxBuy}$, net exit revenue minus effective buy cost equals exactly the target spread $S_{target}$.
+   - Capping `suggestedBuy` at `maxBuyPrice` guarantees that merchant ads never compress profit margins below $S_{target}$.
 
-2. **Hierarchical Determinism**:
-   - Observation: `resolveReferenceRate` evaluates options in strict precedence order: active Sell ad (side 1, online status) -> latest trade -> FIFO cost -> opening default -> fallback.
-   - Logic: The system guarantees a deterministic and valid positive exchange rate regardless of network or inventory state.
+2. **Sell-Side Break-Even & Target Formulation**:
+   - $P_{breakEven} = \frac{C_{fifo} + \frac{F_{out}}{V}}{1 - \phi}$ and $P_{targetSell} = \frac{C_{fifo} + S_{target} + \frac{F_{out}}{V}}{1 - \phi}$ accurately scale holding costs and target margins to account for the Bybit maker fee.
+   - Undercutting competitor prices is floored at `targetSellPrice`, preventing race-to-the-bottom undercutting that would incur net losses.
 
-3. **Store Integrity & Ordering Invariant**:
-   - Observation: Both `getSnapshots()`, `saveSnapshot()`, and `importAllData()` sort snapshots chronologically by ISO timestamp with `createdAt` fallback.
-   - Logic: Downstream time-series visualizers (such as Chart.js in Milestone 4) and sequential delta calculations will always receive data in strict temporal order without inversion anomalies.
+3. **Recommended Minimum Order Limits**:
+   - By constraining fixed fee drag $\frac{F}{V} \le \alpha \cdot S_{target}$ (default $\alpha = 0.20$), `calculateRecommendedLimits` establishes a protective volume floor ($V_{min} = \frac{F}{\alpha \cdot S_{target}}$) preventing micro-trade fee erosion.
 
-4. **Integrity & Non-Evasion Check**:
-   - Observation: All functions in `js/utils.js` and `js/store.js` implement genuine mathematical and storage logic; no hardcoded test mocks, bypasses, or dummy implementations exist.
-   - Logic: The work satisfies all benchmark integrity constraints.
+4. **Edge Case Resilience**:
+   - Safe volume fallbacks prevent division-by-zero on $V \le 0$ or NaN.
+   - Rate normalizer handles both percentage values (`0.3`) and fraction rates (`0.003`).
+   - Pure baseline arithmetic is preserved when fees are zero ($\phi = 0, F = 0$), maintaining 100% backwards compatibility with legacy tests.
 
 ---
 
 ## 3. Caveats
 
-- **UI Rendering Integration**: Full DOM rendering for the Live Net Worth Hero Widget, End Day modal, and Chart.js trend visualization will be implemented and reviewed in Milestones 2, 3, and 4. The underlying calculation and data store contracts reviewed here fully support these downstream interfaces.
+- **Milestone Scope**: Milestone 1 implements and tests the mathematical engine, controllers, and store persistence layer. The full UI controls and settings view cards are scheduled for Milestone 2 (`js/views/pricing.view.js` and `js/views/settings.view.js`).
+- **Fee Rate Input Flexibility**: The `normalizeFeeRate` helper treats inputs $> 0.05$ as percentages (dividing by 100) and inputs $\le 0.05$ as fractions. This covers standard Bybit maker fee tiers (0.1% to 1.0%), but inputs should adhere to either standard percentages (e.g. `0.3`) or fractions (e.g. `0.003`).
 
 ---
 
@@ -107,21 +72,25 @@ Tier Breakdown:
 
 **Verdict: APPROVE**
 
-The Milestone 1 work product meets 100% of the functional, mathematical, and persistence specifications described in `ORIGINAL_REQUEST.md` and `PROJECT.md`. All unit and regression test suites pass with 100% success rate (341/341 tests passing).
+Milestone 1 satisfies all requirements set forth in `PROJECT.md` and `ORIGINAL_REQUEST.md`:
+- Bybit 0.30% platform maker fee math is accurately formulated.
+- Fiat inflow and outflow transfer fees are amortized over trade volumes.
+- Order limit advisor provides mathematical bounds on fee drag.
+- All 685 automated tests pass with zero regressions.
 
 ---
 
 ## 5. Verification Method
 
-To independently reproduce the verification:
-1. Run the entire automated test runner:
-   ```bash
+To independently verify this review:
+1. Run the full automated test suite:
+   ```powershell
    node test/run-tests.js
    ```
-   **Expected**: 341 tests pass, 0 failures.
-2. Run Tier 1 test suites specifically:
-   ```bash
+   Verify 685/685 tests pass (100%).
+2. Run Tier 1 unit tests:
+   ```powershell
    node test/run-tests.js --tier=1
    ```
-   **Expected**: 188 tests pass, 0 failures.
-3. Inspect `c:\dev\p2p\js\utils.js`, `c:\dev\p2p\js\store.js`, and `c:\dev\p2p\js\export.js` for interface contract compliance.
+   Verify 430/430 tests pass.
+3. Review detailed findings in `c:\dev\p2p\.agents\m1_reviewer_1\review.md`.

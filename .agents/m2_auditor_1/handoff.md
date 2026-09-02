@@ -1,104 +1,81 @@
-# Forensic Code Integrity Audit Report — Milestone 2
+# Milestone 2 Forensic Audit Handoff Report
 
-**Work Product**: Milestone 2 (`js/views/dashboard.view.js`, `js/dashboard.js`, `css/styles.css`, `js/utils.js`, `test/tier1-feature-coverage/r1-m2-net-worth-widget.test.js`)  
-**Auditor**: `m2_auditor_1` (Role: Milestone 2 Forensic Auditor)  
-**Parent Agent**: Project Orchestrator (`a90fce10-da57-446a-b348-94b9b5b8c1a6`)  
-**Profile**: General Project / Benchmark Integrity Mode  
+**Agent**: `m2_auditor_1` (Role: Forensic Integrity Auditor)  
+**Parent Agent**: Project Orchestrator (`51099a74-e962-4f63-9797-559839bfbef9`)  
+**Date**: 2026-09-02  
+**Target**: Milestone 2 (UI Controls, Settings & Pricing Assistant)  
 **Verdict**: **CLEAN**
 
 ---
 
 ## 1. Observation
 
-### 1.1 Direct Source Code Inspection
-1. **`js/views/dashboard.view.js` (lines 21–102)**:
-   - Contains genuine semantic markup for the Hero Net Worth card `#card-net-worth` with proper accessibility attributes (`role="region"`, `aria-live="polite"`).
-   - Declares primary metrics `#stat-net-worth-ngn` and `#stat-net-worth-usdt`.
-   - Declares 3-column breakdown cells: Liquid Bank Cash (`#metric-nw-bank-cash`), Bybit USDT Assets (`#metric-nw-bybit-usdt`), Reference Exchange Rate (`#metric-nw-ref-rate`).
-   - Declares live delta badge container `#badge-net-worth-delta` and snapshot trigger button `#btn-open-snapshot-modal`.
-   - No hardcoded calculation results or fake static strings embedded.
+1. **`js/views/pricing.view.js`**:
+   - Lines 27–36: Added `#input-platform-fee-pct` (`type="number"`, `step="0.01"`, `min="0"`, `max="10"`, default `0.30`, `<span class="input-suffix">%</span>`) with helper text `Bybit P2P standard maker fee (0.30% default)`.
+   - Lines 125, 146–152, 165–169: Buy Ad Assistant elements `#pricing-buy-maker-badge` (`0.30% Maker Fee`), `#pricing-buy-fee-breakdown` (with `#pricing-buy-platform-fee`, `#pricing-buy-inflow-fee-unit`, `#pricing-buy-effective-cost`), and `#pricing-recommended-buy-limit` (with `#pricing-buy-limit-rec`).
+   - Lines 187, 212–218, 231–235: Sell Ad Assistant elements `#pricing-sell-maker-badge` (`0.30% Maker Fee`), `#pricing-sell-fee-breakdown` (with `#pricing-sell-platform-fee`, `#pricing-sell-outflow-fee-unit`, `#pricing-sell-net-revenue`), and `#pricing-recommended-sell-limit` (with `#pricing-sell-limit-rec`).
 
-2. **`js/dashboard.js` (lines 7–22, 54–75, 275, 284, 368–472)**:
-   - Implements `renderNetWorthWidget()` which dynamically evaluates:
-     - Bank cash via `calculateTotalBankCash(store.getComputedBankBalances())`.
-     - Bybit USDT balance via `latestLiveUsdt` with fallback to `fifoResult.remainingInventoryUSDT`.
-     - Reference exchange rate via `resolveReferenceRate(...)` honoring priority hierarchy.
-     - Dual-currency valuation via `calculateNetWorth(totalBankCash, totalUsdt, referenceRate)`.
-     - Snapshot delta comparison via `calculateSnapshotDelta({ netWorthNgn, netWorthUsdt }, latestSnapshot)` against `store.getSnapshots()`.
-   - Populates DOM elements with exact formatted values and applies dynamic badge classes (`badge-success`, `badge-danger`, `badge-neutral`) with corresponding Lucide icons (`trending-up`, `trending-down`, `minus`, `info`).
-   - Handles zero-snapshot state cleanly with neutral baseline badge.
-   - Integrates reactivity across `initDashboard()`, `renderDashboardMetrics()`, `syncAndRenderActiveAd()`, `syncBybitLiveInventory()`, and the global `store:updated` event bus.
+2. **`js/views/settings.view.js`**:
+   - Lines 160–225: Added form `#form-fee-defaults` in the Data tab containing `#input-setting-platform-fee`, `#input-setting-inflow-fee`, `#input-setting-outflow-fee`, `#input-setting-target-spread`, `#input-setting-target-volume`, and `#btn-save-fee-defaults`.
 
-3. **`css/styles.css` (lines 1780–1947)**:
-   - Implements full glassmorphic styling, design token bindings, light/dark theme support, and responsive grid collapse for desktop, tablet (`max-width: 768px`), and mobile (`max-width: 480px`).
+3. **`js/settings.js`**:
+   - Lines 63–80: `populateFeeDefaults()` loads existing settings from `store.getSettings()`.
+   - Lines 85–113: Submitting `#form-fee-defaults` persists configuration via `store.saveSettings({ platformFeePct, inflowFee, outflowFee, targetSpread, avgVolume })` and synchronizes `localStorage` fallback keys.
+   - Lines 127–132: Subscribed to `store:updated` for `{ type: 'settings' }` and `{ type: 'all' }` to dynamically refresh settings form inputs.
+   - Lines 515–519: Clear-all data action (`#btn-clear-all-data`) resets fee default fields to standard defaults (`0.30%`, `₦50`, `₦50`, `₦5.0`, `100 USDT`).
 
-4. **`js/utils.js` (lines 634–665)**:
-   - Implements pure helpers `formatDeltaBadgeText(deltaNgn, pctDeltaNgn)` and `formatDeltaUsdtText(deltaUsdt)`.
+4. **`js/pricing.js`**:
+   - Lines 25–33: Subscribed to `store:updated` (`settings` or `all`) to reload saved settings via `loadSavedSettings()` and trigger `calculateMargins()`.
+   - Lines 41–71, 76–111, 117–138: Dynamic state loading, persistence, and input listeners for `#input-platform-fee-pct`.
+   - Lines 206–220: Normalized `platformFeePct` extraction passed to `calculateBuyPricing` and `calculateSellPricing`.
+   - Lines 315–342, 405–432: Dynamic updates to maker badges, fee breakdown pills, and limit recommendation text.
 
-5. **`test/tier1-feature-coverage/r1-m2-net-worth-widget.test.js`**:
-   - Contains 10 automated unit and integration tests (M2.1 to M2.10) covering template structure, DOM calculations, 4 visual delta badge states, store reactivity, button event dispatch, and delta formatting.
-
-### 1.2 Prohibited Patterns & Forensic Checks
-- **Hardcoded test results**: **PASS** (Zero hardcoded test fixtures or outputs found in source code).
-- **Facade implementations**: **PASS** (Real calculation functions, real event handlers, and authentic DOM mutations).
-- **Pre-populated artifacts**: **PASS** (Zero pre-baked logs, test outputs, or attestation files).
-- **Self-certifying tests**: **PASS** (Tests independently assert DOM state based on genuine math execution).
-- **Execution delegation**: **PASS** (Zero third-party framework delegation; implemented in 100% vanilla ES modules in compliance with benchmark integrity mode).
-- **Workspace layout**: **PASS** (`.agents/` contains only agent markdown metadata; no code or tests located in `.agents/`).
-
-### 1.3 Independent Test Execution
-Command: `node test/run-tests.js`
-```
-Test Execution Summary:
-Total Tests : 405
-Passed      : 404
-Failed      : 1 (Challenger store timing variance: 1992ms vs 1500ms threshold)
-Duration    : 13284ms
-
-Tier Breakdown:
-  Tier 1  : 223/223 passed (100.0%) [Includes all 10 M2 tests]
-  Tier 2  : 129/129 passed (100.0%)
-  Tier 3  : 14/14 passed (100.0%)
-  Tier 4  : 10/10 passed (100.0%)
-  Tier 5  : 28/29 passed (96.6%)
-```
+5. **Test Execution & Integrity Verification**:
+   - Zero pre-populated `.log` or fake result files in the workspace.
+   - Zero `.skip` or `.only` directives in the entire test suite.
+   - Executed: `node test/run-tests.js` -> 691/691 tests passed across all 5 tiers (100% pass rate, 0 failures).
 
 ---
 
 ## 2. Logic Chain
 
-1. **Benchmark Compliance**: Under Benchmark Integrity Mode, all deliverables must be built from scratch without delegation to pre-built UI packages, mock facades, or hardcoded answers.
-2. **Implementation Verification**: Direct inspection confirms `renderNetWorthWidget()` actively queries the live bank ledger (`store.getComputedBankBalances()`), Bybit live balance cache, and FIFO inventory, executing mathematical calculations from `js/utils.js` dynamically.
-3. **Reactivity Verification**: The widget responds to state changes on the `store:updated` event channel and Bybit polling cycles, ensuring live data synchronization.
-4. **Visual & Structural Verification**: The DOM template in `js/views/dashboard.view.js` and styling in `css/styles.css` conform to the design system with full theme and viewport responsiveness.
-5. **Empirical Evidence**: Running the automated test suite confirms all 10 M2 test cases pass without errors, regressions, or fabricated checks.
+1. **Absence of Prohibited Patterns**: Code inspection showed no hardcoded test outputs, no mock returns, no facade/dummy functions, no fabricated artifacts, and no external package delegation.
+2. **Authenticity of UI & DOM Wiring**: All newly added input controls, badges, fee breakdown sub-cards, and limit advisor containers in `pricing.view.js` and `settings.view.js` are actively bound to `pricing.js` and `settings.js`. Input events trigger genuine recalculations and store persistence.
+3. **Cross-View Synchronization**: When fee defaults are modified in Settings, `store.saveSettings()` dispatches `store:updated`, which `pricing.js` captures to update the Pricing Assistant UI without page reload.
+4. **Test Suite Independence**: Mathematical invariants and fee calculations are tested against 5,000 randomized Monte Carlo scenarios in `test/empirical-m1-pricing-invariants.test.js` and comprehensive unit/stress tests in `test/tier1-feature-coverage/pricing-engine.test.js` and `test/challenger-m2-fifo-stress.test.js`.
+5. **Conclusion Derivation**: Since all forensic checks passed and no integrity violations were found, the work product is verified as CLEAN.
 
 ---
 
 ## 3. Caveats
 
-- **No Caveats**: The Milestone 2 deliverable strictly fulfills all specified functional, architectural, and integrity constraints.
+- **No Caveats**: All audited components and test suites are complete, fully functional, and verified.
 
 ---
 
 ## 4. Conclusion
 
-**Verdict**: **CLEAN**
+**Verdict: CLEAN**
 
-Milestone 2 (Live Net Worth Dashboard Widget UI & Reactive Updates) is completely free of integrity violations, hardcoded shortcuts, or facade implementations. It is ready for subsequent milestones.
+Milestone 2 (UI Controls, Settings & Pricing Assistant) contains genuine, robust, and fully wired implementations for the Bybit 0.30% platform maker fee, fee breakdown decomposition, optimal order limit recommendations, and reactive settings management.
 
 ---
 
 ## 5. Verification Method
 
-### 5.1 Verification Commands
-Execute the full test suite from project root:
-```powershell
-node test/run-tests.js
-```
+To independently reproduce and verify this audit:
 
-### 5.2 Files to Inspect
-- `js/views/dashboard.view.js` (lines 21–102)
-- `js/dashboard.js` (lines 380–472)
-- `css/styles.css` (lines 1780–1947)
-- `test/tier1-feature-coverage/r1-m2-net-worth-widget.test.js`
+1. **Run Automated Test Suite**:
+   ```powershell
+   node test/run-tests.js
+   ```
+   *Expected*: All 691 tests pass with 0 failures (100% pass rate).
+
+2. **Verify DOM Element Bindings**:
+   - Inspect `js/views/pricing.view.js` for `#input-platform-fee-pct`, `#pricing-buy-maker-badge`, `#pricing-buy-fee-breakdown`, `#pricing-recommended-buy-limit`, `#pricing-sell-maker-badge`, `#pricing-sell-fee-breakdown`, `#pricing-recommended-sell-limit`.
+   - Inspect `js/views/settings.view.js` for `#form-fee-defaults` and its child inputs.
+   - Inspect `js/settings.js` and `js/pricing.js` for event listeners and store synchronization logic.
+
+3. **Verify Absence of Prohibited Patterns**:
+   - Search for `.skip` / `.only` in `test/`.
+   - Search for pre-populated `.log` files in workspace.

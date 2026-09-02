@@ -66,6 +66,8 @@ require('./challenger-m5-boundary-recovery-stress.test');
 require('./challenger-final-day-simulation.test');
 require('./challenger-1-empirical-pricing-stress.test');
 require('./challenger-2-boundary-fuzzing-stress.test');
+require('./empirical-m1-pricing-invariants.test');
+require('./challenger-m2-1-ui-fuzzing-stress.test');
 
 
 // Parse CLI flags

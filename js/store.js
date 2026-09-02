@@ -284,6 +284,62 @@ class Store {
     return true;
   }
 
+  // --- Settings & Fee Defaults ---
+
+  /**
+   * Retrieve trading and fee settings with default fallbacks
+   * @returns {{
+   *   platformFeePct: number,
+   *   inflowFee: number,
+   *   outflowFee: number,
+   *   targetSpread: number,
+   *   avgVolume: number,
+   *   pricingMode: string,
+   *   depthLimit: number,
+   *   filterLimits: boolean
+   * }}
+   */
+  getSettings() {
+    const defaults = {
+      platformFeePct: 0.3,
+      inflowFee: 50,
+      outflowFee: 50,
+      targetSpread: 5.0,
+      avgVolume: 100,
+      pricingMode: 'avg-10',
+      depthLimit: 50,
+      filterLimits: true
+    };
+    const saved = this.getItem(STORAGE_KEYS.SETTINGS, {});
+    return {
+      platformFeePct: saved.platformFeePct !== undefined ? Number(saved.platformFeePct) : defaults.platformFeePct,
+      inflowFee: saved.inflowFee !== undefined ? Number(saved.inflowFee) : defaults.inflowFee,
+      outflowFee: saved.outflowFee !== undefined ? Number(saved.outflowFee) : defaults.outflowFee,
+      targetSpread: saved.targetSpread !== undefined ? Number(saved.targetSpread) : defaults.targetSpread,
+      avgVolume: saved.avgVolume !== undefined ? Number(saved.avgVolume) : defaults.avgVolume,
+      pricingMode: saved.pricingMode || defaults.pricingMode,
+      depthLimit: saved.depthLimit !== undefined ? Number(saved.depthLimit) : defaults.depthLimit,
+      filterLimits: saved.filterLimits !== undefined ? Boolean(saved.filterLimits) : defaults.filterLimits,
+      ...saved
+    };
+  }
+
+  /**
+   * Save settings to LocalStorage and trigger reactive store:updated event
+   * @param {Object} settings
+   * @returns {Object} Updated settings object
+   */
+  saveSettings(settings = {}) {
+    const current = this.getSettings();
+    const updated = {
+      ...current,
+      ...settings
+    };
+    this.saveItem(STORAGE_KEYS.SETTINGS, updated);
+    this.notify('settings', updated);
+    return updated;
+  }
+
   // --- Opening Inventory Settings ---
 
   getOpeningInventory() {
@@ -418,7 +474,8 @@ class Store {
       bankAccounts: this.getBankAccounts(),
       transfers: this.getTransfers(),
       openingInventory: this.getOpeningInventory(),
-      snapshots: this.getSnapshots()
+      snapshots: this.getSnapshots(),
+      settings: this.getSettings()
     };
   }
 
@@ -459,6 +516,7 @@ class Store {
       if (Array.isArray(data.bankAccounts)) this.saveItem(STORAGE_KEYS.BANKS, data.bankAccounts);
       if (Array.isArray(data.transfers)) this.saveItem(STORAGE_KEYS.TRANSFERS, data.transfers);
       if (data.openingInventory) this.saveItem(STORAGE_KEYS.OPENING_INVENTORY, data.openingInventory);
+      if (data.settings) this.saveItem(STORAGE_KEYS.SETTINGS, data.settings);
       if (Array.isArray(data.snapshots)) {
         const cleanSnapshots = data.snapshots.map(sanitizeSnapshot).filter(Boolean);
         cleanSnapshots.sort((a, b) => new Date(a.timestamp || a.createdAt || 0).getTime() - new Date(b.timestamp || b.createdAt || 0).getTime());
@@ -477,6 +535,10 @@ class Store {
         const existingIds = new Set(existing.map(b => b.id));
         const newBanks = data.bankAccounts.filter(b => !existingIds.has(b.id));
         this.saveItem(STORAGE_KEYS.BANKS, [...existing, ...newBanks]);
+      }
+      if (data.settings) {
+        const existingSettings = this.getSettings();
+        this.saveItem(STORAGE_KEYS.SETTINGS, { ...existingSettings, ...data.settings });
       }
       if (Array.isArray(data.snapshots)) {
         const cleanSnapshots = data.snapshots.map(sanitizeSnapshot).filter(Boolean);
@@ -498,6 +560,7 @@ class Store {
     localStorage.removeItem(STORAGE_KEYS.TRANSFERS);
     localStorage.removeItem(STORAGE_KEYS.OPENING_INVENTORY);
     localStorage.removeItem(STORAGE_KEYS.NET_WORTH_SNAPSHOTS);
+    localStorage.removeItem(STORAGE_KEYS.SETTINGS);
     this.init();
     this.notify('all');
   }

@@ -1,69 +1,59 @@
-# Project: Pricing & Arbitrage Assistant Refactoring
+# Project: Bybit P2P Platform Fees & Net Profit Optimization
 
 ## Architecture
-The Pricing & Arbitrage Assistant is a modular system for P2P cryptocurrency arbitrage trading across Bybit P2P and local fiat currencies (NGN):
-1. **Backend Layer (`server.js`, `api/market-depth.js`)**:
-   - Proxies Bybit V5 P2P API (`/v5/p2p/item/online`).
-   - Handles public orderbook depth queries for `buyDepth` (merchant Buy ads / Bids, queried via `side: '1'`) and `sellDepth` (merchant Sell ads / Asks, queried via `side: '0'`).
-   - Enforces authentication (`validateAuth`) and provides resilient JSON response parsing via `extractItems`.
-2. **Pricing Engine Domain Layer (`js/pricingEngine.js`)**:
-   - Pure, deterministic computational engine for P2P arbitrage pricing.
-   - `filterCompetitorAds`: Filters dust and bounds orders by trade limits.
-   - `calculateReferencePrice`: Implements Competitor Top 1, Simple Moving Average (SMA-N), and Volume-Weighted Average Price (VWAP-N).
-   - `calculateBuyPricing`: Outbids competitor buy ads by +₦0.10 while enforcing `maxBuyPrice` spread cap protection against lowest sell ask and inflow fees.
-   - `calculateSellPricing`: Undercuts competitor sell ads by -₦0.10 while enforcing `targetSellPrice` spread floor above FIFO cost basis and outflow fees.
-3. **Controller & State Layer (`js/pricing.js`)**:
-   - Fetches `/api/market-depth`, updates cached market depth, orchestrates pricing engine calculations with user input (capital, spread, fees, filters).
-   - Handles DOM events, click-to-prefill actions on orderbook rows, and manages FIFO inventory snapshots.
-4. **UI & View Presentation Layer (`js/views/pricing.view.js`)**:
-   - Generates HTML for Pricing Dashboard: Market Depth Sync, Buy Ad Assistant (Inflow), Sell Ad Assistant (Outflow), Buy Order Book, Sell Order Book, and Arbitrage Opportunities summary.
+- **Pricing Engine (`js/pricingEngine.js`)**: Pure mathematical engine computing reference prices, maximum buy price, target sell price, break-even rates, fee amortizations, and recommended order limits.
+- **Pricing Controller (`js/pricing.js`)**: State management, local storage persistence, event subscription (`store:updated`), market depth analysis, and pricing calculation coordination.
+- **Store & Settings (`js/store.js`, `js/settings.js`)**: Central storage abstraction for local persistence and event dispatching (`store:updated`) for trading fee defaults.
+- **UI Views (`js/views/pricing.view.js`, `js/views/settings.view.js`)**: DOM rendering and event listeners for pricing parameters, fee breakdown display, net profit impact, optimal limit advisor, and fee settings.
+- **Utilities & Formatting (`js/utils.js`, `js/dashboard.js`)**: Fee formatting, currency formatting, net profit calculation helpers, and dashboard metrics.
+- **Test Suite (`test/tier1-feature-coverage/pricing-engine.test.js`)**: Automated unit and invariant tests executed via `node test/run-tests.js`.
 
 ## Feature Inventory
-| # | Feature | Description | Milestone | Source | Status |
-|---|---------|-------------|-----------|--------|--------|
-| F1 | Market Depth API & Side Mapping | Accurate Bybit `/v5/p2p/item/online` public orderbook mapping (`side: '1'` -> buyDepth bids, `side: '0'` -> sellDepth asks) with resilient item extraction | M1 | ORIGINAL_REQUEST R1 | DONE |
-| F2 | Pricing Engine Buy Math | Outbidding competitor buy ads by +0.10 with `maxBuyPrice` spread cap protection and inflow fee amortization | M2 | ORIGINAL_REQUEST R2 | DONE |
-| F3 | Pricing Engine Sell Math | Undercutting competitor sell ads by -0.10 with `targetSellPrice` and `breakEvenPrice` floors above FIFO cost basis and outflow fees | M2 | ORIGINAL_REQUEST R2 | DONE |
-| F4 | Reference Price Calculations | Pure calculations for Competitor Top 1, SMA-N, and VWAP-N with dust & limit filtering | M2 | ORIGINAL_REQUEST R2 | DONE |
-| F5 | UI View & Badge Alignment | Consistent badges (`badge-primary` on Inflow & Outflow headers), taker/maker labels, and responsive orderbook tables | M3 | ORIGINAL_REQUEST R3 | DONE |
-| F6 | Order Book Rendering & Prefill | High-bid and low-ask sorting with click-to-trade prefill handlers | M3 | ORIGINAL_REQUEST R3, R4 | DONE |
-| F7 | Comprehensive Unit & E2E Testing | Deterministic unit tests for pricingEngine (25 tests), API mock tests, boundary testing (4,000+ trials), and Monte Carlo invariant stress suites (8,000+ scenarios) | M4 | ORIGINAL_REQUEST R4 | DONE |
+| # | Feature | Description | Milestone | Source |
+|---|---------|-------------|-----------|--------|
+| 1 | Platform Maker Fee Math | Incorporate Bybit 0.3% maker percentage fee ($\phi = 0.003$) into `calculateBuyPricing` and `calculateSellPricing` | M1 | Survey / R1 / R2 |
+| 2 | Fiat Transfer Fee Amortization | Support flat & threshold-based inflow/outflow fees ($F_{in}, F_{out}$) combined with percentage fee | M1 | Survey / R1 / R2 |
+| 3 | Net Cost Basis & True Break-even | Compute true effective cost basis $P_{buy} \cdot (1+\phi) + F_{in}/V$ and break-even sell price $(C_{fifo} + F_{out}/V)/(1-\phi)$ | M1 | Survey / R2 |
+| 4 | Recommended Minimum Order Limits | Implement `calculateRecommendedLimits` ensuring fixed fee drag does not exceed 20% of target spread | M1 | Survey / R2 |
+| 5 | Pricing Controller State Persistence | Persist `platformFeePct` (default 0.3%) in `js/pricing.js` and synchronize with `store.js` | M1 | Survey / R2 |
+| 6 | Dashboard & Utils Integration | Update `js/utils.js` and `js/dashboard.js` with net profit calculation helpers accounting for platform + fiat fees | M1 | Survey / R2 |
+| 7 | Pricing Assistant UI Controls | Add `input-platform-fee-pct` (step 0.01%, default 0.30%) and fee breakdown display to `js/views/pricing.view.js` | M2 | Survey / R3 |
+| 8 | Optimal Limit Recommendations UI | Display recommended minimum fiat/USDT order limits and fee drag badge in `js/views/pricing.view.js` | M2 | Survey / R3 |
+| 9 | Trading Fee Defaults in Settings | Add fee defaults card (`#form-fee-defaults`) to `js/views/settings.view.js` and wire with `js/settings.js` | M2 | Survey / R3 |
+| 10 | Unit Test Suite Expansion | Add comprehensive unit tests in `test/tier1-feature-coverage/pricing-engine.test.js` for 0.3% fee, limit recommendations, and edge cases | M3 | Survey / R4 |
+| 11 | Trade Size Sensitivity Tests | Verify fee behavior across ₦5k, ₦10k, ₦30k, ₦100k tiers in automated tests | M3 | Survey / R4 |
+| 12 | Full Test Suite Execution | Verify that all test suites pass 100% via `node test/run-tests.js` without regressions | M3 | Survey / R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Backend API & Market Depth Robustness | `server.js`, `api/market-depth.js` side mapping verification, resilient item extraction, documentation | none | DONE |
-| M2 | UI View & Badge Consistency | `js/views/pricing.view.js`, `js/pricing.js` badge alignment, label clarity, maker/taker perspective | M1 | DONE |
-| M3 | Comprehensive Pricing Engine Test Suite | `test/tier1-feature-coverage/pricing-engine.test.js` covering pure math, boundaries, limits, VWAP, SMA | M1, M2 | DONE |
-| M4 | 100% Test Pass & Adversarial Hardening | E2E test verification, adversarial edge testing, gate verification | M1, M2, M3 | DONE |
+| M1 | Engine & Arbitrage Math Integration | Update `js/pricingEngine.js`, `js/pricing.js`, `js/utils.js`, `js/dashboard.js`, `js/store.js` with percentage platform fees, fiat transfer fees, net pricing formulas, and `calculateRecommendedLimits`. | none | DONE |
+| M2 | UI Controls, Settings & Pricing Assistant | Update `js/views/pricing.view.js`, `js/views/settings.view.js`, `js/settings.js` to render platform fee inputs, fee breakdowns, optimal limit recommendations, and settings persistence. | M1 | DONE |
+| M3 | Unit Testing & Trade Size Sensitivity Verification | Update `test/tier1-feature-coverage/pricing-engine.test.js`, run automated tests across ₦5k, ₦10k, ₦30k, ₦100k, and ensure full test suite passes. | M1, M2 | DONE |
 
 ## Interface Contracts
-### Backend API (`/api/market-depth`)
-- Method: `GET` / `POST` (`app.all`)
-- Parameters: `fiat` (string, e.g. "NGN"), `coin` (string, e.g. "USDT"), `limit` (number, default 20)
-- Response Shape:
-  ```json
-  {
-    "success": true,
-    "buyDepth": [ { "userId": "...", "price": "1450.00", "lastQuantity": "500", "minAmount": "10000", "maxAmount": "500000", "payments": ["Bank Transfer"] } ],
-    "sellDepth": [ { "userId": "...", "price": "1470.00", "lastQuantity": "1000", "minAmount": "20000", "maxAmount": "1000000", "payments": ["Bank Transfer"] } ],
-    "timestamp": 1725195600000
-  }
-  ```
+### `js/pricingEngine.js` Exports
+- `calculateBuyPricing(exitPrice, targetSpread, ads, options)`
+  - `options`: `{ avgVolume: number, inflowFee: number, outflowFee: number, platformFeePct: number, pricingMode: string, depthLimit: number, filterLimits: boolean, maxBuyLimit: number }`
+  - Returns: `{ exitPrice, targetSpread, effectiveSpread, maxBuyPrice, referenceBuyPrice, suggestedBuy, isCompetitorUndercut, status, feeBreakdown: { platformFeePerUnit, fiatFeePerUnit, totalFeePerUnit, effectiveCostBasis } }`
+- `calculateSellPricing(costBasis, targetSpread, ads, options)`
+  - `options`: `{ avgVolume: number, outflowFee: number, platformFeePct: number, pricingMode: string, depthLimit: number, filterLimits: boolean, minSellLimit: number }`
+  - Returns: `{ costBasis, targetSpread, breakEven, targetSellPrice, referenceSellPrice, suggestedSell, isCompetitorUndercut, status, feeBreakdown: { platformFeePerUnit, fiatFeePerUnit, totalFeePerUnit, netRealizedRevenue } }`
+- `calculateRecommendedLimits(price, targetSpread, fiatFee, options)`
+  - `options`: `{ maxFeeDragRatio: number (default 0.20), platformFeePct: number }`
+  - Returns: `{ minFiatLimit: number, minUsdtLimit: number, breakEvenFiatLimit: number, feeDragRatio: number, recommendedText: string }`
 
-### Pricing Engine (`js/pricingEngine.js`)
-- `calculateBuyPricing(buyAds, sellAds, config)`:
-  - Returns: `{ referencePrice, suggestedBuyPrice, rawSuggestedBuy, maxBuyPrice, isSafe, exitPrice, spread, expectedProfit, feePerUnit }`
-- `calculateSellPricing(sellAds, config)`:
-  - Returns: `{ referencePrice, suggestedSellPrice, rawSuggestedSell, breakEvenPrice, targetSellPrice, isSafe, costBasis, spread, expectedProfit, feePerUnit }`
+### `js/store.js` Settings Interface
+- `getSettings()`: Returns `{ platformFeePct: number, inflowFee: number, outflowFee: number, targetSpread: number, avgVolume: number, ... }`
+- `saveSettings(settingsObj)`: Persists settings and dispatches `store:updated` with `{ type: 'settings' }`.
 
 ## Code Layout
-- `server.js`: Express server, proxy endpoints, auth middleware.
-- `api/market-depth.js`: Standalone market depth handler.
-- `js/pricingEngine.js`: Pure mathematical pricing functions.
-- `js/pricing.js`: Pricing controller, event handlers, DOM bindings.
-- `js/views/pricing.view.js`: Pricing HTML templates and UI components.
-- `test/tier1-feature-coverage/pricing-engine.test.js`: Deterministic pricing engine unit tests.
-- `test/challenger-1-empirical-pricing-stress.test.js`: Monte Carlo pricing invariant stress harness.
-- `test/challenger-2-boundary-fuzzing-stress.test.js`: Boundary fuzzing and cycle harness.
-- `test/run-tests.js`: Test runner harness.
+- `js/pricingEngine.js` - Pure mathematical pricing algorithms & limit calculations (Owner: M1 Worker)
+- `js/pricing.js` - Pricing controller and state management (Owner: M1 Worker)
+- `js/store.js` - Storage helpers for settings (Owner: M1 Worker)
+- `js/utils.js` - Formatting & helper utilities (Owner: M1 Worker)
+- `js/dashboard.js` - Dashboard profit and margin calculations (Owner: M1 Worker)
+- `js/views/pricing.view.js` - Pricing Assistant UI view (Owner: M2 Worker)
+- `js/views/settings.view.js` - Settings view (Owner: M2 Worker)
+- `js/settings.js` - Settings controller (Owner: M2 Worker)
+- `test/tier1-feature-coverage/pricing-engine.test.js` - Unit test suite (Owner: M3 Worker / Test Writer)

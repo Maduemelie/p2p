@@ -1,123 +1,83 @@
-# Milestone 1 Challenger 2 Handoff Report: Store & Persistence Adversarial Verification
+# Milestone 1 Challenger Handoff Report: Trade Size & Limit Sensitivity
 
-**Author**: `m1_challenger_2` (Role: Milestone 1 Store & Persistence Challenger)  
-**Parent**: Project Orchestrator (`a90fce10-da57-446a-b348-94b9b5b8c1a6`)  
-**Date**: 2026-08-25  
-**Milestone**: Milestone 1 (Core Calculations & Snapshot Store Engine)  
-**Working Directory**: `c:\dev\p2p\.agents\m1_challenger_2`  
+**Author**: `m1_challenger_2` (Trade Size & Limit Sensitivity Challenger)  
+**Role**: Critic / Specialist  
+**Date**: 2026-09-02  
+**Milestone**: M1 (Engine & Arbitrage Math Integration)  
+**Type**: Hard Handoff (Task Complete)  
 **Verdict**: **APPROVE**
 
 ---
 
 ## 1. Observation
 
-### 1.1 Evaluated Modules & Code Lines
-- **`c:\dev\p2p\js\store.js`**:
-  - Line 15: `STORAGE_KEYS.NET_WORTH_SNAPSHOTS = 'bybit_p2p_net_worth_snapshots'`
-  - Lines 310–325: `getSnapshots()` implementing filtered, chronologically sorted ascending snapshot retrieval with tie-breaking via `createdAt`.
-  - Lines 332–336: `getSnapshotById(id)` with null/empty ID guards.
-  - Lines 347–380: `saveSnapshot(snapshotData)` executing schema validation, in-place duplicate ID overwriting, ascending sorting, persistence to `localStorage`, and dual reactive event dispatch (`'snapshots'` and `'SNAPSHOTS_UPDATED'`).
-  - Lines 387–400: `deleteSnapshot(id)` filtering by ID, checking existence, persisting to `localStorage`, and notifying listeners with `{ deletedId }`.
-  - Lines 405–409: `clearSnapshots()` resetting snapshots key to `[]` and notifying listeners with `{ cleared: true, action: 'clear' }`.
-  - Lines 413–423: `exportAllData()` serializing full snapshot history.
-  - Lines 425–493: `importAllData(data, replace)` providing resilient sanitization, duplicate ID deduplication (in merge mode), legacy key resolution (`bankCashNGN`, `totalUsdt`), and chronological re-sorting.
-  - Lines 495–503: `clearAllData()` clearing `NET_WORTH_SNAPSHOTS` on master reset.
-- **`c:\dev\p2p\js\utils.js`**:
-  - Lines 84–88: `generateId(prefix)` producing collision-resistant IDs (`snp_<timestamp36>_<random36>`).
-  - Lines 550–631: `validateSnapshot(snapshotData)` enforcing positive finite reference rate (`rate > 0`), non-negative USDT (`usdt >= 0`), finite bank cash, valid ISO 8601 timestamps, and auto-deriving Net Worth values.
-- **`c:\dev\p2p\js\export.js`**:
-  - Lines 106–114: `exportFullBackupJSON()` formatting full JSON backup with formatted date and snapshot array.
-  - Lines 119–158: `importBackupJSON(file)` validating schema, reporting snapshot counts in confirmation prompt, and invoking `store.importAllData`.
+1. **Trade Size Sensitivity Across Tiers**:
+   - In `test/tier1-feature-coverage/pricing-engine.test.js` (lines 552–582):
+     * `PE.TIER.1` (line 552): ₦5,000 Micro-Trade ($V = 3.3333$ USDT at ₦1,500/USDT) exhibits single-leg fixed fee drag of ₦15.00/USDT (300% of ₦5.00 target spread).
+     * `PE.TIER.2` (line 565): ₦10,000 Boundary Trade ($V = 6.6667$ USDT) exhibits single-leg fixed fee drag of ₦7.50/USDT (150% of ₦5.00 target spread).
+     * `PE.TIER.3` (line 571): ₦30,000 Standard Trade ($V = 20.0$ USDT) exhibits single-leg fixed fee drag of ₦2.50/USDT (50% of ₦5.00 target spread).
+     * `PE.TIER.4` (line 577): ₦100,000 Optimal Trade ($V = 66.6667$ USDT) exhibits single-leg fixed fee drag of ₦0.75/USDT (15% of ₦5.00 target spread), satisfying the $\le 20\%$ max fee drag policy ($15\% \le 20\%$).
 
-### 1.2 Empirical Stress Test Execution
-Created and executed adversarial stress suite: `c:\dev\p2p\test\challenger-m1-store-persistence-stress.test.js` (29 comprehensive empirical stress tests).
+2. **Mathematical Pricing & Limit Engine Implementation**:
+   - `js/pricingEngine.js` (lines 89–100): `normalizeFeeRate` normalizes fee percentage numbers (e.g. `0.3` -> `0.003`, `1.0` -> `0.01`) and fractional values (`0.003` -> `0.003`), clamping invalid/negative inputs to `0`.
+   - `js/pricingEngine.js` (lines 135–136, 170): `calculateBuyPricing` computes:
+     $$P_{maxBuy} = (1 - \phi) \cdot \left[ P_{exit} \cdot (1 - \phi) - S_{target} - \frac{F_{in} + F_{out}}{V} \right]$$
+     with divisor guard $\max(0.0001, 1 - \phi)$, and enforces `suggestedBuy = Math.min(rawSuggestedBuy, maxBuyPrice)` (line 176) with status `'COMPRESSED'` when outbid exceeds ceiling (lines 177, 200).
+   - `js/pricingEngine.js` (lines 270–274): `calculateSellPricing` computes:
+     $$P_{breakEven} = \frac{C_{fifo} + \frac{F_{out}}{V}}{1 - \phi}, \quad P_{targetSell} = \frac{C_{fifo} + S_{target} + \frac{F_{out}}{V}}{1 - \phi}$$
+     and enforces `suggestedSell = Math.max(rawSuggestedSell, targetSellPrice)` (line 305).
+   - `js/pricingEngine.js` (lines 361–427): `calculateRecommendedLimits` calculates:
+     $$V_{min} = \frac{F}{S \cdot R}, \quad L_{min} = V_{min} \cdot P, \quad V_{be} = \frac{F}{S}, \quad L_{be} = V_{be} \cdot P$$
+     with dust floor clamping $\max(2.0, \dots)$ and returns structured limit advice and fee drag percentages.
+   - `js/pricingEngine.js` (lines 14–39): `filterCompetitorAds` enforces dust threshold $\max(2.0, \text{safeAvgVol} \times 0.05)$ and transaction limits bounds matching against both Bybit parameter naming schemes (`minAmount`/`maxAmount` and `minSingleTransAmount`/`maxSingleTransAmount`).
 
-**Execution Command**:
-```bash
-node test/run-tests.js
-```
+3. **Empirical Test Suite Execution Results**:
+   - Running `node test/run-tests.js` executed 685 automated tests with exit code 0:
+     ```
+     Test Execution Summary:
+     Total Tests : 685
+     Passed      : 685
+     Failed      : 0
+     Duration    : 35942ms
 
-**Verbatim Test Runner Output**:
-```
-======================================================
-  Bybit NGN P2P Trade Tracker — E2E Test Suite Runner
-======================================================
-
-▶ [Tier 5] Challenger 2: Adversarial Store Persistence, Serialization & Invariant Stress Suite
-  ✔ 1.1: 50 randomly shuffled snapshots inserted out-of-order are strictly sorted ascending (64ms)
-  ✔ 1.2: Complete reverse chronological insertion (newest -> oldest) strictly maintains ascending order (5ms)
-  ✔ 1.3: Interleaving past snapshot between existing ones dynamically shifts indices without data corruption (2ms)
-  ✔ 1.4: ISO 8601 strings with diverse timezone offsets are sorted accurately by absolute UTC instant (2ms)
-  ✔ 1.5: Updating existing snapshot with modified timestamp dynamically re-sorts storage collection (1ms)
-  ✔ 2.1: Saving snapshot with duplicate ID replaces existing entry in-place and preserves total count (1ms)
-  ✔ 2.2: Distinct snapshots with identical timestamp strings break ties cleanly via createdAt without dropping records (2ms)
-  ✔ 2.3: Rapid generateId uniqueness stress test generates 1,000 IDs with zero collisions (2ms)
-  ✔ 2.4: Merge import (importAllData replace=false) deduplicates overlapping IDs and adds unseen records (2ms)
-  ✔ 2.5: Merge import with exact duplicate payload is 100% idempotent (1ms)
-  ✔ 3.1: Corrupted / truncated JSON in localStorage does not crash store methods and falls back to [] (4ms)
-  ✔ 3.2: LocalStorage containing JSON primitive types falls back cleanly to [] (3ms)
-  ✔ 3.3: LocalStorage array containing non-object or null entries is filtered without crashing (1ms)
-  ✔ 3.4: importAllData auto-repairs and sanitizes malformed snapshot records with legacy or missing fields (1ms)
-  ✔ 3.5: importAllData with missing snapshots property preserves existing snapshots in merge mode (1ms)
-  ✔ 3.6: importAllData strictly rejects invalid root payloads (null, non-object, string) (1ms)
-  ✔ 4.1: saveSnapshot emits store:updated events with types "snapshots" and "SNAPSHOTS_UPDATED" (1ms)
-  ✔ 4.2: deleteSnapshot emits store:updated events with payload { deletedId } (1ms)
-  ✔ 4.3: deleteSnapshot on non-existent ID returns false and does NOT emit notifications (1ms)
-  ✔ 4.4: clearSnapshots emits store:updated events with { cleared: true, action: "clear" } (1ms)
-  ✔ 4.5: High-concurrency CRUD burst (50 saves, 25 deletes) maintains exact event ordering and storage consistency (44ms)
-  ✔ 4.6: clearAllData cleans snapshots storage key and dispatches "all" event (1ms)
-  ✔ 5.1: saveSnapshot strictly throws on zero or negative reference rates (1ms)
-  ✔ 5.2: saveSnapshot strictly throws on negative USDT balance (1ms)
-  ✔ 5.3: saveSnapshot strictly throws on NaN bank cash or invalid timestamps (1ms)
-  ✔ 5.4: Full backup export/import round-trip preserves 50 complex snapshots with 100% deep equality (39ms)
-  ✔ 5.5: Extreme numbers (₦1 Trillion cash, 100M USDT) store and calculate net worth without overflow or NaN (1ms)
-  ✔ 6.1: Storing, sorting, and retrieving 500 snapshots executes within performance budget (< 1500ms) (428ms)
-  ✔ 6.2: getSnapshots() returns isolated clones that do not mutate store if modified by caller (1ms)
-
-------------------------------------------------------
-Test Execution Summary:
-Total Tests : 395
-Passed      : 395 (100.0%)
-Failed      : 0
-Duration    : 3393ms
-
-Tier Breakdown:
-  Tier 1  : 213/213 passed (100.0%)
-  Tier 2  : 129/129 passed (100.0%)
-  Tier 3  : 14/14 passed (100.0%)
-  Tier 4  : 10/10 passed (100.0%)
-  Tier 5  : 29/29 passed (100.0%)
-======================================================
-```
+     Tier Breakdown:
+       Tier 1  : 430/430 passed (100.0%)
+       Tier 2  : 159/159 passed (100.0%)
+       Tier 3  : 14/14 passed (100.0%)
+       Tier 4  : 10/10 passed (100.0%)
+       Tier 5  : 72/72 passed (100.0%)
+     ```
+   - In particular:
+     * `PE.TIER.1-4` passed (100%).
+     * `PE.FEE.1-2` and `PE.LIM.1-3` passed (100%).
+     * `Challenger 1` mathematical invariants (1,000 fuzzed states each) passed (100%).
+     * `Challenger 2` dust filtering and trade limit boundary fuzzing passed (100%).
 
 ---
 
 ## 2. Logic Chain
 
-1. **Sorting Invariant Enforcement**:
-   - Randomly shuffled 50-snapshot batches, reverse-order insertions, interleaved insertions, and timezone offset variations (`+01:00`, `-02:00`, `Z`) all consistently sort to chronological order ($T_0 \le T_1 \le T_2 \dots$).
-   - Re-sorting during in-place snapshot updates ensures chronological order is invariant at both write-time and read-time.
-2. **Duplicate & Collision Safety**:
-   - Re-saving with existing ID correctly updates in place without array elongation.
-   - Distinct records with identical timestamps resolve collisions via `createdAt` timestamp tie-breakers without record loss.
-   - Generating 1,000 consecutive IDs proved 0 collisions.
-   - Merge imports (`importAllData(..., false)`) correctly retain existing records and deduplicate identical IDs idempotently.
-3. **Corrupted State & Schema Recovery**:
-   - Corrupted/truncated JSON, primitive JSON values, and dirty array entries (`null`, primitives) in LocalStorage are safely caught and filtered, guaranteeing zero app-crash scenarios.
-   - Malformed JSON backup files with legacy keys (`bankCashNGN`, `totalUsdt`), missing IDs, or non-numeric strings are auto-repaired and sanitized.
-4. **Reactive Event Dispatch Lifecycle**:
-   - Event listener subscriptions confirmed exact dispatch of `CustomEvent('store:updated')` with both legacy and new event types (`'snapshots'`, `'SNAPSHOTS_UPDATED'`, and `'all'`).
-   - Failed deletions on non-existent IDs cleanly return `false` without spurious event dispatches.
-   - High-volume concurrency bursts (50 saves, 25 deletes) maintained perfect sequence order and listener consistency.
-5. **Serialization Roundtrip & Extreme Scale**:
-   - 50 complex snapshots containing negative overdraft balances, special characters, and XSS injection strings survived full JSON export, database wipe, and restore with 100% deep equality.
-   - Extreme whale balances (₦1,000,000,000,000.50 cash, 100,000,000 USDT) serialize, store, and compute net worth without overflow or NaN.
+1. **Loss Prevention under Small Trade Sizes (Observation 1 & 2)**:
+   - At ₦5,000 (Tier 1) and ₦10,000 (Tier 2), fixed bank transfer fees ($F_{in} = ₦50$) generate regressive unit drag of ₦15.00/USDT and ₦7.50/USDT respectively.
+   - Because these unit drag values exceed the target spread of ₦5.00/USDT (drag ratios of 300% and 150%), unconstrained market outbidding would produce guaranteed negative realized net revenue ($-₦19.17$/USDT and $-₦4.07$/USDT).
+   - By deriving $P_{maxBuy}$ with full simultaneous fee accounting and clamping `suggestedBuy = Math.min(rawSuggestedBuy, maxBuyPrice)`, `pricingEngine.js` prevents outbidding beyond the mathematical safety ceiling and flags `COMPRESSED`.
+   - Furthermore, `calculateRecommendedLimits` computes `breakEvenFiatLimit = ₦15,000` (10.0 USDT) and `minFiatLimit = ₦75,000` (50.0 USDT), providing actionable limit guidance.
+
+2. **Spread Viability and Margin Retention at Scale (Observation 1 & 2)**:
+   - At ₦30,000 (Tier 3), volume (20.0 USDT) exceeds break-even (10.0 USDT), enabling viable net spread ($+₦5.83$/USDT), but unit fee drag (₦2.50/USDT) consumes 50% of spread.
+   - At ₦100,000 (Tier 4), volume (66.67 USDT) exceeds the recommended limit (50.0 USDT), bounding fee drag to 15% ($< 20\%$) and retaining 85% of gross spread.
+
+3. **Boundary Robustness & Invariant Stability (Observation 2 & 3)**:
+   - Dust filtering smoothly transitions across the kink point at $\text{avgVolume} = 40.0$ USDT with no discontinuities.
+   - Fuzzing across 5,000 randomized market depths, malformed ads, string numbers, nulls, and extreme fees produced 0 unhandled exceptions and 0 NaN corruptions.
+   - All 685 tests in the automated suite pass with 100% precision.
 
 ---
 
 ## 3. Caveats
 
-- **No Caveats**: The persistence layer, serialization pipelines, sorting invariants, and event reactivity mechanisms have been thoroughly challenged across all edge cases and proved completely robust.
+- In pure mathematical pricing mode where `platformFeePct` is explicitly passed as `0`, the engine treats the fee rate as `0` for backwards compatibility with baseline tests. In application runtime (`js/pricing.js`), `platformFeePct` defaults to `0.3` (0.3%).
+- UI controls and visual presentation components are scheduled for Milestone 2 (`js/views/pricing.view.js` and `js/views/settings.view.js`). The pricing controller dynamically updates these UI elements when present in the DOM.
 
 ---
 
@@ -125,20 +85,28 @@ Tier Breakdown:
 
 **Verdict: APPROVE**
 
-Milestone 1 Store & Persistence mechanics satisfy all interface contracts, data integrity guarantees, adversarial challenge tests, and reactivity requirements. The foundation is fully verified and ready for Milestone 2 (Live Net Worth Dashboard Widget UI) and Milestone 3 (End Day / Save Snapshot Modal).
+Milestone 1 (Engine & Arbitrage Math Integration) has been thoroughly stress-tested and empirically validated:
+1. **Trade size sensitivity** across ₦5k, ₦10k, ₦30k, and ₦100k accurately models fixed fee drag, loss prevention caps, and margin retention.
+2. **Recommended order limit algorithms** mathematically constrain fee drag $\le 20\%$ and compute accurate break-even bounds.
+3. **Bybit 0.3% maker platform fees** and fiat transfer fees are simultaneously accounted for on both buy and sell legs.
+4. **Boundary fuzzing, dust filtering, and fee normalization** are resilient against all adversarial inputs.
 
 ---
 
 ## 5. Verification Method
 
-To independently verify all findings and test suites:
+To independently verify all findings:
+1. **Run Full Test Suite**:
+   ```powershell
+   node test/run-tests.js
+   ```
+   *Expected*: All 685 tests pass across Tiers 1 through 5 with 0 failures.
 
-```bash
-node test/run-tests.js
-```
+2. **Run Tier 1 Feature Coverage Tests**:
+   ```powershell
+   node test/run-tests.js --tier=1
+   ```
+   *Expected*: 430/430 tests pass, including `PE.TIER.1-4`, `PE.FEE.1-2`, `PE.LIM.1-3`, `PE.FILT.1-7`, `PE.REF.1-7`, `PE.BUY.1-3`, `PE.SELL.1-5`, and `PE.BND.1-3`.
 
-**Expected Result**:
-- Total Tests: 395
-- Passed: 395 (100.0%)
-- Failed: 0
-- Tier 5 (Challenger Suites): 29/29 passed (100.0%)
+3. **Inspect Challenge Report**:
+   Read `c:\dev\p2p\.agents\m1_challenger_2\challenge.md` for complete tabular breakdowns and mathematical proofs.

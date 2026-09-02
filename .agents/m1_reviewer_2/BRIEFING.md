@@ -1,47 +1,45 @@
-# BRIEFING — 2026-08-25T13:24:00Z
+# BRIEFING — 2026-09-02T05:24:15Z
 
 ## Mission
-Independently review and adversarially challenge Milestone 1 changes (utils.js, store.js, export.js, tests) for contract conformance, robustness, and integrity.
+Review system integration, store reactivity, and interface conformance across js/store.js, js/pricing.js, js/dashboard.js, and js/snapshots.js.
 
 ## 🔒 My Identity
-- Archetype: reviewer / critic
-- Roles: reviewer, critic
+- Archetype: reviewer & critic
+- Roles: Architecture & System Reviewer, critic
 - Working directory: c:\dev\p2p\.agents\m1_reviewer_2
-- Original parent: a90fce10-da57-446a-b348-94b9b5b8c1a6
-- Milestone: Milestone 1
-- Instance: 2 of 2
+- Original parent: 51099a74-e962-4f63-9797-559839bfbef9
+- Milestone: M1
+- Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Review and adversarial challenge for Milestone 1 code changes
-- Integrity violation checks (no hardcoded cheats, dummy facades, fake verifications)
+- Actively check for integrity violations
+- Issue an evidence-based verdict (APPROVE or REQUEST_CHANGES)
+- Verify claims independently by inspecting code and running tests
 
 ## Current Parent
-- Conversation ID: a90fce10-da57-446a-b348-94b9b5b8c1a6
-- Updated: not yet
+- Conversation ID: 51099a74-e962-4f63-9797-559839bfbef9
+- Updated: 2026-09-02T05:24:15Z
 
 ## Review Scope
-- **Files to review**: js/utils.js, js/store.js, js/export.js, test/ suites
-- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md
-- **Review criteria**: correctness, style, conformance, adversarial robustness, integrity
+- **Files to review**: `js/store.js`, `js/pricing.js`, `js/dashboard.js`, `js/snapshots.js`, `test/run-tests.js`
+- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, `m1_worker_1/handoff.md`
+- **Review criteria**: Correctness, store reactivity, event dispatching, state synchronization, edge cases, regression risk, integrity
 
 ## Review Checklist
-- **Items reviewed**: js/utils.js, js/store.js, js/export.js, test/tier1-feature-coverage/r1-m1-calculation-engine.test.js, PROJECT.md, test/run-tests.js
+- **Items reviewed**: `js/store.js`, `js/pricing.js`, `js/pricingEngine.js`, `js/dashboard.js`, `js/snapshots.js`, `test/run-tests.js`
 - **Verdict**: APPROVE
-- **Unverified claims**: None (all claims independently tested and verified)
+- **Unverified claims**: None
 
 ## Attack Surface
-- **Hypotheses tested**: Zero/negative rates, overdraft bank balances, corrupt localStorage keys, duplicate snapshot IDs, division-by-zero baselines in delta calculations, merge/replace backup cycles.
-- **Vulnerabilities found**: None. All edge cases guarded with finite numeric checks and schema sanitizers.
-- **Untested angles**: None.
+- **Hypotheses tested**: Store reactivity on settings save, localStorage key parity (`bybit_p2p_pricing_platform_fee_pct`), extreme volume boundary values, zero/negative cost basis, rapid event bursts, micro-trade fee drag.
+- **Vulnerabilities found**: None.
+- **Untested angles**: DOM rendering for M2 form fields (scheduled for M2).
 
 ## Key Decisions Made
-- Confirmed full interface contract compliance with PROJECT.md
-- Confirmed 0 integrity violations and 100% test pass rate (341/341)
-- Approved Milestone 1 implementation
+- Confirmed full interface conformance and mathematical accuracy.
+- Issued APPROVE verdict on Milestone 1.
 
 ## Artifact Index
-- c:\dev\p2p\.agents\m1_reviewer_2\BRIEFING.md — Working memory
-- c:\dev\p2p\.agents\m1_reviewer_2\progress.md — Liveness heartbeat
-- c:\dev\p2p\.agents\m1_reviewer_2\DISPATCH.md — Task history
-- c:\dev\p2p\.agents\m1_reviewer_2\handoff.md — Final review report
+- `c:\dev\p2p\.agents\m1_reviewer_2\review.md` — Detailed review and critique report
+- `c:\dev\p2p\.agents\m1_reviewer_2\handoff.md` — 5-component handoff report with verdict

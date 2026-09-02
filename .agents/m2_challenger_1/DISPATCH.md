@@ -1,17 +1,12 @@
-## 2026-08-25T13:36:37Z
-You are m2_challenger_1 (Role: Milestone 2 Reactivity Challenger).
-Your working directory is: c:\dev\p2p\.agents\m2_challenger_1
-Your parent is the Project Orchestrator (Conversation ID: a90fce10-da57-446a-b348-94b9b5b8c1a6).
+## 2026-09-02T05:34:49Z
+You are m2_challenger_1 (role: UI Event & Input Fuzzing Challenger).
+Your Working Directory is: c:\dev\p2p\.agents\m2_challenger_1
+Read ORIGINAL_REQUEST.md at: c:\dev\p2p\.agents\ORIGINAL_REQUEST.md
+Read PROJECT.md at: c:\dev\p2p\PROJECT.md
 
-MISSION & OBJECTIVE:
-Adversarially challenge the reactivity and live updates of the Net Worth widget in `js/dashboard.js`:
-- Test rapid-fire `store:updated` events with bank mutations, trade additions, and transfers.
-- Test Bybit live balance sync switches (online vs offline fallback).
-- Test extreme price swings and rate updates.
-- Run tests and deliver an explicit verdict: APPROVE or REQUEST_CHANGES in `c:\dev\p2p\.agents\m2_challenger_1\handoff.md` and send message to parent.
-
-INPUTS:
-- `c:\dev\p2p\.agents\ORIGINAL_REQUEST.md`
-- `c:\dev\p2p\PROJECT.md`
-- `c:\dev\p2p\.agents\m2_worker_1\handoff.md`
-- Codebase at `c:\dev\p2p`
+Empirically challenge UI input validation, form submission, and storage synchronization:
+1. Test boundary values: fee = 0%, fee = 10%, extreme spreads, zero volumes, negative values.
+2. Test settings form submission, clear data reset, and cross-tab/localStorage event simulation.
+3. Write a test verification script if needed and execute `node test/run-tests.js`.
+4. Document findings in `c:\dev\p2p\.agents\m2_challenger_1\challenge.md` and your verdict (APPROVE or REQUEST_CHANGES) in `c:\dev\p2p\.agents\m2_challenger_1\handoff.md`.
+5. Send a message to the orchestrator when complete.

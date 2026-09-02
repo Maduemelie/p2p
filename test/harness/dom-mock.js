@@ -490,6 +490,7 @@ function setupDomEnvironment() {
   global.document = document;
   global.localStorage = localStorage;
   global.CustomEvent = MockCustomEvent;
+  window.CustomEvent = MockCustomEvent;
   global.navigator = window.navigator;
   global.Chart = class {
     constructor(ctx, config = {}) {
