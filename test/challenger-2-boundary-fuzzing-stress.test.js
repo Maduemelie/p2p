@@ -775,7 +775,7 @@ describe('Challenger 2 — 5. Fee Breakdown DOM Rendering & Accuracy Across Pric
       const buyBadge = document.getElementById('pricing-buy-maker-badge');
       const sellBadge = document.getElementById('pricing-sell-maker-badge');
       assert.strictEqual(buyBadge.textContent, `${tc.feePct.toFixed(2)}% Maker Fee`);
-      assert.strictEqual(sellBadge.textContent, `${tc.feePct.toFixed(2)}% Maker Fee`);
+      assert.strictEqual(sellBadge.textContent, '0.00% Maker Fee');
 
       // Verify Buy Fee Breakdown DOM
       const buyBreakdown = document.getElementById('pricing-buy-fee-breakdown');
@@ -819,14 +819,14 @@ describe('Challenger 2 — 5. Fee Breakdown DOM Rendering & Accuracy Across Pric
         activeSellAds: mockDepth.sellDepth,
         costBasis: tc.costBasis,
         targetSpread: tc.spread,
-        outflowFee: tc.outflow,
-        platformFeePct: tc.feePct,
+        outflowFee: 0,
+        platformFeePct: 0,
         avgVolume: tc.volume,
         pricingMode: 'competitor'
       });
 
       const expectedSellMakerFee = sellAnalysis.feeBreakdown.platformFeePerUnit;
-      const expectedOutflowFeeUnit = tc.outflow / tc.volume;
+      const expectedOutflowFeeUnit = 0;
       const expectedNetRevenue = sellAnalysis.feeBreakdown.netRealizedRevenue;
 
       assert.ok(
@@ -992,11 +992,11 @@ describe('Challenger 2 — 7. Dynamic Reactivity & Settings Synchronization', ()
     const savedFeePct = dom.localStorage.getItem('bybit_p2p_pricing_platform_fee_pct');
     assert.strictEqual(savedFeePct, '0.15', 'Platform fee must persist to localStorage');
 
-    // Verify DOM badges updated to 0.15%
+    // Verify DOM badges updated (Buy badge updates, Sell badge stays 0.00% Maker Fee)
     const buyBadge = document.getElementById('pricing-buy-maker-badge');
     const sellBadge = document.getElementById('pricing-sell-maker-badge');
     assert.strictEqual(buyBadge.textContent, '0.15% Maker Fee');
-    assert.strictEqual(sellBadge.textContent, '0.15% Maker Fee');
+    assert.strictEqual(sellBadge.textContent, '0.00% Maker Fee');
   });
 
   it('7.2: Dispatching store:updated with type "settings" synchronizes Pricing Controller from store', async () => {
@@ -1027,7 +1027,7 @@ describe('Challenger 2 — 7. Dynamic Reactivity & Settings Synchronization', ()
 
     // Verify badges and calculations updated
     assert.strictEqual(document.getElementById('pricing-buy-maker-badge').textContent, '0.25% Maker Fee');
-    assert.strictEqual(document.getElementById('pricing-sell-maker-badge').textContent, '0.25% Maker Fee');
+    assert.strictEqual(document.getElementById('pricing-sell-maker-badge').textContent, '0.00% Maker Fee');
   });
 });
 

@@ -614,7 +614,7 @@ describe('Challenger M2-1 — 5. DOM Template Integrity & Pricing UI Bindings', 
     const badgeSell = dom.document.getElementById('pricing-sell-maker-badge');
 
     assert.strictEqual(badgeBuy.textContent, '0.30% Maker Fee');
-    assert.strictEqual(badgeSell.textContent, '0.30% Maker Fee');
+    assert.strictEqual(badgeSell.textContent, '0.00% Maker Fee');
 
     const buyBreakdown = dom.document.getElementById('pricing-buy-fee-breakdown');
     assert.ok(buyBreakdown.innerHTML.includes('Maker Fee: ₦'));

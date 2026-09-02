@@ -342,14 +342,14 @@ export function calculateMargins() {
   }
 
   // -------------------------------------------------------------
-  // B. SELL SIDE: prices you should sell at (0 fees)
+  // B. SELL SIDE: prices you should sell at (0 fees on Sell side)
   // -------------------------------------------------------------
   const sellAnalysis = calculateSellPricing({
     activeSellAds,
     costBasis,
     targetSpread,
-    outflowFee,
-    platformFeePct,
+    outflowFee: 0,
+    platformFeePct: 0,
     avgVolume,
     pricingMode
   });
@@ -405,15 +405,15 @@ export function calculateMargins() {
 
   // Update Sell Maker Badge
   const elSellMakerBadge = document.getElementById('pricing-sell-maker-badge');
-  if (elSellMakerBadge) elSellMakerBadge.textContent = `${platformFeePct.toFixed(2)}% Maker Fee`;
+  if (elSellMakerBadge) elSellMakerBadge.textContent = '0.00% Maker Fee';
 
   // Render Sell Fee Breakdown & Limits Recommendation (if UI elements exist)
   const elSellFeeBreakdown = document.getElementById('pricing-sell-fee-breakdown');
   if (elSellFeeBreakdown && sellAnalysis.feeBreakdown) {
     elSellFeeBreakdown.innerHTML = `
       <div class="fee-breakdown-pills">
-        <span class="badge badge-neutral tiny">Maker Fee: ₦${sellAnalysis.feeBreakdown.platformFeePerUnit.toFixed(2)}/USDT</span>
-        <span class="badge badge-neutral tiny">Fiat Outflow: ₦${sellAnalysis.feeBreakdown.fiatFeePerUnit.toFixed(2)}/USDT</span>
+        <span class="badge badge-neutral tiny">Maker Fee: ₦0.00/USDT</span>
+        <span class="badge badge-neutral tiny">Fiat Outflow: ₦0.00/USDT</span>
         <span class="badge badge-success tiny">Net Revenue: ₦${sellAnalysis.feeBreakdown.netRealizedRevenue.toFixed(2)}/USDT</span>
       </div>
     `;
