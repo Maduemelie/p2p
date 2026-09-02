@@ -44,7 +44,7 @@ function loadSavedSettings() {
   const spread = localStorage.getItem('bybit_p2p_pricing_spread') || (storeSettings.targetSpread !== undefined ? String(storeSettings.targetSpread) : '5.0');
   const vol = localStorage.getItem('bybit_p2p_pricing_volume') || (storeSettings.avgVolume !== undefined ? String(storeSettings.avgVolume) : '100');
   const inflow = localStorage.getItem('bybit_p2p_pricing_inflow') || (storeSettings.inflowFee !== undefined ? String(storeSettings.inflowFee) : '50');
-  const outflow = localStorage.getItem('bybit_p2p_pricing_outflow') || (storeSettings.outflowFee !== undefined ? String(storeSettings.outflowFee) : '50');
+  const outflow = localStorage.getItem('bybit_p2p_pricing_outflow') || (storeSettings.outflowFee !== undefined ? String(storeSettings.outflowFee) : '0');
   const mode = localStorage.getItem('bybit_p2p_pricing_mode') || (storeSettings.pricingMode || 'avg-10');
   const depthLimit = localStorage.getItem('bybit_p2p_pricing_depth_limit') || (storeSettings.depthLimit !== undefined ? String(storeSettings.depthLimit) : '50');
   const filterLimits = localStorage.getItem('bybit_p2p_pricing_filter_limits') !== null
@@ -102,7 +102,7 @@ function saveSettings() {
       targetSpread: elSpread ? parseFloat(elSpread.value) || 5.0 : 5.0,
       avgVolume: elVol ? parseFloat(elVol.value) || 100.0 : 100.0,
       inflowFee: elInflow ? parseFloat(elInflow.value) || 50.0 : 50.0,
-      outflowFee: elOutflow ? parseFloat(elOutflow.value) || 50.0 : 50.0,
+      outflowFee: elOutflow ? (parseFloat(elOutflow.value) || 0) : 0,
       pricingMode: elMode ? elMode.value : 'avg-10',
       depthLimit: elDepthLimit ? parseInt(elDepthLimit.value, 10) || 50 : 50,
       filterLimits: elFilterLimits ? elFilterLimits.checked : true
@@ -221,7 +221,8 @@ export function calculateMargins() {
   const targetSpread = parseFloat(document.getElementById('input-target-spread')?.value) || 5.0;
   const avgVolume = parseFloat(document.getElementById('input-avg-volume')?.value) || 100.0;
   const inflowFee = parseFloat(document.getElementById('input-inflow-fee')?.value) || 50.0;
-  const outflowFee = parseFloat(document.getElementById('input-outflow-fee')?.value) || 50.0;
+  const elOutflow = document.getElementById('input-outflow-fee');
+  const outflowFee = elOutflow ? (parseFloat(elOutflow.value) || 0) : (storeSettings.outflowFee !== undefined ? storeSettings.outflowFee : 50.0);
   const pricingMode = document.getElementById('input-pricing-mode')?.value || 'avg-10';
   const filterLimits = document.getElementById('input-filter-limits')?.checked ?? true;
 
@@ -254,7 +255,7 @@ export function calculateMargins() {
   const activeSellAds = filteredSellAds.length > 0 ? filteredSellAds : sortedSellAds;
 
   // -------------------------------------------------------------
-  // A. BUY SIDE: prices you should buy at
+  // A. BUY SIDE: prices you should buy at (0.3% Maker fee + Stamp duty)
   // -------------------------------------------------------------
   const buyAnalysis = calculateBuyPricing({
     activeBuyAds,
@@ -262,7 +263,7 @@ export function calculateMargins() {
     targetSpread,
     inflowFee,
     outflowFee,
-    platformFeePct,
+    platformFeePct: platformFeePct || 0.3,
     avgVolume,
     pricingMode
   });
@@ -322,7 +323,7 @@ export function calculateMargins() {
     elBuyFeeBreakdown.innerHTML = `
       <div class="fee-breakdown-pills">
         <span class="badge badge-neutral tiny">Maker Fee: ₦${buyAnalysis.feeBreakdown.platformFeePerUnit.toFixed(2)}/USDT</span>
-        <span class="badge badge-neutral tiny">Fiat Inflow: ₦${(inflowFee / avgVolume).toFixed(2)}/USDT</span>
+        <span class="badge badge-neutral tiny">Fiat Inflow: ₦${buyAnalysis.feeBreakdown.inflowFeePerUnit.toFixed(2)}/USDT</span>
         <span class="badge badge-primary tiny">Net Cost Basis: ₦${buyAnalysis.feeBreakdown.effectiveCostBasis.toFixed(2)}/USDT</span>
       </div>
     `;
@@ -332,7 +333,7 @@ export function calculateMargins() {
     buyAnalysis.suggestedBuy || buyAnalysis.exitPrice || 1500,
     targetSpread,
     inflowFee,
-    { platformFeePct, maxFeeDragRatio: 0.20 }
+    { platformFeePct: platformFeePct || 0.3, maxFeeDragRatio: 0.20 }
   );
 
   const elBuyLimitRec = document.getElementById('pricing-buy-limit-rec') || document.getElementById('pricing-recommended-buy-limit');
@@ -341,7 +342,7 @@ export function calculateMargins() {
   }
 
   // -------------------------------------------------------------
-  // B. SELL SIDE: prices you should sell at
+  // B. SELL SIDE: prices you should sell at (0 fees)
   // -------------------------------------------------------------
   const sellAnalysis = calculateSellPricing({
     activeSellAds,
@@ -412,7 +413,7 @@ export function calculateMargins() {
     elSellFeeBreakdown.innerHTML = `
       <div class="fee-breakdown-pills">
         <span class="badge badge-neutral tiny">Maker Fee: ₦${sellAnalysis.feeBreakdown.platformFeePerUnit.toFixed(2)}/USDT</span>
-        <span class="badge badge-neutral tiny">Fiat Outflow: ₦${(outflowFee / avgVolume).toFixed(2)}/USDT</span>
+        <span class="badge badge-neutral tiny">Fiat Outflow: ₦${sellAnalysis.feeBreakdown.fiatFeePerUnit.toFixed(2)}/USDT</span>
         <span class="badge badge-success tiny">Net Revenue: ₦${sellAnalysis.feeBreakdown.netRealizedRevenue.toFixed(2)}/USDT</span>
       </div>
     `;

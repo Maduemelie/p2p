@@ -214,14 +214,14 @@ export function calculateBuyPricing({
 
 /**
  * Calculate Sell Ad pricing recommendation and safety status
- * Incorporates Bybit Maker platform fee (default 0.3%) and fiat outflow transfer fee.
+ * Outflow fee is ₦0 and platform fee is 0% on Sell side.
  * 
  * @param {Object} params
  * @param {Array<Object>} params.activeSellAds - Active sell competitor ads (cheapest first)
  * @param {number} params.costBasis - FIFO holding cost basis in NGN per USDT
  * @param {number} [params.targetSpread=5.0] - Target spread in NGN per USDT
- * @param {number} [params.outflowFee=50.0] - Fiat outflow transfer fee in NGN
- * @param {number} [params.platformFeePct=0] - Platform maker fee percentage (e.g. 0.3 for 0.3%)
+ * @param {number} [params.outflowFee=0] - Fiat outflow transfer fee in NGN
+ * @param {number} [params.platformFeePct=0] - Platform maker fee percentage (e.g. 0 for Sell side)
  * @param {number} [params.avgVolume=100.0] - Target trade volume in USDT
  * @param {string} [params.pricingMode='avg-10'] - Pricing calculation mode
  * @returns {Object} Sell pricing analysis result

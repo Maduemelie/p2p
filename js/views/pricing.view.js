@@ -56,14 +56,14 @@ export function renderPricingView() {
           </div>
           <div class="form-group col-12 col-md-6">
             <label for="input-inflow-fee" class="form-label">
-              <i data-lucide="arrow-down-left"></i> Buy Payment Inflow Fee
+              <i data-lucide="arrow-down-left"></i> Buy Payment Inflow Fee (Stamp Duty)
             </label>
             <div class="input-affix-wrapper">
               <span class="input-prefix">₦</span>
               <input type="number" step="1" min="0" id="input-inflow-fee" class="form-input font-mono" value="50">
               <span class="input-suffix">NGN</span>
             </div>
-            <p class="form-helper">Fintech transfer fee paid when sending Naira to buy crypto</p>
+            <p class="form-helper">₦50 stamp duty on buy transfers > ₦10,000 (₦0 for ≤ ₦10,000)</p>
           </div>
           <div class="form-group col-12 col-md-6">
             <label for="input-outflow-fee" class="form-label">
@@ -71,10 +71,10 @@ export function renderPricingView() {
             </label>
             <div class="input-affix-wrapper">
               <span class="input-prefix">₦</span>
-              <input type="number" step="1" min="0" id="input-outflow-fee" class="form-input font-mono" value="50">
+              <input type="number" step="1" min="0" id="input-outflow-fee" class="form-input font-mono" value="0">
               <span class="input-suffix">NGN</span>
             </div>
-            <p class="form-helper">Stamp duty or fee charged when receiving Naira from a buyer</p>
+            <p class="form-helper">₦0 fee when receiving Naira into bank account on Sell trades</p>
           </div>
           <div class="form-group col-12 col-md-6">
             <label for="input-pricing-mode" class="form-label">

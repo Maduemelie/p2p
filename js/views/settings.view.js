@@ -171,14 +171,14 @@ export function renderSettingsView() {
 
             <div class="form-group col-12 col-md-4">
               <label for="input-setting-inflow-fee" class="form-label">
-                <i data-lucide="arrow-down-left"></i> Inflow Fiat Fee (₦)
+                <i data-lucide="arrow-down-left"></i> Inflow Stamp Duty (₦)
               </label>
               <div class="input-affix-wrapper">
                 <span class="input-prefix">₦</span>
                 <input type="number" step="1" min="0" id="input-setting-inflow-fee" class="form-input font-mono" value="50" required>
                 <span class="input-suffix">NGN</span>
               </div>
-              <p class="form-helper">Bank transfer fee paid when buying crypto</p>
+              <p class="form-helper">₦50 stamp duty on buy transfers > ₦10,000</p>
             </div>
 
             <div class="form-group col-12 col-md-4">
@@ -187,10 +187,10 @@ export function renderSettingsView() {
               </label>
               <div class="input-affix-wrapper">
                 <span class="input-prefix">₦</span>
-                <input type="number" step="1" min="0" id="input-setting-outflow-fee" class="form-input font-mono" value="50" required>
+                <input type="number" step="1" min="0" id="input-setting-outflow-fee" class="form-input font-mono" value="0" required>
                 <span class="input-suffix">NGN</span>
               </div>
-              <p class="form-helper">Bank stamp duty/fee charged when selling crypto</p>
+              <p class="form-helper">₦0 fee when receiving Naira on sell trades</p>
             </div>
 
             <div class="form-group col-12 col-md-6">
