@@ -985,6 +985,21 @@ export function renderSnapshotHistoryTable() {
     tbody.innerHTML = rowsHtml;
   }
 
+  // Render Desktop Pagination Bar
+  if (tableWrapper && tableWrapper.parentElement) {
+    let desktopPagination = tableWrapper.parentElement.querySelector('.snapshot-table-pagination');
+    if (!desktopPagination) {
+      desktopPagination = document.createElement('div');
+      desktopPagination.className = 'snapshot-table-pagination d-none d-md-block';
+      if (tableWrapper.nextSibling) {
+        tableWrapper.parentElement.insertBefore(desktopPagination, tableWrapper.nextSibling);
+      } else {
+        tableWrapper.parentElement.appendChild(desktopPagination);
+      }
+    }
+    desktopPagination.innerHTML = renderPaginationBar(false);
+  }
+
   // 5. Render Mobile Card List (if present)
   if (listContainer) {
     let cardsHtml = displaySnapshots.map((item) => {
