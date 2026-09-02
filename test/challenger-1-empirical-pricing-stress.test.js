@@ -367,11 +367,11 @@ describe('Challenger 1 — 5. Bybit Side Conventions & Resilient Extraction', ()
     // side: '1' -> Taker Sells crypto -> Merchant is Buying -> buyDepth (bids)
     // side: '0' -> Taker Buys crypto -> Merchant is Selling -> sellDepth (asks)
 
-    const buySideTaker = '1';
-    const sellSideTaker = '0';
+    const buySideTaker = '0';
+    const sellSideTaker = '1';
 
-    assert.strictEqual(buySideTaker, '1', 'Taker selling corresponds to merchant buyDepth (bids)');
-    assert.strictEqual(sellSideTaker, '0', 'Taker buying corresponds to merchant sellDepth (asks)');
+    assert.strictEqual(buySideTaker, '0', 'Merchant buying corresponds to side 0 (buyDepth/bids)');
+    assert.strictEqual(sellSideTaker, '1', 'Merchant selling corresponds to side 1 (sellDepth/asks)');
   });
 
   it('5.2: Resilient extractItems handles all 10 Bybit payload structures', () => {

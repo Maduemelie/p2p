@@ -41,20 +41,20 @@ module.exports = async function handler(req, res) {
      * - side: 0 -> Merchant Buy Ad
      * - side: 1 -> Merchant Sell Ad
      */
-    // Build Buy side: Taker sells crypto -> Competitors are buying -> side: '1' -> buyDepth (bids)
+    // Build Buy side: Merchants buying USDT -> side: '0' -> buyDepth (bids)
     const buyPayload = {
       tokenId: coin,
       currencyId: fiat,
-      side: '1',
+      side: '0',
       page: '1',
       size: String(limit)
     };
 
-    // Build Sell side: Taker buys crypto -> Competitors are selling -> side: '0' -> sellDepth (asks)
+    // Build Sell side: Merchants selling USDT -> side: '1' -> sellDepth (asks)
     const sellPayload = {
       tokenId: coin,
       currencyId: fiat,
-      side: '0',
+      side: '1',
       page: '1',
       size: String(limit)
     };
