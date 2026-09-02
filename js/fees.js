@@ -87,7 +87,10 @@ function attachFeeRowEvents(row, onChangeCallback) {
   });
 
   customInput?.addEventListener('input', onChangeCallback);
-  amountInput?.addEventListener('input', onChangeCallback);
+  amountInput?.addEventListener('input', (e) => {
+    if (amountInput) amountInput.dataset.userModified = 'true';
+    onChangeCallback();
+  });
 
   btnRemove?.addEventListener('click', () => {
     const allRows = document.querySelectorAll('.fee-row');

@@ -115,6 +115,15 @@ export function setTradeDirection(direction) {
     if (summaryEffectiveLabel) summaryEffectiveLabel.textContent = 'Cost';
     if (summaryNetLabel) summaryNetLabel.textContent = 'Total';
     if (btnSubmitLabel) btnSubmitLabel.textContent = isEditing ? 'Update Buy Trade' : 'Save Buy Trade';
+
+    // Default fee row to Bybit P2P Fee on BUY trade if fee row is unset
+    const firstFeeSelect = document.querySelector('.fee-type-select');
+    if (firstFeeSelect && firstFeeSelect.value === 'Bank Transfer Fee') {
+      const firstFeeInput = document.querySelector('.fee-amount-input');
+      if (firstFeeInput && (parseFloat(firstFeeInput.value) === 0 || !firstFeeInput.value)) {
+        firstFeeSelect.value = 'Bybit P2P Fee';
+      }
+    }
   } else {
     btnSell?.classList.add('active');
     btnBuy?.classList.remove('active');
@@ -136,6 +145,20 @@ export function recalculateTradeSummary() {
   const rate = parseFloat(document.getElementById('trade-rate')?.value) || 0;
   const ngn = parseFloat(document.getElementById('trade-ngn')?.value) || 0;
   const usdt = parseFloat(document.getElementById('trade-usdt')?.value) || 0;
+
+  // Auto-calculate 0.30% Bybit P2P Fee on BUY trade when trade amount is entered
+  if (direction === 'BUY' && ngn > 0) {
+    document.querySelectorAll('.fee-row').forEach(row => {
+      const typeSelect = row.querySelector('.fee-type-select');
+      const amountInput = row.querySelector('.fee-amount-input');
+      if (typeSelect && typeSelect.value === 'Bybit P2P Fee' && amountInput) {
+        if (!amountInput.dataset.userModified) {
+          const autoFee = (ngn * 0.003).toFixed(2);
+          amountInput.value = autoFee;
+        }
+      }
+    });
+  }
 
   const totalFees = updateFeeSummaryDisplay();
   const { netAmount, effectiveRate } = calculateTradeBreakdown(direction, ngn, usdt, totalFees);
