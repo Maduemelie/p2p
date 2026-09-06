@@ -519,12 +519,18 @@ describe('Challenger 2 — M4 Historical Calculations, Deletion Reactivity & Bac
 
     renderSnapshotHistoryTable();
     const rows = dom.document.querySelectorAll('#snapshot-history-tbody tr');
-    assert.strictEqual(rows.length, 100);
+    assert.strictEqual(rows.length, 5);
 
-    // Row 0 must be the 100th snapshot (newest), Row 99 must be the 1st snapshot (baseline)
+    // Row 0 must be the 100th snapshot (newest) on page 1
     assert.strictEqual(rows[0].getAttribute('data-snapshot-id'), 'snp_scale_099');
-    assert.strictEqual(rows[99].getAttribute('data-snapshot-id'), 'snp_scale_000');
-    assert.ok(rows[99].innerHTML.includes('Baseline'));
+
+    // Navigate to last page (Page 20) to verify oldest snapshot baseline
+    window._snapshotCurrentPage = 20;
+    renderSnapshotHistoryTable();
+    const lastPageRows = dom.document.querySelectorAll('#snapshot-history-tbody tr');
+    assert.strictEqual(lastPageRows.length, 5);
+    assert.strictEqual(lastPageRows[4].getAttribute('data-snapshot-id'), 'snp_scale_000');
+    assert.ok(lastPageRows[4].innerHTML.includes('Baseline'));
   });
 
   it('M4-CH2.13: Long multi-line snapshot notes truncate in table and open full view modal on click', async () => {

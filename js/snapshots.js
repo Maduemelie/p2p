@@ -979,7 +979,7 @@ export function renderSnapshotHistoryTable() {
 
   // 4. Render Desktop Table Rows
   if (tbody) {
-    const rowsHtml = reversedSnapshots.map((item, idx) => {
+    const rowsHtml = displaySnapshots.map((item, idx) => {
       return renderSnapshotHistoryRow(item, item.isBaseline ? null : item, idx);
     }).join('');
     tbody.innerHTML = rowsHtml;
@@ -1239,8 +1239,13 @@ export function bindSnapshotHistoryActions() {
   nextBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
-      window._snapshotCurrentPage = (window._snapshotCurrentPage || 1) + 1;
-      renderSnapshotHistoryTable();
+      const snapshots = store.getSnapshots ? store.getSnapshots() : [];
+      const SNAPSHOTS_PER_PAGE = 5;
+      const totalPages = Math.ceil(snapshots.length / SNAPSHOTS_PER_PAGE) || 1;
+      if ((window._snapshotCurrentPage || 1) < totalPages) {
+        window._snapshotCurrentPage = (window._snapshotCurrentPage || 1) + 1;
+        renderSnapshotHistoryTable();
+      }
     });
   });
 }

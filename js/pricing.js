@@ -62,15 +62,15 @@ function loadSavedSettings() {
   const elFilterLimits = document.getElementById('input-filter-limits');
   const elMaxFeeDrag = document.getElementById('input-max-fee-drag-pct');
 
-  if (elPlatformFee) elPlatformFee.value = platformFee;
-  if (elSpread) elSpread.value = spread;
-  if (elVol) elVol.value = vol;
-  if (elInflow) elInflow.value = inflow;
-  if (elOutflow) elOutflow.value = outflow;
-  if (elMode) elMode.value = mode;
-  if (elDepthLimit) elDepthLimit.value = depthLimit;
-  if (elFilterLimits) elFilterLimits.checked = filterLimits;
-  if (elMaxFeeDrag) elMaxFeeDrag.value = maxFeeDragPct;
+  if (elPlatformFee && document.activeElement !== elPlatformFee) elPlatformFee.value = platformFee;
+  if (elSpread && document.activeElement !== elSpread) elSpread.value = spread;
+  if (elVol && document.activeElement !== elVol) elVol.value = vol;
+  if (elInflow && document.activeElement !== elInflow) elInflow.value = inflow;
+  if (elOutflow && document.activeElement !== elOutflow) elOutflow.value = outflow;
+  if (elMode && document.activeElement !== elMode) elMode.value = mode;
+  if (elDepthLimit && document.activeElement !== elDepthLimit) elDepthLimit.value = depthLimit;
+  if (elFilterLimits && document.activeElement !== elFilterLimits) elFilterLimits.checked = filterLimits;
+  if (elMaxFeeDrag && document.activeElement !== elMaxFeeDrag) elMaxFeeDrag.value = maxFeeDragPct;
 }
 
 /**
@@ -92,26 +92,31 @@ function saveSettings() {
     localStorage.setItem('bybit_p2p_pricing_platform_fee_pct', platformFeeVal);
     localStorage.setItem('bybit_p2p_pricing_platform_fee', platformFeeVal);
   }
-  if (elSpread) localStorage.setItem('bybit_p2p_pricing_spread', elSpread.value);
-  if (elVol) localStorage.setItem('bybit_p2p_pricing_volume', elVol.value);
-  if (elInflow) localStorage.setItem('bybit_p2p_pricing_inflow', elInflow.value);
-  if (elOutflow) localStorage.setItem('bybit_p2p_pricing_outflow', elOutflow.value);
+  if (elSpread && elSpread.value !== '') localStorage.setItem('bybit_p2p_pricing_spread', elSpread.value);
+  if (elVol && elVol.value !== '') localStorage.setItem('bybit_p2p_pricing_volume', elVol.value);
+  if (elInflow && elInflow.value !== '') localStorage.setItem('bybit_p2p_pricing_inflow', elInflow.value);
+  if (elOutflow && elOutflow.value !== '') localStorage.setItem('bybit_p2p_pricing_outflow', elOutflow.value);
   if (elMode) localStorage.setItem('bybit_p2p_pricing_mode', elMode.value);
-  if (elDepthLimit) localStorage.setItem('bybit_p2p_pricing_depth_limit', elDepthLimit.value);
+  if (elDepthLimit && elDepthLimit.value !== '') localStorage.setItem('bybit_p2p_pricing_depth_limit', elDepthLimit.value);
   if (elFilterLimits) localStorage.setItem('bybit_p2p_pricing_filter_limits', elFilterLimits.checked.toString());
-  if (elMaxFeeDrag) localStorage.setItem('bybit_p2p_pricing_max_fee_drag_pct', elMaxFeeDrag.value);
+  if (elMaxFeeDrag && elMaxFeeDrag.value !== '') localStorage.setItem('bybit_p2p_pricing_max_fee_drag_pct', elMaxFeeDrag.value);
+
+  const maxFeeDragRaw = elMaxFeeDrag ? elMaxFeeDrag.value.trim() : '';
+  const parsedFeeDrag = parseInt(maxFeeDragRaw, 10);
+  const currentSettings = store.getSettings ? store.getSettings() : {};
+  const maxFeeDragVal = !isNaN(parsedFeeDrag) ? parsedFeeDrag : (currentSettings.maxFeeDragPct || 20);
 
   if (store.saveSettings) {
     store.saveSettings({
       platformFeePct: parseFloat(platformFeeVal) || 0.3,
-      targetSpread: elSpread ? parseFloat(elSpread.value) || 5.0 : 5.0,
-      avgVolume: elVol ? parseFloat(elVol.value) || 100.0 : 100.0,
-      inflowFee: elInflow ? parseFloat(elInflow.value) || 50.0 : 50.0,
-      outflowFee: elOutflow ? (parseFloat(elOutflow.value) || 0) : 0,
+      targetSpread: elSpread && elSpread.value !== '' ? parseFloat(elSpread.value) || 5.0 : 5.0,
+      avgVolume: elVol && elVol.value !== '' ? parseFloat(elVol.value) || 100.0 : 100.0,
+      inflowFee: elInflow && elInflow.value !== '' ? parseFloat(elInflow.value) || 50.0 : 50.0,
+      outflowFee: elOutflow && elOutflow.value !== '' ? (parseFloat(elOutflow.value) || 0) : 0,
       pricingMode: elMode ? elMode.value : 'avg-10',
-      depthLimit: elDepthLimit ? parseInt(elDepthLimit.value, 10) || 50 : 50,
+      depthLimit: elDepthLimit && elDepthLimit.value !== '' ? parseInt(elDepthLimit.value, 10) || 50 : 50,
       filterLimits: elFilterLimits ? elFilterLimits.checked : true,
-      maxFeeDragPct: elMaxFeeDrag ? parseInt(elMaxFeeDrag.value, 10) || 20 : 20
+      maxFeeDragPct: maxFeeDragVal
     });
   }
 }

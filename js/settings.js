@@ -63,22 +63,22 @@ export function initSettings() {
 
   function populateFeeDefaults() {
     const settings = store.getSettings ? store.getSettings() : {};
-    if (inputSettingPlatformFee && settings.platformFeePct !== undefined) {
+    if (inputSettingPlatformFee && settings.platformFeePct !== undefined && document.activeElement !== inputSettingPlatformFee) {
       inputSettingPlatformFee.value = settings.platformFeePct;
     }
-    if (inputSettingInflowFee && settings.inflowFee !== undefined) {
+    if (inputSettingInflowFee && settings.inflowFee !== undefined && document.activeElement !== inputSettingInflowFee) {
       inputSettingInflowFee.value = settings.inflowFee;
     }
-    if (inputSettingOutflowFee && settings.outflowFee !== undefined) {
+    if (inputSettingOutflowFee && settings.outflowFee !== undefined && document.activeElement !== inputSettingOutflowFee) {
       inputSettingOutflowFee.value = settings.outflowFee;
     }
-    if (inputSettingTargetSpread && settings.targetSpread !== undefined) {
+    if (inputSettingTargetSpread && settings.targetSpread !== undefined && document.activeElement !== inputSettingTargetSpread) {
       inputSettingTargetSpread.value = settings.targetSpread;
     }
-    if (inputSettingTargetVolume && settings.avgVolume !== undefined) {
+    if (inputSettingTargetVolume && settings.avgVolume !== undefined && document.activeElement !== inputSettingTargetVolume) {
       inputSettingTargetVolume.value = settings.avgVolume;
     }
-    if (inputSettingMaxFeeDrag && settings.maxFeeDragPct !== undefined) {
+    if (inputSettingMaxFeeDrag && settings.maxFeeDragPct !== undefined && document.activeElement !== inputSettingMaxFeeDrag) {
       inputSettingMaxFeeDrag.value = settings.maxFeeDragPct;
     }
   }
