@@ -36,6 +36,143 @@ export function initSettings() {
   const inputOpeningUsdt = document.getElementById('input-opening-usdt');
   const inputOpeningCost = document.getElementById('input-opening-cost-basis');
 
+  // Bybit API Credentials (Multi-Tenant)
+  const inputBybitApiKey = document.getElementById('input-bybit-api-key');
+  const inputBybitApiSecret = document.getElementById('input-bybit-api-secret');
+  const btnSaveBybitKeys = document.getElementById('btn-save-bybit-keys');
+  const btnClearBybitKeys = document.getElementById('btn-clear-bybit-keys');
+  const btnToggleBybitApiSecret = document.getElementById('btn-toggle-bybit-api-secret');
+
+  function populateBybitCredentials() {
+    if (typeof localStorage === 'undefined') return;
+    const apiKey = localStorage.getItem('bybit_api_key') || localStorage.getItem('bybit_p2p_api_key') || '';
+    const apiSecret = localStorage.getItem('bybit_api_secret') || localStorage.getItem('bybit_p2p_api_secret') || '';
+    if (inputBybitApiKey && document.activeElement !== inputBybitApiKey) {
+      inputBybitApiKey.value = apiKey;
+    }
+    if (inputBybitApiSecret && document.activeElement !== inputBybitApiSecret) {
+      inputBybitApiSecret.value = apiSecret;
+    }
+  }
+
+  function sanitizeApiKey(str) {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim();
+  }
+
+  function handleSaveBybitKeys() {
+    const key = sanitizeApiKey(inputBybitApiKey?.value);
+    const secret = sanitizeApiKey(inputBybitApiSecret?.value);
+    if (inputBybitApiKey) inputBybitApiKey.value = key;
+    if (inputBybitApiSecret) inputBybitApiSecret.value = secret;
+
+    if (typeof localStorage !== 'undefined') {
+      if (key) {
+        localStorage.setItem('bybit_api_key', key);
+        localStorage.removeItem('bybit_p2p_api_key');
+      } else {
+        localStorage.removeItem('bybit_api_key');
+        localStorage.removeItem('bybit_p2p_api_key');
+      }
+      if (secret) {
+        localStorage.setItem('bybit_api_secret', secret);
+        localStorage.removeItem('bybit_p2p_api_secret');
+      } else {
+        localStorage.removeItem('bybit_api_secret');
+        localStorage.removeItem('bybit_p2p_api_secret');
+      }
+    }
+    if (window.showToast) {
+      if (key && secret) {
+        window.showToast('Bybit API credentials saved securely in browser storage!', 'success');
+      } else if (key && !secret) {
+        window.showToast('API Key saved, but API Secret is required for signing requests.', 'warning');
+      } else if (!key && secret) {
+        window.showToast('API Secret saved, but API Key is required for signing requests.', 'warning');
+      } else {
+        window.showToast('Bybit API credentials cleared from local storage.', 'info');
+      }
+    }
+    checkProxyConnection();
+  }
+
+  btnSaveBybitKeys?.addEventListener('click', handleSaveBybitKeys);
+
+  const handleKeyEnter = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSaveBybitKeys();
+    }
+  };
+  inputBybitApiKey?.addEventListener('keydown', handleKeyEnter);
+  inputBybitApiSecret?.addEventListener('keydown', handleKeyEnter);
+
+  btnClearBybitKeys?.addEventListener('click', () => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('bybit_api_key');
+      localStorage.removeItem('bybit_api_secret');
+      localStorage.removeItem('bybit_p2p_api_key');
+      localStorage.removeItem('bybit_p2p_api_secret');
+    }
+    if (inputBybitApiKey) inputBybitApiKey.value = '';
+    if (inputBybitApiSecret) inputBybitApiSecret.value = '';
+    if (window.showToast) {
+      window.showToast('Bybit API credentials cleared from local storage.', 'info');
+    }
+    checkProxyConnection();
+  });
+
+  btnToggleBybitApiSecret?.addEventListener('click', () => {
+    if (!inputBybitApiSecret) return;
+    const isPassword = inputBybitApiSecret.type === 'password';
+    inputBybitApiSecret.type = isPassword ? 'text' : 'password';
+    btnToggleBybitApiSecret.textContent = isPassword ? '🙈' : '👁️';
+    btnToggleBybitApiSecret.setAttribute('title', isPassword ? 'Hide Secret' : 'Show Secret');
+    btnToggleBybitApiSecret.setAttribute('aria-label', isPassword ? 'Hide Secret' : 'Show Secret');
+  });
+
+  // Proxy Configuration Elements
+  const inputProxyUrl = document.getElementById('input-proxy-url');
+  const inputProxyToken = document.getElementById('input-proxy-token');
+  const btnSaveProxyConfig = document.getElementById('btn-save-proxy-config');
+
+  function populateProxySettings() {
+    if (typeof localStorage === 'undefined') return;
+    const url = localStorage.getItem('bybit_p2p_proxy_url') || '';
+    const token = localStorage.getItem('bybit_p2p_proxy_token') || '';
+    if (inputProxyUrl && document.activeElement !== inputProxyUrl) {
+      inputProxyUrl.value = url;
+    }
+    if (inputProxyToken && document.activeElement !== inputProxyToken) {
+      inputProxyToken.value = token;
+    }
+  }
+
+  function handleSaveProxyConfig() {
+    const url = inputProxyUrl?.value.trim() || '';
+    const token = sanitizeApiKey(inputProxyToken?.value);
+    if (inputProxyToken) inputProxyToken.value = token;
+
+    if (typeof localStorage !== 'undefined') {
+      if (url) {
+        localStorage.setItem('bybit_p2p_proxy_url', url);
+      } else {
+        localStorage.removeItem('bybit_p2p_proxy_url');
+      }
+      if (token) {
+        localStorage.setItem('bybit_p2p_proxy_token', token);
+      } else {
+        localStorage.removeItem('bybit_p2p_proxy_token');
+      }
+    }
+    if (window.showToast) {
+      window.showToast('Proxy settings saved successfully!', 'success');
+    }
+    checkProxyConnection();
+  }
+
+  btnSaveProxyConfig?.addEventListener('click', handleSaveProxyConfig);
+
   // Bybit P2P Sync Elements
   const proxyBadge = document.getElementById('proxy-status-badge');
   const proxyText = document.getElementById('proxy-status-text');
@@ -85,6 +222,8 @@ export function initSettings() {
 
   populateOpeningInventory();
   populateFeeDefaults();
+  populateBybitCredentials();
+  populateProxySettings();
 
   formFeeDefaults?.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -135,6 +274,8 @@ export function initSettings() {
     if (e.detail?.type === 'all' || e.detail?.type === 'settings') {
       populateOpeningInventory();
       populateFeeDefaults();
+      populateBybitCredentials();
+      populateProxySettings();
     }
   });
 
@@ -145,14 +286,21 @@ export function initSettings() {
     if (!proxyBadge || !proxyText) return;
     try {
       const res = await bybitService.checkStatus();
+      const hasClientKeys = Boolean(
+        typeof localStorage !== 'undefined' &&
+        (localStorage.getItem('bybit_api_key') || localStorage.getItem('bybit_p2p_api_key')) &&
+        (localStorage.getItem('bybit_api_secret') || localStorage.getItem('bybit_p2p_api_secret'))
+      );
+      const isConfigured = Boolean(res.apiKeyConfigured || hasClientKeys);
+
       if (res.status === 'online') {
         proxyBadge.style.background = 'rgba(16, 185, 129, 0.15)';
         proxyBadge.style.color = 'var(--profit)';
-        proxyText.textContent = res.apiKeyConfigured ? 'Proxy Online & Ready' : 'Proxy Online (No Keys)';
-        if (btnSyncBalance) btnSyncBalance.disabled = !res.apiKeyConfigured;
-        if (btnImportTrades) btnImportTrades.disabled = !res.apiKeyConfigured;
+        proxyText.textContent = isConfigured ? 'Proxy Online & Ready' : 'Proxy Online (No Keys)';
+        if (btnSyncBalance) btnSyncBalance.disabled = !isConfigured;
+        if (btnImportTrades) btnImportTrades.disabled = !isConfigured;
         // Auto-populate holdings grid when proxy is ready
-        if (res.apiKeyConfigured) {
+        if (isConfigured) {
           syncSettingsLiveHoldings();
         }
       } else {
@@ -517,13 +665,22 @@ export function initSettings() {
         `This will permanently erase ${tradesCount} trades, all transfers, and bank accounts. This cannot be undone without a JSON backup.`,
         () => {
           store.clearAllData();
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('bybit_api_key');
+            localStorage.removeItem('bybit_api_secret');
+            localStorage.removeItem('bybit_p2p_api_key');
+            localStorage.removeItem('bybit_p2p_api_secret');
+          }
           if (inputOpeningUsdt) inputOpeningUsdt.value = '';
           if (inputOpeningCost) inputOpeningCost.value = '';
+          if (inputBybitApiKey) inputBybitApiKey.value = '';
+          if (inputBybitApiSecret) inputBybitApiSecret.value = '';
           if (inputSettingPlatformFee) inputSettingPlatformFee.value = '0.30';
           if (inputSettingInflowFee) inputSettingInflowFee.value = '50';
           if (inputSettingOutflowFee) inputSettingOutflowFee.value = '50';
           if (inputSettingTargetSpread) inputSettingTargetSpread.value = '5.0';
           if (inputSettingTargetVolume) inputSettingTargetVolume.value = '100';
+          checkProxyConnection();
           if (window.showToast) window.showToast('All journal data has been cleared.', 'info');
         },
         'danger'

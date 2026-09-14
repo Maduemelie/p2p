@@ -925,6 +925,7 @@ img { max-width: 100%; display: block; }
 .input-affix-wrapper { position: relative; display: flex; align-items: center; }
 .input-prefix { position: absolute; left: 14px; font-family: var(--font-mono); font-size: var(--text-body); color: var(--text-muted); font-weight: 600; pointer-events: none; }
 .input-affix-wrapper .form-input { padding-left: 32px; }
+.input-affix-wrapper:not(:has(.input-prefix)) .form-input { padding-left: var(--sp-4); }
 .input-suffix { position: absolute; right: 14px; font-family: var(--font-mono); font-size: var(--text-caption); color: var(--text-muted); font-weight: 600; pointer-events: none; }
 .input-affix-wrapper:has(.input-suffix) .form-input { padding-right: 58px; }
 
@@ -2480,6 +2481,32 @@ img { max-width: 100%; display: block; }
     flex-direction: column;
     align-items: flex-start;
     gap: var(--sp-2);
+  }
+
+  /* Bybit Sync & Credentials Mobile Responsiveness */
+  .bybit-keys-btn-group {
+    flex-direction: column-reverse;
+    width: 100%;
+  }
+  .bybit-keys-btn-group .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .proxy-save-btn-group .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .bybit-sync-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+  .bybit-sync-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .bybit-credentials-card,
+  .proxy-settings-card {
+    padding: 0.75rem !important;
   }
 }
 

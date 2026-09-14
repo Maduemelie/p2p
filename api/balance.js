@@ -1,26 +1,37 @@
-const { API_KEY, API_SECRET, executeWithFailover, verifyAuth } = require('./_bybit');
+const _bybit = require('./_bybit');
 
 module.exports = async function handler(req, res) {
-  if (!verifyAuth(req, res)) return;
+  if (!_bybit.verifyAuth(req, res)) return;
 
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
 
-  if (!API_KEY || !API_SECRET) {
-    return res.status(500).json({ retCode: -1, retMsg: 'Bybit API credentials not configured in Vercel Environment Variables' });
+  const credentials = _bybit.getCredentials(req);
+  if (!credentials.apiKey || !credentials.apiSecret) {
+    return res.status(500).json({ retCode: -1, retMsg: 'Bybit API credentials not configured in request headers or environment variables' });
   }
 
   try {
-    const coin = req.query.coin || 'USDT';
-    const accountType = req.query.accountType || 'FUND';
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch (e) { body = {}; }
+    } else if (!body || typeof body !== 'object') {
+      body = {};
+    }
+
+    const coin = req.query?.coin || body.coin || 'USDT';
+    const accountType = req.query?.accountType || body.accountType || 'FUND';
     const queryString = `accountType=${accountType}&coin=${coin}`;
     const endpointPath = `/v5/asset/transfer/query-account-coins-balance?${queryString}`;
 
-    const response = await executeWithFailover('GET', endpointPath, queryString);
+    const response = await _bybit.executeWithFailover('GET', endpointPath, queryString, null, credentials);
     res.status(200).json(response.data);
   } catch (error) {
     console.error('[Vercel Balance Error]:', error.response?.data || error.message);
     const statusCode = error.response ? error.response.status : 500;
-    const errorData = error.response ? error.response.data : { retCode: -1, retMsg: error.message };
+    let errorData = error.response?.data;
+    if (!errorData || typeof errorData !== 'object') {
+      errorData = { retCode: statusCode, retMsg: error.response?.statusText || error.message };
+    }
     res.status(statusCode).json(errorData);
   }
 };

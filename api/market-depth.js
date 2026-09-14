@@ -1,4 +1,4 @@
-const { API_KEY, API_SECRET, executeWithFailover, verifyAuth } = require('./_bybit');
+const _bybit = require('./_bybit');
 
 const extractItems = (data) => {
   if (!data) return [];
@@ -18,18 +18,26 @@ const extractItems = (data) => {
 };
 
 module.exports = async function handler(req, res) {
-  if (!verifyAuth(req, res)) return;
+  if (!_bybit.verifyAuth(req, res)) return;
 
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
 
-  if (!API_KEY || !API_SECRET) {
-    return res.status(500).json({ retCode: -1, retMsg: 'Bybit API credentials not configured in Vercel Environment Variables' });
+  const credentials = _bybit.getCredentials(req);
+  if (!credentials.apiKey || !credentials.apiSecret) {
+    return res.status(500).json({ retCode: -1, retMsg: 'Bybit API credentials not configured in request headers or environment variables' });
   }
 
   try {
-    const coin = req.query.coin || req.body?.coin || 'USDT';
-    const fiat = req.query.fiat || req.body?.fiat || 'NGN';
-    const limit = req.query.limit || req.body?.limit || '5';
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch (e) { body = {}; }
+    } else if (!body || typeof body !== 'object') {
+      body = {};
+    }
+
+    const coin = req.query?.coin || body.coin || 'USDT';
+    const fiat = req.query?.fiat || body.fiat || 'NGN';
+    const limit = req.query?.limit || body.limit || '5';
 
     /**
      * Bybit P2P Side Conventions for /v5/p2p/item/online (Public Market Depth):
@@ -63,8 +71,8 @@ module.exports = async function handler(req, res) {
     const sellParamsString = JSON.stringify(sellPayload);
 
     const [buyRes, sellRes] = await Promise.all([
-      executeWithFailover('POST', '/v5/p2p/item/online', buyParamsString, buyPayload),
-      executeWithFailover('POST', '/v5/p2p/item/online', sellParamsString, sellPayload)
+      _bybit.executeWithFailover('POST', '/v5/p2p/item/online', buyParamsString, buyPayload, credentials),
+      _bybit.executeWithFailover('POST', '/v5/p2p/item/online', sellParamsString, sellPayload, credentials)
     ]);
 
     res.status(200).json({
@@ -80,7 +88,10 @@ module.exports = async function handler(req, res) {
   } catch (error) {
     console.error('[Vercel Market Depth Error]:', error.response?.data || error.message);
     const statusCode = error.response ? error.response.status : 500;
-    const errorData = error.response ? error.response.data : { retCode: -1, retMsg: error.message };
+    let errorData = error.response?.data;
+    if (!errorData || typeof errorData !== 'object') {
+      errorData = { retCode: statusCode, retMsg: error.response?.statusText || error.message };
+    }
     res.status(statusCode).json(errorData);
   }
 };

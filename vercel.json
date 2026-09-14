@@ -1,3 +1,14 @@
 {
-  "regions": ["fra1"]
+  "version": 2,
+  "regions": ["fra1"],
+  "rewrites": [
+    { "source": "/api/balance", "destination": "/api/balance.js" },
+    { "source": "/api/orders", "destination": "/api/orders.js" },
+    { "source": "/api/ads", "destination": "/api/ads.js" },
+    { "source": "/api/market-depth", "destination": "/api/market-depth.js" },
+    { "source": "/api/status", "destination": "/api/status.js" },
+    { "source": "/api/proxy", "destination": "/api/proxy.js" },
+    { "source": "/api/:path*", "destination": "/api/proxy.js" },
+    { "source": "/api", "destination": "/api/index.js" }
+  ]
 }

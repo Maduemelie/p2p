@@ -645,7 +645,113 @@ async function runEmpiricalSuite() {
     }
   });
 
-  console.log('\n===============================================================');
+  // SECTION 8: Multi-Tenant Credentials, Casing & Isolation Stress Testing
+  console.log('\n--- Section 8: Multi-Tenant Credentials, Casing & Isolation Stress Testing ---');
+
+  await test('8.1 Client-side custom Bybit credentials bypass proxy token requirement and allow access', async () => {
+    const req = {
+      method: 'GET',
+      headers: {
+        'x-bybit-api-key': 'tenant_user_key_999',
+        'x-bybit-api-secret': 'tenant_user_secret_999'
+      },
+      query: {}
+    };
+    const res = createMockRes();
+    const isAuthed = vercelBybit.verifyAuth(req, res);
+    assert(isAuthed === true, 'verifyAuth should succeed with valid client credentials even without proxy token');
+    assertEqual(res.statusCode, 200, 'Status should remain 200');
+  });
+
+  await test('8.2 Atomic isolation: client key without secret does not inherit server secret', () => {
+    const prevKey = process.env.BYBIT_API_KEY;
+    const prevSec = process.env.BYBIT_API_SECRET;
+    try {
+      process.env.BYBIT_API_KEY = 'srv_key';
+      process.env.BYBIT_API_SECRET = 'srv_secret';
+
+      const req = { headers: { 'x-bybit-api-key': 'user_only_key' } };
+      const creds = vercelBybit.getCredentials(req);
+      assertEqual(creds.apiKey, 'user_only_key', 'apiKey should be user_only_key');
+      assertEqual(creds.apiSecret, '', 'apiSecret must NOT fall back to server secret');
+      assertEqual(creds.isClientProvided, true, 'Must flag as client provided');
+    } finally {
+      process.env.BYBIT_API_KEY = prevKey;
+      process.env.BYBIT_API_SECRET = prevSec;
+    }
+  });
+
+  await test('8.3 Atomic isolation: client secret without key does not inherit server key', () => {
+    const prevKey = process.env.BYBIT_API_KEY;
+    const prevSec = process.env.BYBIT_API_SECRET;
+    try {
+      process.env.BYBIT_API_KEY = 'srv_key';
+      process.env.BYBIT_API_SECRET = 'srv_secret';
+
+      const req = { headers: { 'x-bybit-api-secret': 'user_only_secret' } };
+      const creds = vercelBybit.getCredentials(req);
+      assertEqual(creds.apiKey, '', 'apiKey must NOT fall back to server key');
+      assertEqual(creds.apiSecret, 'user_only_secret', 'apiSecret should be user_only_secret');
+      assertEqual(creds.isClientProvided, true, 'Must flag as client provided');
+    } finally {
+      process.env.BYBIT_API_KEY = prevKey;
+      process.env.BYBIT_API_SECRET = prevSec;
+    }
+  });
+
+  await test('8.4 Mixed/uppercase header extraction handles varied runtime casings', () => {
+    const casings = [
+      { 'X-Bybit-Api-Key': 'k_mix', 'X-Bybit-Api-Secret': 's_mix' },
+      { 'X-BYBIT-API-KEY': 'k_upper', 'X-BYBIT-API-SECRET': 's_upper' },
+      { 'x-ByBiT-aPi-KeY': 'k_wild', 'x-bYbIt-aPi-sEcReT': 's_wild' }
+    ];
+
+    for (const h of casings) {
+      const creds = vercelBybit.getCredentials({ headers: h });
+      assert(creds.apiKey.startsWith('k_'), 'Failed apiKey extraction for casing: ' + JSON.stringify(h));
+      assert(creds.apiSecret.startsWith('s_'), 'Failed apiSecret extraction for casing: ' + JSON.stringify(h));
+    }
+  });
+
+  await test('8.5 Invisible non-ASCII zero-width character sanitization', () => {
+    const dirtyKey = '\u200B\u200Cclean_key\uFEFF\u00A0';
+    const dirtySec = '\uFEFFclean_secret\u200D';
+    assertEqual(vercelBybit.sanitizeKey(dirtyKey), 'clean_key', 'Zero-width characters stripped from key');
+    assertEqual(vercelBybit.sanitizeKey(dirtySec), 'clean_secret', 'Zero-width characters stripped from secret');
+
+    const creds = vercelBybit.getCredentials({
+      headers: {
+        'x-bybit-api-key': dirtyKey,
+        'x-bybit-api-secret': dirtySec
+      }
+    });
+    assertEqual(creds.apiKey, 'clean_key', 'getCredentials sanitized apiKey');
+    assertEqual(creds.apiSecret, 'clean_secret', 'getCredentials sanitized apiSecret');
+  });
+
+  await test('8.6 Proxy healthcheck probe to /api/proxy returns 200 without requiring auth', async () => {
+    const proxyHandler = require('../api/proxy');
+    const req = {
+      method: 'GET',
+      url: '/api/proxy',
+      headers: {}
+    };
+    const res = createMockRes();
+    await proxyHandler(req, res);
+    assertEqual(res.statusCode, 200, 'Healthcheck status should be 200');
+    assertEqual(res.body.status, 'online', 'Healthcheck status online');
+  });
+
+  await test('8.7 executeWithFailover rejects missing credentials immediately', async () => {
+    let threw = false;
+    try {
+      await vercelBybit.executeWithFailover('GET', '/v5/test', '', null, { apiKey: '', apiSecret: '' });
+    } catch (e) {
+      threw = true;
+      assert(e.message.includes('credentials incomplete'), 'Expected clear error message');
+    }
+    assert(threw, 'Should throw error when credentials are empty');
+  });
   console.log('CHALLENGER 2 TEST RUN RESULTS: ' + passed + ' PASSED, ' + failed + ' FAILED (Total: ' + (passed + failed) + ')');
   console.log('===============================================================');
 

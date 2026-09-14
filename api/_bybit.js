@@ -14,6 +14,27 @@ const BASE_URL_CANDIDATES = TESTNET
       'https://api.bybit.com'
     ].filter(Boolean);
 
+function sanitizeKey(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim();
+}
+
+function getHeader(req, name) {
+  if (!req) return undefined;
+  if (typeof req.get === 'function') {
+    const val = req.get(name);
+    if (val !== undefined) return val;
+  }
+  if (req.headers && typeof req.headers === 'object') {
+    const lowerName = name.toLowerCase();
+    if (req.headers[lowerName] !== undefined) return req.headers[lowerName];
+    if (req.headers[name] !== undefined) return req.headers[name];
+    const foundKey = Object.keys(req.headers).find(k => k.toLowerCase() === lowerName);
+    if (foundKey) return req.headers[foundKey];
+  }
+  return undefined;
+}
+
 function generateSignature(timestamp, apiKey, apiSecret, recvWindow, paramsString = '') {
   const preSignString = timestamp + apiKey + recvWindow + paramsString;
   return crypto
@@ -22,9 +43,9 @@ function generateSignature(timestamp, apiKey, apiSecret, recvWindow, paramsStrin
     .digest('hex');
 }
 
-function getBybitHeaders(timestamp, recvWindow, signature) {
+function getBybitHeaders(timestamp, recvWindow, signature, apiKey = (process.env.BYBIT_API_KEY || API_KEY)) {
   return {
-    'X-BAPI-API-KEY': API_KEY,
+    'X-BAPI-API-KEY': apiKey,
     'X-BAPI-TIMESTAMP': timestamp.toString(),
     'X-BAPI-SIGN': signature,
     'X-BAPI-RECV-WINDOW': recvWindow.toString(),
@@ -33,22 +54,45 @@ function getBybitHeaders(timestamp, recvWindow, signature) {
   };
 }
 
-async function executeWithFailover(method, endpointPath, paramsString, payload = null) {
+async function executeWithFailover(method, endpointPath, paramsString, payload = null, credentials = null) {
+  let activeKey = '';
+  let activeSecret = '';
+
+  if (credentials && (credentials.apiKey !== undefined || credentials.apiSecret !== undefined)) {
+    activeKey = sanitizeKey(credentials.apiKey);
+    activeSecret = sanitizeKey(credentials.apiSecret);
+  } else {
+    activeKey = sanitizeKey(process.env.BYBIT_API_KEY || API_KEY || '');
+    activeSecret = sanitizeKey(process.env.BYBIT_API_SECRET || API_SECRET || '');
+  }
+
+  if (!activeKey || !activeSecret) {
+    throw new Error('Bybit API credentials incomplete: both API key and secret are required to execute signed requests');
+  }
+
   const timestamp = Date.now();
   const recvWindow = 5000;
-  const signature = generateSignature(timestamp, API_KEY, API_SECRET, recvWindow, paramsString);
-  const headers = getBybitHeaders(timestamp, recvWindow, signature);
+  const signature = generateSignature(timestamp, activeKey, activeSecret, recvWindow, paramsString);
+  const headers = getBybitHeaders(timestamp, recvWindow, signature, activeKey);
 
+  const REQUEST_TIMEOUT = parseInt(process.env.BYBIT_TIMEOUT_MS, 10) || 5000;
   let lastError = null;
 
   for (const baseUrl of BASE_URL_CANDIDATES) {
-    const fullUrl = `${baseUrl}${endpointPath}`;
+    const cleanPath = endpointPath.trim().replace(/^\/+/, '/');
+    const fullUrl = `${baseUrl}${cleanPath}`;
     try {
-      console.log(`[Vercel Serverless] Requesting: ${fullUrl}`);
-      if (method.toUpperCase() === 'GET') {
-        return await axios.get(fullUrl, { headers, timeout: 8000 });
+      const upperMethod = method.toUpperCase();
+      if (upperMethod === 'GET') {
+        return await axios.get(fullUrl, { headers, timeout: REQUEST_TIMEOUT });
+      } else if (upperMethod === 'POST') {
+        return await axios.post(fullUrl, payload, { headers, timeout: REQUEST_TIMEOUT });
+      } else if (upperMethod === 'PUT') {
+        return await axios.put(fullUrl, payload, { headers, timeout: REQUEST_TIMEOUT });
+      } else if (upperMethod === 'DELETE') {
+        return await axios.delete(fullUrl, { headers, data: payload, timeout: REQUEST_TIMEOUT });
       } else {
-        return await axios.post(fullUrl, payload, { headers, timeout: 8000 });
+        return await axios({ method: upperMethod, url: fullUrl, headers, data: payload, timeout: REQUEST_TIMEOUT });
       }
     } catch (err) {
       lastError = err;
@@ -75,23 +119,15 @@ function verifyToken(providedToken, expectedToken) {
 }
 
 function extractToken(req) {
-  const getHeader = (name) => {
-    if (req.headers) {
-      return req.headers[name.toLowerCase()] || req.headers[name];
-    }
-    if (typeof req.get === 'function') {
-      return req.get(name);
-    }
-    return undefined;
-  };
-
-  const authHeader = getHeader('authorization');
+  const authHeader = getHeader(req, 'authorization');
   if (authHeader && typeof authHeader === 'string') {
     const trimmed = authHeader.trim();
     const bearerMatch = trimmed.match(/^Bearer\s+(.+)$/i);
     if (bearerMatch) {
       const t = bearerMatch[1].trim();
       if (t) return t;
+    } else if (trimmed.toLowerCase() === 'bearer') {
+      return null;
     } else if (!/^[a-zA-Z]+\s+/.test(trimmed)) {
       if (trimmed) return trimmed;
     } else {
@@ -99,7 +135,7 @@ function extractToken(req) {
     }
   }
 
-  const customHeader = getHeader('x-proxy-token') || getHeader('x-api-token') || getHeader('x-auth-token');
+  const customHeader = getHeader(req, 'x-proxy-token') || getHeader(req, 'x-api-token') || getHeader(req, 'x-auth-token');
   if (customHeader && typeof customHeader === 'string' && customHeader.trim()) {
     return customHeader.trim();
   }
@@ -121,10 +157,34 @@ function extractToken(req) {
   return null;
 }
 
+function getCredentials(req) {
+  const rawApiKey = getHeader(req, 'x-bybit-api-key');
+  const rawApiSecret = getHeader(req, 'x-bybit-api-secret');
+
+  const headerApiKey = sanitizeKey(rawApiKey);
+  const headerApiSecret = sanitizeKey(rawApiSecret);
+
+  // Multi-tenant: If request provided client API credentials, use them atomically without cross-contaminating from server env
+  if (headerApiKey || headerApiSecret) {
+    return {
+      apiKey: headerApiKey,
+      apiSecret: headerApiSecret,
+      isClientProvided: true
+    };
+  }
+
+  // Single-tenant fallback: Use server-side environment variables
+  return {
+    apiKey: sanitizeKey(process.env.BYBIT_API_KEY || API_KEY || ''),
+    apiSecret: sanitizeKey(process.env.BYBIT_API_SECRET || API_SECRET || ''),
+    isClientProvided: false
+  };
+}
+
 function verifyAuth(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-proxy-token, x-api-token, x-auth-token');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-proxy-token, x-api-token, x-auth-token, x-bybit-api-key, x-bybit-api-secret, x-bybit-endpoint');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -134,7 +194,27 @@ function verifyAuth(req, res) {
   const currentExpectedToken = process.env.PROXY_AUTH_TOKEN || process.env.BYBIT_PROXY_TOKEN || process.env.AUTH_TOKEN || PROXY_AUTH_TOKEN;
   const token = extractToken(req);
 
-  if (!token) {
+  const rawClientApiKey = getHeader(req, 'x-bybit-api-key');
+  const rawClientApiSecret = getHeader(req, 'x-bybit-api-secret');
+  const hasClientApiKey = Boolean(rawClientApiKey && sanitizeKey(rawClientApiKey));
+  const hasClientApiSecret = Boolean(rawClientApiSecret && sanitizeKey(rawClientApiSecret));
+  const hasUserCredentials = hasClientApiKey && hasClientApiSecret;
+
+  if (!token && !hasUserCredentials) {
+    if (hasClientApiKey && !hasClientApiSecret) {
+      res.status(401).json({
+        retCode: 401,
+        retMsg: 'Unauthorized: Missing Bybit API Secret in request headers (x-bybit-api-secret)'
+      });
+      return false;
+    }
+    if (!hasClientApiKey && hasClientApiSecret) {
+      res.status(401).json({
+        retCode: 401,
+        retMsg: 'Unauthorized: Missing Bybit API Key in request headers (x-bybit-api-key)'
+      });
+      return false;
+    }
     res.status(401).json({
       retCode: 401,
       retMsg: 'Unauthorized: Invalid or missing proxy authorization token'
@@ -142,7 +222,15 @@ function verifyAuth(req, res) {
     return false;
   }
 
-  if (currentExpectedToken && !verifyToken(token, currentExpectedToken)) {
+  if (currentExpectedToken && token) {
+    if (!verifyToken(token, currentExpectedToken)) {
+      res.status(401).json({
+        retCode: 401,
+        retMsg: 'Unauthorized: Invalid or missing proxy authorization token'
+      });
+      return false;
+    }
+  } else if (currentExpectedToken && !token && !hasUserCredentials) {
     res.status(401).json({
       retCode: 401,
       retMsg: 'Unauthorized: Invalid or missing proxy authorization token'
@@ -159,6 +247,9 @@ module.exports = {
   TESTNET,
   BASE_URL_CANDIDATES,
   PROXY_AUTH_TOKEN,
+  sanitizeKey,
+  getHeader,
+  getCredentials,
   verifyToken,
   extractToken,
   verifyAuth,

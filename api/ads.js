@@ -1,12 +1,13 @@
-const { API_KEY, API_SECRET, executeWithFailover, verifyAuth } = require('./_bybit');
+const _bybit = require('./_bybit');
 
 module.exports = async function handler(req, res) {
-  if (!verifyAuth(req, res)) return;
+  if (!_bybit.verifyAuth(req, res)) return;
 
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
 
-  if (!API_KEY || !API_SECRET) {
-    return res.status(500).json({ retCode: -1, retMsg: 'Bybit API credentials not configured in Vercel Environment Variables' });
+  const credentials = _bybit.getCredentials(req);
+  if (!credentials.apiKey || !credentials.apiSecret) {
+    return res.status(500).json({ retCode: -1, retMsg: 'Bybit API credentials not configured in request headers or environment variables' });
   }
 
   try {
@@ -31,12 +32,12 @@ module.exports = async function handler(req, res) {
       try {
         const jsonBodyString = JSON.stringify(payload);
         const endpointPath = `/v5/p2p/item/personal/list`;
-        const response = await executeWithFailover('POST', endpointPath, jsonBodyString, payload);
+        const response = await _bybit.executeWithFailover('POST', endpointPath, jsonBodyString, payload, credentials);
         const data = response.data;
         let items = extractItems(data);
 
         // Auto-paginate when caller did not explicitly request a specific page and more items exist
-        const isDefaultPage = (!req.query?.page && !req.body?.page) || payload.page === 1 || payload.page === '1';
+        const isDefaultPage = (!req.query?.page && !body?.page) || payload.page === 1 || payload.page === '1';
         const pageSize = Number(payload.size || 30);
         const totalCount = Number(data?.result?.count || data?.result?.total || data?.result?.totalNumber || data?.result?.totalCount || data?.result?.total_count || 0);
 
@@ -49,7 +50,7 @@ module.exports = async function handler(req, res) {
                 page: typeof payload.page === 'number' ? p : String(p)
               };
               const nextJson = JSON.stringify(nextPagePayload);
-              const nextRes = await executeWithFailover('POST', endpointPath, nextJson, nextPagePayload);
+              const nextRes = await _bybit.executeWithFailover('POST', endpointPath, nextJson, nextPagePayload, credentials);
               const nextItems = extractItems(nextRes.data);
               if (!nextItems || nextItems.length === 0) break;
               items = items.concat(nextItems);
@@ -67,13 +68,20 @@ module.exports = async function handler(req, res) {
       }
     };
 
-    const tokenId = req.query?.tokenId || req.body?.tokenId || 'USDT';
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch (e) { body = {}; }
+    } else if (!body || typeof body !== 'object') {
+      body = {};
+    }
+
+    const tokenId = req.query?.tokenId || body.tokenId || 'USDT';
     const requestedSide = req.query?.side !== undefined && req.query?.side !== null && String(req.query.side).trim() !== ''
       ? String(req.query.side).trim()
-      : (req.body?.side !== undefined && req.body?.side !== null && String(req.body?.side).trim() !== '' ? String(req.body?.side).trim() : null);
+      : (body.side !== undefined && body.side !== null && String(body.side).trim() !== '' ? String(body.side).trim() : null);
 
-    const page = String(req.query?.page || req.body?.page || '1');
-    const size = String(req.query?.size || req.body?.size || '30');
+    const page = String(req.query?.page || body.page || '1');
+    const size = String(req.query?.size || body.size || '30');
 
     let combinedItems = [];
 
@@ -128,7 +136,10 @@ module.exports = async function handler(req, res) {
   } catch (error) {
     console.error('[Vercel Ads Error]:', error.response?.data || error.message);
     const statusCode = error.response ? error.response.status : 500;
-    const errorData = error.response ? error.response.data : { retCode: -1, retMsg: error.message };
+    let errorData = error.response?.data;
+    if (!errorData || typeof errorData !== 'object') {
+      errorData = { retCode: statusCode, retMsg: error.response?.statusText || error.message };
+    }
     res.status(statusCode).json(errorData);
   }
 };

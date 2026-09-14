@@ -1,10 +1,11 @@
-const { API_KEY, API_SECRET, executeWithFailover, verifyAuth } = require('./_bybit');
+const _bybit = require('./_bybit');
 
 module.exports = async function handler(req, res) {
-  if (!verifyAuth(req, res)) return;
+  if (!_bybit.verifyAuth(req, res)) return;
 
-  if (!API_KEY || !API_SECRET) {
-    return res.status(500).json({ retCode: -1, retMsg: 'Bybit API credentials not configured in Vercel Environment Variables' });
+  const credentials = _bybit.getCredentials(req);
+  if (!credentials.apiKey || !credentials.apiSecret) {
+    return res.status(500).json({ retCode: -1, retMsg: 'Bybit API credentials not configured in request headers or environment variables' });
   }
 
   try {
@@ -40,12 +41,15 @@ module.exports = async function handler(req, res) {
     const jsonBodyString = JSON.stringify(payload);
     const endpointPath = `/v5/p2p/order/simplifyList`;
 
-    const response = await executeWithFailover('POST', endpointPath, jsonBodyString, payload);
+    const response = await _bybit.executeWithFailover('POST', endpointPath, jsonBodyString, payload, credentials);
     res.status(200).json(response.data);
   } catch (error) {
     console.error('[Vercel Orders Error]:', error.response?.data || error.message);
     const statusCode = error.response ? error.response.status : 500;
-    const errorData = error.response ? error.response.data : { retCode: -1, retMsg: error.message };
+    let errorData = error.response?.data;
+    if (!errorData || typeof errorData !== 'object') {
+      errorData = { retCode: statusCode, retMsg: error.response?.statusText || error.message };
+    }
     res.status(statusCode).json(errorData);
   }
 };

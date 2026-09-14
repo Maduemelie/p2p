@@ -30,6 +30,11 @@ function getProxyUrl() {
   return 'http://localhost:3000';
 }
 
+export function sanitizeKey(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim();
+}
+
 function getAuthHeaders(customHeaders = {}) {
   const headers = {
     'Content-Type': 'application/json',
@@ -38,14 +43,63 @@ function getAuthHeaders(customHeaders = {}) {
   if (typeof window !== 'undefined' && window.localStorage) {
     const token = localStorage.getItem('bybit_p2p_proxy_token');
     if (token && token.trim()) {
-      const cleanToken = token.trim();
+      const cleanToken = sanitizeKey(token);
       headers['Authorization'] = `Bearer ${cleanToken}`;
       headers['x-proxy-token'] = cleanToken;
       headers['x-api-token'] = cleanToken;
       headers['x-auth-token'] = cleanToken;
     }
+    const rawApiKey = localStorage.getItem('bybit_api_key') || localStorage.getItem('bybit_p2p_api_key');
+    const rawApiSecret = localStorage.getItem('bybit_api_secret') || localStorage.getItem('bybit_p2p_api_secret');
+    const apiKey = sanitizeKey(rawApiKey);
+    const apiSecret = sanitizeKey(rawApiSecret);
+    if (apiKey) {
+      headers['x-bybit-api-key'] = apiKey;
+    }
+    if (apiSecret) {
+      headers['x-bybit-api-secret'] = apiSecret;
+    }
   }
   return headers;
+}
+
+export function formatBybitErrorMessage(data, defaultMsg = 'Unknown error occurred') {
+  if (!data) return defaultMsg;
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      data = { retMsg: data };
+    }
+  }
+  const code = Number(data?.retCode ?? data?.ret_code ?? data?.code ?? 0);
+  const rawMsg = String(data?.retMsg || data?.ret_msg || data?.message || defaultMsg || '');
+
+  if (rawMsg.startsWith('<')) {
+    return `Upstream gateway error (HTTP ${code || 'network'}). Bybit services may be temporarily unreachable.`;
+  }
+  if (code === 10003 || /api_?key is invalid/i.test(rawMsg)) {
+    return 'Unauthorized: Bybit API Key is invalid or does not exist. Please check your Bybit API Key in Settings.';
+  }
+  if (code === 10004 || /error sign/i.test(rawMsg)) {
+    return 'Bybit API Signature error: API Secret mismatch. Please check your Bybit API Secret in Settings.';
+  }
+  if (code === 10005 || /permission denied/i.test(rawMsg)) {
+    return 'Permission denied (Code 10005): Your Bybit API key lacks permissions for this action. Ensure "Read-Write" and Account/P2P permissions are enabled in Bybit API management, and check IP restrictions.';
+  }
+  if (code === 10010 || /unmatched ip|ip restriction/i.test(rawMsg)) {
+    return 'IP Restriction (Code 10010): Your Bybit API key is restricted by IP address. Please set it to "No IP restriction" on Bybit to allow serverless queries.';
+  }
+  if (code === 33004 || /expired/i.test(rawMsg)) {
+    return 'Bybit API key has expired (Code 33004). Please create a new key on Bybit and update Settings.';
+  }
+  if (code === 10006 || /too many visits|rate limit/i.test(rawMsg)) {
+    return 'Bybit rate limit exceeded (Code 10006). Please wait a moment before trying again.';
+  }
+  if (code === 401 || /unauthorized/i.test(rawMsg)) {
+    return 'Unauthorized: Invalid or missing Bybit API credentials or proxy authorization token. Please configure your credentials in Settings.';
+  }
+  return rawMsg || defaultMsg;
 }
 
 export const bybitService = {
@@ -77,15 +131,12 @@ export const bybitService = {
         headers: getAuthHeaders()
       });
       if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Unauthorized: Invalid or missing proxy authorization token. Please configure your Proxy Auth Token in Settings.');
-        }
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.retMsg || `HTTP ${response.status}`);
+        throw new Error(formatBybitErrorMessage(errData, errData.retMsg || `HTTP ${response.status}`));
       }
       const data = await response.json();
       if (data.retCode !== 0 && data.ret_code !== 0) {
-        throw new Error(data.retMsg || data.ret_msg || `Error code: ${data.retCode ?? data.ret_code}`);
+        throw new Error(formatBybitErrorMessage(data, data.retMsg || data.ret_msg || `Error code: ${data.retCode ?? data.ret_code}`));
       }
       return data.result;
     } catch (e) {
@@ -115,16 +166,13 @@ export const bybitService = {
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Unauthorized: Invalid or missing proxy authorization token. Please configure your Proxy Auth Token in Settings.');
-        }
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.retMsg || errData.ret_msg || `HTTP ${response.status}`);
+        throw new Error(formatBybitErrorMessage(errData, errData.retMsg || errData.ret_msg || `HTTP ${response.status}`));
       }
 
       const data = await response.json();
       if (data.retCode !== 0 && data.ret_code !== 0) {
-        throw new Error(data.retMsg || data.ret_msg || `Error code: ${data.retCode ?? data.ret_code}`);
+        throw new Error(formatBybitErrorMessage(data, data.retMsg || data.ret_msg || `Error code: ${data.retCode ?? data.ret_code}`));
       }
 
       return data.result; // Returns { count, items: [...] }
@@ -161,16 +209,12 @@ export const bybitService = {
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
-        if (response.status === 401) {
-          console.warn('[Bybit Service] Unauthorized: Invalid or missing proxy authorization token');
-          throw new Error('Unauthorized: Invalid or missing proxy authorization token. Please configure your Proxy Auth Token in Settings.');
-        }
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.retMsg || `HTTP ${response.status}`);
+        throw new Error(formatBybitErrorMessage(errData, errData.retMsg || `HTTP ${response.status}`));
       }
       const data = await response.json();
       if (data.retCode !== 0 && data.ret_code !== 0) {
-        throw new Error(data.retMsg || `Error code: ${data.retCode}`);
+        throw new Error(formatBybitErrorMessage(data, data.retMsg || `Error code: ${data.retCode}`));
       }
       if (Array.isArray(data.result)) return data.result;
       if (data.result && typeof data.result === 'object') {
@@ -202,15 +246,12 @@ export const bybitService = {
         headers: getAuthHeaders()
       });
       if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Unauthorized: Invalid or missing proxy authorization token. Please configure your Proxy Auth Token in Settings.');
-        }
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.retMsg || `HTTP ${response.status}`);
+        throw new Error(formatBybitErrorMessage(errData, errData.retMsg || `HTTP ${response.status}`));
       }
       const data = await response.json();
       if (data.retCode !== 0) {
-        throw new Error(data.retMsg || `Error code: ${data.retCode}`);
+        throw new Error(formatBybitErrorMessage(data, data.retMsg || `Error code: ${data.retCode}`));
       }
       return data.result;
     } catch (e) {

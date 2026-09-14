@@ -33,3 +33,36 @@ Working directory: c:\dev\p2p
 - [ ] Bybit 0.3% platform fee is configurable and factored into max buy price, break-even sell price, and recommended rates.
 - [ ] Net profit remains positive across all valid trade sizes within recommended order limit bounds.
 - [ ] Automated unit tests pass with 100% accuracy for fee-adjusted arbitrage math.
+
+## Follow-up — 2026-09-12T11:48:50Z
+
+This is a single self-contained fix; keep it small and focused.
+
+Convert the Bybit P2P platform from a single-tenant local server app to a multi-tenant web application ready for Vercel deployment, allowing multiple users to safely configure their own Bybit API keys in settings and run queries independently.
+
+Working directory: c:\dev\p2p
+Integrity mode: development
+
+## Requirements
+
+### R1. Client-Side Bybit API Credentials UI & Persistence
+Update the settings UI (`js/views/settings.view.js` and `js/settings.js`) so users can enter and save their own Bybit API Key and Bybit API Secret in browser local storage. Outbound API proxy requests must pass these credentials in custom headers (`x-bybit-api-key`, `x-bybit-api-secret`).
+
+### R2. Vercel Serverless Multi-Tenant API Proxy
+Implement a Vercel-compatible serverless API handler (`api/index.js` or `api/proxy.js`) replacing single-tenant `server.js` reliance. The handler must extract Bybit API credentials dynamically from incoming request headers and execute signed Bybit API calls statelessly without logging or storing user secrets.
+
+### R3. Test Suite Verification
+Ensure all automated unit and invariant tests (`npm test`) continue passing cleanly without regressions.
+
+## Acceptance Criteria
+
+### Settings & UI Credentials
+- [ ] User can input, save, and clear Bybit API Key and Bybit API Secret in the settings UI.
+- [ ] Frontend API calls automatically attach saved user credentials in request headers.
+
+### Vercel Serverless Proxy
+- [ ] Serverless API proxy dynamically signs and forwards Bybit P2P requests based on headers from each user.
+- [ ] `vercel.json` properly configures static file serving and `/api/*` routing for Vercel deployment.
+
+### Test Integrity
+- [ ] Automated test suite (`npm test`) passes 100% cleanly.
