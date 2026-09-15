@@ -553,17 +553,17 @@ export function calculateMargins() {
   if (tbodyBrackets && Array.isArray(buybackAnalysis.brackets)) {
     tbodyBrackets.innerHTML = buybackAnalysis.brackets.map(b => `
       <tr>
-        <td>
+        <td class="text-nowrap">
           <div class="fw-semibold text-white">${escapeHtml(b.name)}</div>
           <div class="text-muted tiny">${escapeHtml(b.description)}</div>
         </td>
-        <td class="font-mono fw-bold text-info">
+        <td class="font-mono fw-bold text-info text-nowrap">
           ${b.volumeUsdt.toLocaleString()} USDT <span class="tiny text-muted">(${b.volumePct}%)</span>
         </td>
-        <td class="font-mono fw-bold text-success">
+        <td class="font-mono fw-bold text-success text-nowrap">
           ₦${b.targetPrice.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </td>
-        <td class="text-end font-mono fw-bold text-secondary">
+        <td class="text-end font-mono fw-bold text-secondary text-nowrap">
           ₦${b.totalNgn.toLocaleString('en-NG', { maximumFractionDigits: 0 })}
         </td>
       </tr>

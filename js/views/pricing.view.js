@@ -189,33 +189,33 @@ export function renderPricingView() {
 
         <!-- Buyback Summary & Brackets Results -->
         <div class="p-3" style="background: rgba(10, 16, 28, 0.6); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08);">
-          <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-            <div>
-              <span class="text-secondary small">Target Average Buy:</span>
-              <span class="font-mono fw-bold text-success ms-2" id="buyback-res-avg-buy" style="font-size: 1.2rem;">₦1,495.00</span>
+          <div class="form-grid mb-3">
+            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06);">
+              <span class="text-secondary tiny uppercase d-block mb-1">Target Avg Buy</span>
+              <span class="font-mono fw-bold text-success text-nowrap" id="buyback-res-avg-buy" style="font-size: 1.15rem;">₦1,495.00</span>
             </div>
-            <div>
-              <span class="text-secondary small">Target Sell Rate:</span>
-              <span class="font-mono fw-bold text-primary ms-2" id="buyback-res-sell-rate" style="font-size: 1.2rem;">₦1,502.00</span>
+            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06);">
+              <span class="text-secondary tiny uppercase d-block mb-1">Target Sell Rate</span>
+              <span class="font-mono fw-bold text-primary text-nowrap" id="buyback-res-sell-rate" style="font-size: 1.15rem;">₦1,502.00</span>
             </div>
-            <div>
-              <span class="text-secondary small">Gross Spread (Δ):</span>
-              <span class="font-mono fw-bold text-warning ms-2" id="buyback-res-gross-spread">₦7.00/USDT</span>
+            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06);">
+              <span class="text-secondary tiny uppercase d-block mb-1">Gross Spread (Δ)</span>
+              <span class="font-mono fw-bold text-warning text-nowrap" id="buyback-res-gross-spread" style="font-size: 1.15rem;">₦7.00/USDT</span>
             </div>
-            <div>
-              <span class="text-secondary small">Net Profit after Fees:</span>
-              <span class="font-mono fw-bold text-success ms-2" id="buyback-res-net-profit">₦2.50/USDT</span>
+            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06);">
+              <span class="text-secondary tiny uppercase d-block mb-1">Net Profit (after fees)</span>
+              <span class="font-mono fw-bold text-success text-nowrap" id="buyback-res-net-profit" style="font-size: 1.15rem;">₦2.50/USDT</span>
             </div>
           </div>
 
-          <div class="table-responsive">
+          <div class="table-responsive" style="overflow-x: auto;">
             <table class="market-depth-table" id="table-buyback-brackets">
               <thead>
                 <tr>
-                  <th>Tier Bracket</th>
-                  <th>Volume (USDT)</th>
-                  <th>Target Buy Rate</th>
-                  <th class="text-end">Total Allocation (NGN)</th>
+                  <th class="text-nowrap">Tier Bracket</th>
+                  <th class="text-nowrap">Volume (USDT)</th>
+                  <th class="text-nowrap">Target Buy Rate</th>
+                  <th class="text-end text-nowrap">Total Allocation (NGN)</th>
                 </tr>
               </thead>
               <tbody id="tbody-buyback-brackets">
