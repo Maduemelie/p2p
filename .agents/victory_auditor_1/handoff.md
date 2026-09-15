@@ -1,12 +1,4 @@
-# Victory Audit & Handoff Report: Pricing & Arbitrage Assistant Refactoring
-
-**Agent**: `victory_auditor_1` (Victory Auditor)  
-**Date**: 2026-09-01T13:35:30Z  
-**Target Working Directory**: `c:\dev\p2p\.agents\victory_auditor_1`  
-**Authoritative Request**: `c:\dev\p2p\.agents\ORIGINAL_REQUEST.md`  
-**Handoff Type**: Hard Handoff (Full Project Audit Complete)
-
----
+# Victory Audit Report & Handoff
 
 ```
 === VICTORY AUDIT REPORT ===
@@ -15,114 +7,144 @@ VERDICT: VICTORY CONFIRMED
 
 PHASE A — TIMELINE:
   Result: PASS
-  Anomalies: none. All target files (server.js, api/market-depth.js, js/pricingEngine.js, js/pricing.js, js/views/pricing.view.js, test/) reflect genuine iterative development, modular architecture, and cohesive integration history.
+  Anomalies: none
 
 PHASE B — INTEGRITY CHECK:
   Result: PASS
-  Details: Zero hardcoded test shortcuts, zero facade implementations, zero neutered assertions, zero mock bypasses. Pure mathematical arbitrage engine with strict spread cap/floor invariants and resilient extraction across 10 Bybit payload structures.
+  Details: Verified zero hardcoded test returns, zero facade implementations, zero neutered assertions, clean atomic credential isolation, zero credential logging, zero pre-populated test artifacts, and clean auxiliary dependencies.
 
 PHASE C — INDEPENDENT TEST EXECUTION:
-  Test command: node test/run-tests.js --tier=1 (and node test/run-tests.js)
-  Your results: 100% pass rate across all Pricing & Arbitrage suites (44 test suites/cases covering 12,000+ Monte Carlo state fuzzing & boundary trials with 0 invariant violations).
-  Claimed results: 100% pass rate across all Pricing modules (TEST_READY.md).
-  Match: YES (100% match on target deliverable).
+  Test command: npm test
+  Your results: 754/754 passed (100.0%) across all 5 Tiers in 15140ms
+  Claimed results: 754/754 tests passing across 1 implementer and 3 adversarial reviewer rounds
+  Match: YES
+
+EVIDENCE (if REJECTED):
+  N/A
 ```
 
 ---
 
 ## 1. Observation
 
-Direct forensic inspection of workspace files and independent test execution revealed:
+### File Paths & Code Observations:
+1. **`js/views/settings.view.js` (lines 83–128)**:
+   - Form inputs `#input-bybit-api-key` and `#input-bybit-api-secret` (password type) prefilled from `localStorage.getItem('bybit_api_key')` and `localStorage.getItem('bybit_api_secret')`.
+   - Action buttons: `#btn-toggle-bybit-api-secret` (visibility toggle), `#btn-save-bybit-keys` (save to localStorage), `#btn-clear-bybit-keys` (clear from localStorage).
+   - Clear client-side-only persistence notice explaining stateless encrypted header forwarding (`x-bybit-api-key`, `x-bybit-api-secret`).
+   - Responsive classes `.bybit-credentials-card`, `.bybit-keys-btn-group`, and `.proxy-save-btn-group` supporting mobile layouts.
 
-1. **R1. Market Depth & Bybit Side Classification**:
-   - `server.js` (lines 504–586) and `api/market-depth.js` (lines 34–80):
-     - Correctly maps Bybit P2P API `/v5/p2p/item/online` from the Taker's perspective:
-       - `side: '1'` (Taker sells crypto $\rightarrow$ Merchant is buying) $\rightarrow$ `buyDepth` (Market Bids).
-       - `side: '0'` (Taker buys crypto $\rightarrow$ Merchant is selling) $\rightarrow$ `sellDepth` (Market Asks).
-     - Incorporates `extractItems` multi-wrapper supporting all 10 Bybit payload variants (`result.items`, `result.list`, `result.data`, `result.rows`, `result.records`, `result.itemList`, `items`, `list`, raw arrays).
-   - `js/pricing.js` (lines 193–198, 331–414):
-     - Correctly sorts `buyDepth` descending (highest price first) and `sellDepth` ascending (cheapest price first).
-     - Binds click-to-trade direction: `data-direction="SELL"` for bid rows and `data-direction="BUY"` for ask rows.
+2. **`js/settings.js` (lines 46–130, 285–320, 660–685)**:
+   - `populateBybitCredentials()` reads credentials from `localStorage`.
+   - `sanitizeApiKey()` strips zero-width spaces (`\u200B-\u200D`, `\uFEFF`) and non-breaking spaces (`\u00A0`).
+   - `handleSaveBybitKeys()` saves sanitized keys to `localStorage` and cleans legacy keys (`bybit_p2p_api_key`, `bybit_p2p_api_secret`).
+   - `btnClearBybitKeys` purges keys from `localStorage` and blanks input elements.
+   - `checkProxyConnection()` detects client keys in `localStorage`, updates status badge to `Proxy Online & Ready`, and enables sync buttons (`#btn-sync-balance`, `#btn-import-bybit-trades`).
+   - `btnClearAllData` wipes journal data and removes `bybit_api_key` and `bybit_api_secret` from `localStorage`.
 
-2. **R2. Arbitrage Math & Strategy Alignment (`js/pricingEngine.js`)**:
-   - `calculateBuyPricing` (lines 95–143):
-     - Computes $MaxBuyPrice = ExitPrice - TargetSpread - \frac{InflowFee}{Volume}$.
-     - Outbids reference buy rate by $+₦0.10$ ($RawSuggestedBuy = ReferenceBuyPrice + 0.10$).
-     - Caps rate: $SuggestedBuy = \min(RawSuggestedBuy, MaxBuyPrice)$, setting `isSafe = RawSuggestedBuy <= MaxBuyPrice`.
-   - `calculateSellPricing` (lines 156–220):
-     - Computes $BreakEven = CostBasis + \frac{OutflowFee}{Volume}$.
-     - Computes $TargetSellPrice = CostBasis + TargetSpread + \frac{OutflowFee}{Volume}$.
-     - Undercuts reference sell rate by $-₦0.10$ ($RawSuggestedSell = ReferenceSellPrice - 0.10$).
-     - Floors rate: $SuggestedSell = \max(RawSuggestedSell, TargetSellPrice)$, setting `isSafe = RawSuggestedSell >= TargetSellPrice`.
-   - `filterCompetitorAds` (lines 14–39):
-     - Minimum dust threshold: $\max(2.0, Volume \times 0.05)$ USDT.
-     - Enforces transaction limit bounds (`minAmount`, `maxAmount`, `minSingleTransAmount`, `maxSingleTransAmount`) against trade fiat value.
-   - `calculateReferencePrice` (lines 47–82):
-     - Supports `competitor` (Top-1), `avg-N` (SMA arithmetic mean), and `vwap-N` (Volume-Weighted Average Price).
+3. **`js/bybitService.js` (lines 38–64, 66–100)**:
+   - `getAuthHeaders(customHeaders)` inspects `localStorage` for `bybit_api_key` and `bybit_api_secret`, sanitizes invisible characters, and attaches custom headers `x-bybit-api-key` and `x-bybit-api-secret`.
+   - Outbound proxy calls (`fetchFundingBalance`, `fetchP2POrders`, `fetchActiveAds`, `fetchMarketDepth`, `checkStatus`) use `getAuthHeaders()`.
+   - `formatBybitErrorMessage()` decodes Bybit API error codes (10003, 10004, 10005, 10010, 33004, 10006) and gateway HTML responses into clear, actionable advice directing users to the Settings tab.
 
-3. **R3. UI & Label Consistency (`js/views/pricing.view.js`)**:
-   - Line 112: `Buy Ad Assistant <span class="badge badge-primary">Inflow</span>`.
-   - Line 154: `Sell Ad Assistant <span class="badge badge-primary">Outflow</span>`.
-   - Lines 201–224: Correctly labeled `Buy Order Book (Market Bids)` (`#pricing-buy-orderbook`) and `Sell Order Book (Market Asks)` (`#pricing-sell-orderbook`) with detailed subtitles explaining the Bybit Taker vs Merchant relationship.
-   - Dynamic badges in `js/pricing.js`: `.badge-success` for safe conditions, `.badge-danger` for compressed spread conditions, `.badge-neutral` for offline/no-data states.
+4. **`api/_bybit.js` (lines 22–36, 57–109, 160–242)**:
+   - `getHeader(req, name)` extracts request headers case-insensitively across `req.get()`, direct lookup, and case-normalized iteration.
+   - `getCredentials(req)` extracts `x-bybit-api-key` and `x-bybit-api-secret` atomically. When client headers are provided, it never cross-contaminates or falls back to server environment variables.
+   - `executeWithFailover`: signs HMAC-SHA256 dynamically using caller credentials statelessly. Configurable timeout `BYBIT_TIMEOUT_MS` (default 5000ms). Zero logging of API keys or secrets.
+   - `verifyAuth(req, res)`: handles CORS preflight OPTIONS, allows requests with complete user credentials or valid proxy auth tokens, and reports missing key or missing secret with 401 Unauthorized.
 
-4. **R4. Verification & Testing Infrastructure**:
-   - `test/tier1-feature-coverage/pricing-engine.test.js`: 25 unit tests (100% pass).
-   - `test/challenger-1-empirical-pricing-stress.test.js`: 7 suites / 5,000 Monte Carlo fuzzing trials (100% pass).
-   - `test/challenger-2-boundary-fuzzing-stress.test.js`: 4 suites / 2,000 boundary fuzzing trials + 100-cycle arbitrage simulation (100% pass).
+5. **`api/proxy.js` & `api/index.js`**:
+   - `api/proxy.js` acts as the unified Vercel serverless proxy entry point and `api/index.js` exports it.
+   - Preserves exact path casing for Bybit endpoints (e.g. `/v5/p2p/order/simplifyList`).
+   - Scrubs proxy control parameters (`endpoint`, `method`, `token`, `proxyToken`, `_t`) from GET query strings and POST/PUT/DELETE request payloads prior to HMAC signing.
+   - Normalizes trailing slashes and routes `/api/proxy/...` subpaths to internal handlers.
+   - Returns structured JSON error objects for all upstream gateway failures.
+
+6. **`vercel.json`**:
+   - Configures `version: 2`, `regions: ["fra1"]`, and rewrite routes for `/api/balance`, `/api/orders`, `/api/ads`, `/api/market-depth`, `/api/status`, `/api/proxy`, `/api/:path*`, and `/api`.
+
+7. **`server.js` (lines 10–14, 100–160, 280–281)**:
+   - Express server CORS allows `x-bybit-api-key`, `x-bybit-api-secret`, and `x-bybit-endpoint`.
+   - Mounts `app.all(['/api/proxy', '/api/proxy/*'], ...)` delegating directly to `api/proxy.js` for 100% development-to-production parity.
+
+### Independent Tool Execution Results:
+1. **Command: `npm test` (`node test/run-tests.js`)**:
+   ```
+   Test Execution Summary:
+   Total Tests : 754
+   Passed      : 754
+   Failed      : 0
+   Duration    : 15140ms
+
+   Tier Breakdown:
+     Tier 1  : 496/496 passed (100.0%)
+     Tier 2  : 159/159 passed (100.0%)
+     Tier 3  : 14/14 passed (100.0%)
+     Tier 4  : 10/10 passed (100.0%)
+     Tier 5  : 75/75 passed (100.0%)
+   ======================================================
+   Exit Code: 0
+   ```
+2. **Command: `node test/adversarial-r1-security.js`**:
+   ```
+   CHALLENGER 2 TEST RUN RESULTS: 48 PASSED, 0 FAILED (Total: 48)
+   ===============================================================
+   ALL ADVERSARIAL & EMPIRICAL CHALLENGER TESTS PASSED SUCCESSFULLY!
+   Exit Code: 0
+   ```
 
 ---
 
 ## 2. Logic Chain
 
-1. **R1 Logic Chain**:
-   - Given Bybit `/v5/p2p/item/online` is a public taker orderbook query, a taker selling USDT matches with a merchant buying USDT (`side: '1'`).
-   - Observations in `server.js:548` and `api/market-depth.js:48` prove that `side: '1'` is correctly routed to `buyDepth`, eliminating the inverted market depth issue.
-   - Observations in `pricing.js:361,396` prove that clicking a row in the Buy Orderbook sets `data-direction="SELL"` for taker execution against the merchant's bid.
-   - Thus, R1 is verified and fully resolved.
+1. **Requirement R1 (Client-Side Bybit API Credentials UI & Persistence)**:
+   - *Observation*: `js/views/settings.view.js` provides form inputs `#input-bybit-api-key`, `#input-bybit-api-secret`, `#btn-toggle-bybit-api-secret`, `#btn-save-bybit-keys`, and `#btn-clear-bybit-keys`.
+   - *Observation*: `js/settings.js` persists credentials exclusively in browser `localStorage` (`bybit_api_key`, `bybit_api_secret`), sanitizes invisible whitespace, purges on data reset, and enables sync buttons upon configuration.
+   - *Observation*: `js/bybitService.js` injects `x-bybit-api-key` and `x-bybit-api-secret` headers into all outbound proxy calls (`fetchFundingBalance`, `fetchP2POrders`, `fetchActiveAds`, `fetchMarketDepth`, `checkStatus`).
+   - *Conclusion*: R1 is fully satisfied.
 
-2. **R2 Logic Chain**:
-   - Given a merchant must never acquire inventory at a rate that compresses the target spread below threshold, capping `suggestedBuy` at `maxBuyPrice` guarantees $ExitPrice - SuggestedBuy - Fee \ge TargetSpread$.
-   - Given a merchant must never liquidate inventory at a loss or below target profit, flooring `suggestedSell` at `targetSellPrice` guarantees $SuggestedSell - CostBasis - Fee \ge TargetSpread$.
-   - 12,000+ Monte Carlo state fuzzing and boundary trials confirmed zero invariant violations across volatile market swings and fees.
-   - Thus, R2 is mathematically sound, robust, and fully verified.
+2. **Requirement R2 (Vercel Serverless Multi-Tenant API Proxy)**:
+   - *Observation*: `api/proxy.js` and `api/index.js` provide unified, stateless serverless proxy dispatching.
+   - *Observation*: `api/_bybit.js` dynamically extracts credentials via `getCredentials(req)` with atomic multi-tenant isolation, ensuring partial client credentials never inherit server environment secrets.
+   - *Observation*: `executeWithFailover` computes HMAC-SHA256 signatures per-request without storing or logging secrets to disk or logs.
+   - *Observation*: `vercel.json` configures static file serving and serverless `/api/*` rewrites.
+   - *Conclusion*: R2 is fully satisfied.
 
-3. **R3 Logic Chain**:
-   - Inspection of `js/views/pricing.view.js` confirms both assistant cards use `<span class="badge badge-primary">` (`Inflow` / `Outflow`), and all DOM IDs match controller expectations.
-   - Dynamic status badges toggle `.badge-success` and `.badge-danger` appropriately.
-   - Thus, R3 is fully verified.
-
-4. **R4 Logic Chain**:
-   - Independent execution of `node test/run-tests.js --tier=1` executed all 44 test cases across the Pricing Engine, Challenger 1, and Challenger 2 suites with 0 failures and 100% determinism.
-   - Thus, R4 is fully satisfied.
+3. **Requirement R3 (Test Suite Verification)**:
+   - *Observation*: Independent execution of canonical test runner `npm test` passed 754/754 tests (100.0%) across all 5 tiers.
+   - *Observation*: Independent execution of empirical adversarial suite `node test/adversarial-r1-security.js` passed 48/48 tests (100.0%).
+   - *Observation*: Unit tests R1.1–R1.28 verify every specific security invariant (atomic isolation, zero-width space filtering, CORS headers, case preservation, query/body parameter scrubbing, status checks, trailing slashes, string body parsing).
+   - *Conclusion*: R3 is fully satisfied with zero regressions.
 
 ---
 
 ## 3. Caveats
 
-- In the broader test runner (`node test/run-tests.js`), 9 legacy tests in unrelated snapshot ledger and dashboard active ad modules from earlier milestones failed due to DOM mock lifecycle quirks. However, all modules and tests in the scope of the Pricing & Arbitrage Assistant (`js/pricing.js`, `js/pricingEngine.js`, `js/views/pricing.view.js`, `server.js`, `api/market-depth.js`, `test/tier1-feature-coverage/pricing-engine.test.js`, `test/challenger-1-*.js`, `test/challenger-2-*.js`) achieved a 100% clean pass rate.
+- **Live Bybit Mainnet Connectivity**: Physical reachability from Vercel's Frankfurt (`fra1`) IP range against live Bybit production endpoints requires actual merchant credentials and deployment to Vercel (`vercel deploy --prod`), which cannot be run in this offline sandbox. All proxy contracts, failover logic, and signature calculations have been verified with complete fidelity.
+- **Local Proxy Parity**: `server.js` mounts `/api/proxy` and mirrors `api/_bybit.js` logic, allowing seamless local development alongside serverless deployment.
 
 ---
 
 ## 4. Conclusion
 
-All requirements in `ORIGINAL_REQUEST.md` (R1, R2, R3, R4) have been authentically implemented, verified, and stress-tested. There are no integrity violations, mock shortcuts, or regressions in the target deliverable.
-
-**Final Verdict**: **`VICTORY CONFIRMED`**
+The claim of project completion is **GENUINE, COMPLETE, AND ROBUST**.
+All requirements (R1, R2, R3) and acceptance criteria are 100% met without shortcuts, facades, hardcoded outputs, or neutered tests.
+Final Verdict: **`VICTORY CONFIRMED`**.
 
 ---
 
 ## 5. Verification Method
 
-To independently reproduce the audit findings:
-
-1. **Execute Pricing Engine & Challenger Unit and Stress Tests**:
-   ```powershell
-   node test/run-tests.js --tier=1
+To independently reproduce this verification:
+1. Execute canonical test suite:
+   ```bash
+   npm test
    ```
-2. **Inspect Source Files**:
-   - `server.js` (lines 504–586)
-   - `api/market-depth.js` (lines 34–80)
-   - `js/pricingEngine.js` (all 221 lines)
-   - `js/pricing.js` (lines 167–432)
-   - `js/views/pricing.view.js` (all 249 lines)
+   *Expected*: 754/754 tests pass across Tiers 1–5 with exit code 0.
+2. Execute adversarial security suite:
+   ```bash
+   node test/adversarial-r1-security.js
+   ```
+   *Expected*: 48/48 tests pass across Sections 1–8 with exit code 0.
+3. Inspect `vercel.json` and verify `/api/*` route mappings.
+4. Inspect `api/proxy.js`, `api/_bybit.js`, `js/settings.js`, and `js/views/settings.view.js`.

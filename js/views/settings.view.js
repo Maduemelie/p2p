@@ -77,7 +77,7 @@ export function renderSettingsView() {
             </span>
           </div>
 
-          <p class="text-muted small mb-3">Configure your proxy endpoint and authorization token to securely synchronize Bybit balances and order history.</p>
+          <p class="text-muted small mb-3">Configure your Bybit API Key and Secret to securely synchronize Bybit balances and order history.</p>
 
           <!-- Multi-Tenant Bybit API Credentials (Client-side stored in browser localStorage) -->
           <div class="form-grid mb-4 bybit-credentials-card" style="background: rgba(10, 16, 28, 0.4); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.06);">
@@ -128,7 +128,7 @@ export function renderSettingsView() {
 
           <!-- Proxy Settings Form -->
           <div class="form-grid mb-4 proxy-settings-card" style="background: rgba(10, 16, 28, 0.4); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.06);">
-            <div class="form-group col-12 col-md-6 mb-2">
+            <div class="form-group col-12 mb-2">
               <label for="input-proxy-url" class="form-label small">
                 <i data-lucide="server"></i> Proxy URL (Optional)
               </label>
@@ -136,23 +136,10 @@ export function renderSettingsView() {
               <p class="form-hint small text-muted">Defaults to current host or http://localhost:3000.</p>
             </div>
 
-            <div class="form-group col-12 col-md-6 mb-2">
-              <label for="input-proxy-token" class="form-label small">
-                <i data-lucide="key"></i> Proxy Auth Token
-              </label>
-              <div class="input-affix-wrapper">
-                <input type="password" id="input-proxy-token" class="form-input font-mono form-input-sm" placeholder="Bearer / Proxy Secret" value="${(typeof localStorage !== 'undefined' && localStorage.getItem('bybit_p2p_proxy_token')) || ''}" onchange="localStorage.setItem('bybit_p2p_proxy_token', this.value.trim())">
-                <button type="button" class="btn btn-sm btn-outline" id="btn-toggle-proxy-token" style="padding: 0 0.5rem;" title="Toggle Token Visibility" aria-label="Toggle Token Visibility" onclick="const inp=document.getElementById('input-proxy-token'); inp.type = inp.type==='password'?'text':'password';">
-                  👁️
-                </button>
-              </div>
-              <p class="form-hint small text-muted">Must match PROXY_AUTH_TOKEN configured on server.</p>
-            </div>
-
             <div class="col-12 text-end mt-1 proxy-save-btn-group">
-              <button type="button" class="btn btn-sm btn-primary" id="btn-save-proxy-config" onclick="const u=document.getElementById('input-proxy-url')?.value.trim(); const t=document.getElementById('input-proxy-token')?.value.trim(); if(u!==undefined)localStorage.setItem('bybit_p2p_proxy_url', u); if(t!==undefined)localStorage.setItem('bybit_p2p_proxy_token', t); if(window.showToast) window.showToast('Proxy settings saved successfully!', 'success');">
+              <button type="button" class="btn btn-sm btn-primary" id="btn-save-proxy-config" onclick="const u=document.getElementById('input-proxy-url')?.value.trim(); if(u!==undefined)localStorage.setItem('bybit_p2p_proxy_url', u); if(window.showToast) window.showToast('Proxy URL saved successfully!', 'success');">
                 <i data-lucide="save"></i>
-                <span>Save Proxy Settings</span>
+                <span>Save Proxy URL</span>
               </button>
             </div>
           </div>

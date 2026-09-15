@@ -974,4 +974,70 @@ describe('Tier 1 — Pricing & Arbitrage Engine Unit Tests', () => {
       }
     }
   });
+
+  // =========================================================================
+  // 11. Buyback Range & Dual-Mode Profit Calculator (calculateBuybackTiers)
+  // =========================================================================
+
+  it('PE.BUYBACK.1: Target-Driven Mode computes volume-weighted brackets and target sell price', () => {
+    const result = pricingEngine.calculateBuybackTiers({
+      mode: 'target-driven',
+      totalVolume: 100000,
+      targetAvgPrice: 1495.0,
+      profitSpread: 7.0,
+      platformFeePct: 0.3,
+      inflowFee: 50.0
+    });
+
+    assert.strictEqual(result.mode, 'target-driven');
+    assert.strictEqual(result.totalVolume, 100000);
+    assert.strictEqual(result.targetAvgPrice, 1495.0);
+    assert.strictEqual(result.targetSellPrice, 1502.0);
+    assert.strictEqual(result.grossSpread, 7.0);
+
+    // Verify 3 brackets created
+    assert.strictEqual(result.brackets.length, 3);
+    assert.strictEqual(result.brackets[0].volumeUsdt, 40000);
+    assert.strictEqual(result.brackets[1].volumeUsdt, 50000);
+    assert.strictEqual(result.brackets[2].volumeUsdt, 10000);
+
+    // Weighted average of brackets must match targetAvgPrice
+    assert.closeTo(result.actualWeightedAvg, 1495.0, 0.01);
+  });
+
+  it('PE.BUYBACK.2: Market-Driven Mode calculates Max Allowable Avg Buy Price from market sell rate', () => {
+    const result = pricingEngine.calculateBuybackTiers({
+      mode: 'market-driven',
+      totalVolume: 100000,
+      marketSellPrice: 1502.0,
+      profitSpread: 7.0,
+      platformFeePct: 0.3,
+      inflowFee: 50.0
+    });
+
+    assert.strictEqual(result.mode, 'market-driven');
+    assert.strictEqual(result.targetSellPrice, 1502.0);
+    assert.strictEqual(result.maxAllowableAvgBuyPrice, 1495.0);
+    assert.strictEqual(result.targetAvgPrice, 1495.0);
+    assert.strictEqual(result.grossSpread, 7.0);
+    assert.closeTo(result.actualWeightedAvg, 1495.0, 0.01);
+  });
+
+  it('PE.BUYBACK.3: Deducts Bybit 0.3% maker fee & ₦50 stamp duty from buy cost basis', () => {
+    const result = pricingEngine.calculateBuybackTiers({
+      mode: 'target-driven',
+      totalVolume: 100000,
+      targetAvgPrice: 1495.0,
+      profitSpread: 7.0,
+      platformFeePct: 0.3,
+      inflowFee: 50.0
+    });
+
+    // phi = 0.003
+    // effectiveCostBasis = (1495 / 0.997) + (50 / 100000) = 1499.498495 + 0.0005 = 1499.498995
+    assert.closeTo(result.effectiveCostBasis, (1495 / 0.997) + (50 / 100000), 0.001);
+    // netRealizedProfit = 1502 - 1499.498995 = 2.501005 NGN/USDT
+    assert.closeTo(result.netRealizedProfit, 1502.0 - result.effectiveCostBasis, 0.001);
+  });
 }, { tier: 1, category: 'Pricing Engine' });
+

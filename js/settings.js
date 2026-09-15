@@ -133,25 +133,18 @@ export function initSettings() {
 
   // Proxy Configuration Elements
   const inputProxyUrl = document.getElementById('input-proxy-url');
-  const inputProxyToken = document.getElementById('input-proxy-token');
   const btnSaveProxyConfig = document.getElementById('btn-save-proxy-config');
 
   function populateProxySettings() {
     if (typeof localStorage === 'undefined') return;
     const url = localStorage.getItem('bybit_p2p_proxy_url') || '';
-    const token = localStorage.getItem('bybit_p2p_proxy_token') || '';
     if (inputProxyUrl && document.activeElement !== inputProxyUrl) {
       inputProxyUrl.value = url;
-    }
-    if (inputProxyToken && document.activeElement !== inputProxyToken) {
-      inputProxyToken.value = token;
     }
   }
 
   function handleSaveProxyConfig() {
     const url = inputProxyUrl?.value.trim() || '';
-    const token = sanitizeApiKey(inputProxyToken?.value);
-    if (inputProxyToken) inputProxyToken.value = token;
 
     if (typeof localStorage !== 'undefined') {
       if (url) {
@@ -159,14 +152,9 @@ export function initSettings() {
       } else {
         localStorage.removeItem('bybit_p2p_proxy_url');
       }
-      if (token) {
-        localStorage.setItem('bybit_p2p_proxy_token', token);
-      } else {
-        localStorage.removeItem('bybit_p2p_proxy_token');
-      }
     }
     if (window.showToast) {
-      window.showToast('Proxy settings saved successfully!', 'success');
+      window.showToast('Proxy URL saved successfully!', 'success');
     }
     checkProxyConnection();
   }

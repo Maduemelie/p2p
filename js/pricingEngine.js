@@ -425,3 +425,121 @@ export function calculateRecommendedLimits(priceOrOptions = 1500.0, targetSpread
     recommendedText
   };
 }
+
+/**
+ * Calculate volume-weighted buyback ranges and profit spread targets.
+ * Supports both Target-Driven (Inside-Out) and Market-Driven (Outside-In) modes.
+ *
+ * @param {Object} params
+ * @param {string} [params.mode='target-driven'] - 'target-driven' | 'market-driven'
+ * @param {number} [params.totalVolume=100000] - Total USDT target volume
+ * @param {number} [params.targetAvgPrice=1495] - Target Average Buy Price (for target-driven mode)
+ * @param {number} [params.marketSellPrice=1502] - Market Sell Price (for market-driven mode or reference)
+ * @param {number} [params.profitSpread=7.0] - Target Profit Difference (Delta) in NGN/USDT
+ * @param {number} [params.platformFeePct=0.3] - Bybit Maker Fee % on Buy side (default 0.3%)
+ * @param {number} [params.inflowFee=50] - Fiat inflow stamp duty fee in NGN
+ * @returns {Object} Buyback analysis & tier ladder output
+ */
+export function calculateBuybackTiers({
+  mode = 'target-driven',
+  totalVolume = 100000,
+  targetAvgPrice = 1495.0,
+  marketSellPrice = 1502.0,
+  profitSpread = 7.0,
+  platformFeePct = 0.3,
+  inflowFee = 50.0
+} = {}) {
+  const safeVol = (!totalVolume || isNaN(totalVolume) || totalVolume <= 0) ? 100000 : Number(totalVolume);
+  const safeSpread = (!profitSpread || isNaN(profitSpread) || profitSpread <= 0) ? 7.0 : Number(profitSpread);
+  const safeInflowFee = (inflowFee !== undefined && !isNaN(Number(inflowFee))) ? Number(inflowFee) : 50.0;
+  const phi = normalizeFeeRate(platformFeePct);
+  const divisor = Math.max(0.0001, 1 - phi);
+
+  let calculatedAvgBuyPrice = 0;
+  let calculatedSellPrice = 0;
+  let maxAllowableAvgBuyPrice = 0;
+
+  if (mode === 'market-driven') {
+    const safeMarketSell = (!marketSellPrice || isNaN(marketSellPrice) || marketSellPrice <= 0) ? 1502.0 : Number(marketSellPrice);
+    calculatedSellPrice = safeMarketSell;
+    maxAllowableAvgBuyPrice = safeMarketSell - safeSpread;
+    calculatedAvgBuyPrice = maxAllowableAvgBuyPrice;
+  } else {
+    const safeTargetAvg = (!targetAvgPrice || isNaN(targetAvgPrice) || targetAvgPrice <= 0) ? 1495.0 : Number(targetAvgPrice);
+    calculatedAvgBuyPrice = safeTargetAvg;
+    maxAllowableAvgBuyPrice = safeTargetAvg;
+    calculatedSellPrice = safeTargetAvg + safeSpread;
+  }
+
+  // Fees calculation on Buy Side:
+  // Effective Buy Cost per USDT = (Buy Price / (1 - phi)) + (Inflow Fee / Total Volume)
+  const platformFeePerUnit = calculatedAvgBuyPrice * phi;
+  const inflowFeePerUnit = safeInflowFee / safeVol;
+  const totalFeePerUnit = platformFeePerUnit + inflowFeePerUnit;
+  const effectiveCostBasis = (calculatedAvgBuyPrice / divisor) + inflowFeePerUnit;
+
+  // On Sell Side: 0% Maker Fee, ₦0 Outflow Fee
+  const netRealizedProfit = calculatedSellPrice - effectiveCostBasis;
+  const grossSpread = calculatedSellPrice - calculatedAvgBuyPrice;
+
+  // Calculate 3-tier buy ladder brackets around calculatedAvgBuyPrice
+  const p1 = Math.round((calculatedAvgBuyPrice + 3.0) * 100) / 100;
+  const p3 = Math.round((calculatedAvgBuyPrice - 6.0) * 100) / 100;
+  const p2 = Math.round(((calculatedAvgBuyPrice - (0.40 * p1) - (0.10 * p3)) / 0.50) * 100) / 100;
+
+  const v1 = Math.round(safeVol * 0.40);
+  const v2 = Math.round(safeVol * 0.50);
+  const v3 = safeVol - v1 - v2;
+
+  const actualWeightedAvg = ((v1 * p1) + (v2 * p2) + (v3 * p3)) / safeVol;
+
+  const brackets = [
+    {
+      tier: 1,
+      name: 'Bracket 1 (Fast Fill - Top Bid)',
+      volumeUsdt: v1,
+      volumePct: 40,
+      targetPrice: p1,
+      totalNgn: v1 * p1,
+      description: 'Competitive upper rate to capture fast orderflow'
+    },
+    {
+      tier: 2,
+      name: 'Bracket 2 (Core Volume)',
+      volumeUsdt: v2,
+      volumePct: 50,
+      targetPrice: p2,
+      totalNgn: v2 * p2,
+      description: 'Base volume rate'
+    },
+    {
+      tier: 3,
+      name: 'Bracket 3 (Deep Buyback)',
+      volumeUsdt: v3,
+      volumePct: 10,
+      targetPrice: p3,
+      totalNgn: v3 * p3,
+      description: 'Lower backfill rate for dips'
+    }
+  ];
+
+  return {
+    mode,
+    totalVolume: safeVol,
+    targetAvgPrice: calculatedAvgBuyPrice,
+    maxAllowableAvgBuyPrice,
+    targetSellPrice: calculatedSellPrice,
+    profitSpread: safeSpread,
+    grossSpread,
+    netRealizedProfit,
+    effectiveCostBasis,
+    feeBreakdown: {
+      platformFeePerUnit,
+      inflowFeePerUnit,
+      totalFeePerUnit
+    },
+    brackets,
+    actualWeightedAvg
+  };
+}
+

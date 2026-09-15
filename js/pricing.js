@@ -11,7 +11,8 @@ import {
   filterCompetitorAds,
   calculateBuyPricing,
   calculateSellPricing,
-  calculateRecommendedLimits
+  calculateRecommendedLimits,
+  calculateBuybackTiers
 } from './pricingEngine.js';
 
 // Cache for market depth to allow local calculation runs without API spam
@@ -52,6 +53,13 @@ function loadSavedSettings() {
     : (storeSettings.filterLimits !== undefined ? storeSettings.filterLimits : true);
   const maxFeeDragPct = localStorage.getItem('bybit_p2p_pricing_max_fee_drag_pct') || (storeSettings.maxFeeDragPct !== undefined ? String(storeSettings.maxFeeDragPct) : '20');
 
+  // Buyback calculator settings
+  const bbMode = localStorage.getItem('bybit_p2p_buyback_mode') || 'target-driven';
+  const bbVol = localStorage.getItem('bybit_p2p_buyback_total_vol') || '100000';
+  const bbProfitSpread = localStorage.getItem('bybit_p2p_buyback_profit_spread') || '7.0';
+  const bbTargetPrice = localStorage.getItem('bybit_p2p_buyback_target_price') || '1495';
+  const bbMarketSell = localStorage.getItem('bybit_p2p_buyback_market_sell') || '1502';
+
   const elPlatformFee = document.getElementById('input-platform-fee-pct') || document.getElementById('input-platform-fee');
   const elSpread = document.getElementById('input-target-spread');
   const elVol = document.getElementById('input-avg-volume');
@@ -62,6 +70,12 @@ function loadSavedSettings() {
   const elFilterLimits = document.getElementById('input-filter-limits');
   const elMaxFeeDrag = document.getElementById('input-max-fee-drag-pct');
 
+  const elBbMode = document.getElementById('input-buyback-mode');
+  const elBbVol = document.getElementById('input-buyback-total-vol');
+  const elBbProfitSpread = document.getElementById('input-buyback-profit-spread');
+  const elBbTargetPrice = document.getElementById('input-buyback-target-price');
+  const elBbMarketSell = document.getElementById('input-buyback-market-sell');
+
   if (elPlatformFee && document.activeElement !== elPlatformFee) elPlatformFee.value = platformFee;
   if (elSpread && document.activeElement !== elSpread) elSpread.value = spread;
   if (elVol && document.activeElement !== elVol) elVol.value = vol;
@@ -71,6 +85,39 @@ function loadSavedSettings() {
   if (elDepthLimit && document.activeElement !== elDepthLimit) elDepthLimit.value = depthLimit;
   if (elFilterLimits && document.activeElement !== elFilterLimits) elFilterLimits.checked = filterLimits;
   if (elMaxFeeDrag && document.activeElement !== elMaxFeeDrag) elMaxFeeDrag.value = maxFeeDragPct;
+
+  if (elBbMode && document.activeElement !== elBbMode) elBbMode.value = bbMode;
+  if (elBbVol && document.activeElement !== elBbVol) elBbVol.value = bbVol;
+  if (elBbProfitSpread && document.activeElement !== elBbProfitSpread) elBbProfitSpread.value = bbProfitSpread;
+  if (elBbTargetPrice && document.activeElement !== elBbTargetPrice) elBbTargetPrice.value = bbTargetPrice;
+  if (elBbMarketSell && document.activeElement !== elBbMarketSell) elBbMarketSell.value = bbMarketSell;
+
+  updateBuybackModeVisibility(bbMode);
+}
+
+/**
+ * Toggle Buyback calculator visibility based on mode selection
+ */
+function updateBuybackModeVisibility(mode) {
+  const groupTarget = document.getElementById('group-buyback-target-price');
+  const groupMarket = document.getElementById('group-buyback-market-sell');
+  const badge = document.getElementById('buyback-mode-badge');
+
+  if (mode === 'market-driven') {
+    if (groupTarget) groupTarget.style.display = 'none';
+    if (groupMarket) groupMarket.style.display = 'block';
+    if (badge) {
+      badge.textContent = 'Market-Driven';
+      badge.className = 'badge badge-warning tiny';
+    }
+  } else {
+    if (groupTarget) groupTarget.style.display = 'block';
+    if (groupMarket) groupMarket.style.display = 'none';
+    if (badge) {
+      badge.textContent = 'Target-Driven';
+      badge.className = 'badge badge-primary tiny';
+    }
+  }
 }
 
 /**
@@ -87,6 +134,12 @@ function saveSettings() {
   const elFilterLimits = document.getElementById('input-filter-limits');
   const elMaxFeeDrag = document.getElementById('input-max-fee-drag-pct');
 
+  const elBbMode = document.getElementById('input-buyback-mode');
+  const elBbVol = document.getElementById('input-buyback-total-vol');
+  const elBbProfitSpread = document.getElementById('input-buyback-profit-spread');
+  const elBbTargetPrice = document.getElementById('input-buyback-target-price');
+  const elBbMarketSell = document.getElementById('input-buyback-market-sell');
+
   const platformFeeVal = elPlatformFee ? elPlatformFee.value : '0.3';
   if (elPlatformFee) {
     localStorage.setItem('bybit_p2p_pricing_platform_fee_pct', platformFeeVal);
@@ -100,6 +153,15 @@ function saveSettings() {
   if (elDepthLimit && elDepthLimit.value !== '') localStorage.setItem('bybit_p2p_pricing_depth_limit', elDepthLimit.value);
   if (elFilterLimits) localStorage.setItem('bybit_p2p_pricing_filter_limits', elFilterLimits.checked.toString());
   if (elMaxFeeDrag && elMaxFeeDrag.value !== '') localStorage.setItem('bybit_p2p_pricing_max_fee_drag_pct', elMaxFeeDrag.value);
+
+  if (elBbMode) {
+    localStorage.setItem('bybit_p2p_buyback_mode', elBbMode.value);
+    updateBuybackModeVisibility(elBbMode.value);
+  }
+  if (elBbVol && elBbVol.value !== '') localStorage.setItem('bybit_p2p_buyback_total_vol', elBbVol.value);
+  if (elBbProfitSpread && elBbProfitSpread.value !== '') localStorage.setItem('bybit_p2p_buyback_profit_spread', elBbProfitSpread.value);
+  if (elBbTargetPrice && elBbTargetPrice.value !== '') localStorage.setItem('bybit_p2p_buyback_target_price', elBbTargetPrice.value);
+  if (elBbMarketSell && elBbMarketSell.value !== '') localStorage.setItem('bybit_p2p_buyback_market_sell', elBbMarketSell.value);
 
   const maxFeeDragRaw = elMaxFeeDrag ? elMaxFeeDrag.value.trim() : '';
   const parsedFeeDrag = parseInt(maxFeeDragRaw, 10);
@@ -135,7 +197,12 @@ function setupListeners() {
     'input-pricing-mode',
     'input-depth-limit',
     'input-filter-limits',
-    'input-max-fee-drag-pct'
+    'input-max-fee-drag-pct',
+    'input-buyback-mode',
+    'input-buyback-total-vol',
+    'input-buyback-profit-spread',
+    'input-buyback-target-price',
+    'input-buyback-market-sell'
   ];
 
   inputs.forEach(id => {
@@ -445,13 +512,74 @@ export function calculateMargins() {
     elSellLimitRec.innerHTML = `<span class="small text-muted font-mono"><i data-lucide="shield-alert"></i> ${sellLimits.recommendedText}</span>`;
   }
 
+  // -------------------------------------------------------------
+  // C. BUYBACK TARGET & DUAL-MODE PROFIT CALCULATOR
+  // -------------------------------------------------------------
+  const bbMode = document.getElementById('input-buyback-mode')?.value || 'target-driven';
+  const bbTotalVol = parseFloat(document.getElementById('input-buyback-total-vol')?.value) || 100000;
+  const bbProfitSpread = parseFloat(document.getElementById('input-buyback-profit-spread')?.value) || 7.0;
+  const bbTargetPrice = parseFloat(document.getElementById('input-buyback-target-price')?.value) || 1495;
+  const elBbMarketSell = document.getElementById('input-buyback-market-sell');
+  let bbMarketSell = elBbMarketSell ? parseFloat(elBbMarketSell.value) : 1502;
+
+  if (bbMode === 'market-driven' && sellAnalysis.referenceSellPrice > 0 && (!elBbMarketSell || document.activeElement !== elBbMarketSell)) {
+    bbMarketSell = sellAnalysis.referenceSellPrice;
+    if (elBbMarketSell) elBbMarketSell.value = bbMarketSell.toFixed(2);
+  }
+
+  const buybackAnalysis = calculateBuybackTiers({
+    mode: bbMode,
+    totalVolume: bbTotalVol,
+    targetAvgPrice: bbTargetPrice,
+    marketSellPrice: bbMarketSell,
+    profitSpread: bbProfitSpread,
+    platformFeePct: platformFeePct || 0.3,
+    inflowFee
+  });
+
+  const elBbAvgBuy = document.getElementById('buyback-res-avg-buy');
+  const elBbSellRate = document.getElementById('buyback-res-sell-rate');
+  const elBbGrossSpread = document.getElementById('buyback-res-gross-spread');
+  const elBbNetProfit = document.getElementById('buyback-res-net-profit');
+  const tbodyBrackets = document.getElementById('tbody-buyback-brackets');
+
+  if (elBbAvgBuy) elBbAvgBuy.textContent = formatNGN(buybackAnalysis.targetAvgPrice);
+  if (elBbSellRate) elBbSellRate.textContent = formatNGN(buybackAnalysis.targetSellPrice);
+  if (elBbGrossSpread) elBbGrossSpread.textContent = `₦${buybackAnalysis.grossSpread.toFixed(2)}/USDT`;
+  if (elBbNetProfit) {
+    const isProfitable = buybackAnalysis.netRealizedProfit > 0;
+    elBbNetProfit.textContent = `₦${buybackAnalysis.netRealizedProfit.toFixed(2)}/USDT`;
+    elBbNetProfit.className = isProfitable ? 'font-mono fw-bold text-success ms-2' : 'font-mono fw-bold text-danger ms-2';
+  }
+
+  if (tbodyBrackets && Array.isArray(buybackAnalysis.brackets)) {
+    tbodyBrackets.innerHTML = buybackAnalysis.brackets.map(b => `
+      <tr>
+        <td>
+          <div class="fw-semibold text-white">${escapeHtml(b.name)}</div>
+          <div class="text-muted tiny">${escapeHtml(b.description)}</div>
+        </td>
+        <td class="font-mono fw-bold text-info">
+          ${b.volumeUsdt.toLocaleString()} USDT <span class="tiny text-muted">(${b.volumePct}%)</span>
+        </td>
+        <td class="font-mono fw-bold text-success">
+          ₦${b.targetPrice.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </td>
+        <td class="text-end font-mono fw-bold text-secondary">
+          ₦${b.totalNgn.toLocaleString('en-NG', { maximumFractionDigits: 0 })}
+        </td>
+      </tr>
+    `).join('');
+  }
+
   if (window.lucide) window.lucide.createIcons();
 
   return {
     buyAnalysis,
     sellAnalysis,
     buyLimits,
-    sellLimits
+    sellLimits,
+    buybackAnalysis
   };
 }
 

@@ -120,6 +120,112 @@ export function renderPricingView() {
         </div>
       </div>
 
+      <!-- Buyback Target & Dual-Mode Profit Calculator Card -->
+      <div class="card mb-4">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="d-flex align-items-center gap-2">
+            <div class="action-icon-box bg-purple-glow">
+              <i data-lucide="target"></i>
+            </div>
+            <div>
+              <h3 class="card-title">Buyback Target & Range Calculator</h3>
+              <p class="card-subtitle">Calculate volume-weighted buyback ranges & link buy rates to profit targets</p>
+            </div>
+          </div>
+          <span class="badge badge-primary tiny" id="buyback-mode-badge">Target-Driven</span>
+        </div>
+
+        <div class="form-grid mb-3">
+          <div class="form-group col-12 col-md-4">
+            <label for="input-buyback-mode" class="form-label">
+              <i data-lucide="git-compare"></i> Trigger Mode
+            </label>
+            <select id="input-buyback-mode" class="form-select">
+              <option value="target-driven" selected>Target-Driven (Inside-Out)</option>
+              <option value="market-driven">Market-Driven (Outside-In)</option>
+            </select>
+          </div>
+          <div class="form-group col-12 col-md-4">
+            <label for="input-buyback-total-vol" class="form-label">
+              <i data-lucide="coins"></i> Total Volume Goal (USDT)
+            </label>
+            <div class="input-affix-wrapper">
+              <span class="input-prefix">$</span>
+              <input type="number" step="1000" min="100" id="input-buyback-total-vol" class="form-input font-mono" value="100000">
+              <span class="input-suffix">USDT</span>
+            </div>
+          </div>
+          <div class="form-group col-12 col-md-4">
+            <label for="input-buyback-profit-spread" class="form-label">
+              <i data-lucide="trending-up"></i> Profit Difference (Δ)
+            </label>
+            <div class="input-affix-wrapper">
+              <span class="input-prefix">₦</span>
+              <input type="number" step="0.5" min="0.1" id="input-buyback-profit-spread" class="form-input font-mono" value="7.0">
+              <span class="input-suffix">/ USDT</span>
+            </div>
+          </div>
+          <div class="form-group col-12 col-md-6" id="group-buyback-target-price">
+            <label for="input-buyback-target-price" class="form-label">
+              <i data-lucide="arrow-down-circle"></i> Desired Avg Buy Price
+            </label>
+            <div class="input-affix-wrapper">
+              <span class="input-prefix">₦</span>
+              <input type="number" step="0.5" min="1" id="input-buyback-target-price" class="form-input font-mono" value="1495">
+              <span class="input-suffix">NGN</span>
+            </div>
+          </div>
+          <div class="form-group col-12 col-md-6" id="group-buyback-market-sell" style="display: none;">
+            <label for="input-buyback-market-sell" class="form-label">
+              <i data-lucide="arrow-up-circle"></i> Live Market Sell Price
+            </label>
+            <div class="input-affix-wrapper">
+              <span class="input-prefix">₦</span>
+              <input type="number" step="0.5" min="1" id="input-buyback-market-sell" class="form-input font-mono" value="1502">
+              <span class="input-suffix">NGN</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buyback Summary & Brackets Results -->
+        <div class="p-3" style="background: rgba(10, 16, 28, 0.6); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08);">
+          <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+            <div>
+              <span class="text-secondary small">Target Average Buy:</span>
+              <span class="font-mono fw-bold text-success ms-2" id="buyback-res-avg-buy" style="font-size: 1.2rem;">₦1,495.00</span>
+            </div>
+            <div>
+              <span class="text-secondary small">Target Sell Rate:</span>
+              <span class="font-mono fw-bold text-primary ms-2" id="buyback-res-sell-rate" style="font-size: 1.2rem;">₦1,502.00</span>
+            </div>
+            <div>
+              <span class="text-secondary small">Gross Spread (Δ):</span>
+              <span class="font-mono fw-bold text-warning ms-2" id="buyback-res-gross-spread">₦7.00/USDT</span>
+            </div>
+            <div>
+              <span class="text-secondary small">Net Profit after Fees:</span>
+              <span class="font-mono fw-bold text-success ms-2" id="buyback-res-net-profit">₦2.50/USDT</span>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="market-depth-table" id="table-buyback-brackets">
+              <thead>
+                <tr>
+                  <th>Tier Bracket</th>
+                  <th>Volume (USDT)</th>
+                  <th>Target Buy Rate</th>
+                  <th class="text-end">Total Allocation (NGN)</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-buyback-brackets">
+                <!-- Populated dynamically by js/pricing.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- Split Buy / Sell Pricing Calculators -->
       <div class="form-grid mb-4">
         

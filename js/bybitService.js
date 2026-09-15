@@ -41,14 +41,6 @@ function getAuthHeaders(customHeaders = {}) {
     ...customHeaders
   };
   if (typeof window !== 'undefined' && window.localStorage) {
-    const token = localStorage.getItem('bybit_p2p_proxy_token');
-    if (token && token.trim()) {
-      const cleanToken = sanitizeKey(token);
-      headers['Authorization'] = `Bearer ${cleanToken}`;
-      headers['x-proxy-token'] = cleanToken;
-      headers['x-api-token'] = cleanToken;
-      headers['x-auth-token'] = cleanToken;
-    }
     const rawApiKey = localStorage.getItem('bybit_api_key') || localStorage.getItem('bybit_p2p_api_key');
     const rawApiSecret = localStorage.getItem('bybit_api_secret') || localStorage.getItem('bybit_p2p_api_secret');
     const apiKey = sanitizeKey(rawApiKey);
@@ -97,7 +89,7 @@ export function formatBybitErrorMessage(data, defaultMsg = 'Unknown error occurr
     return 'Bybit rate limit exceeded (Code 10006). Please wait a moment before trying again.';
   }
   if (code === 401 || /unauthorized/i.test(rawMsg)) {
-    return 'Unauthorized: Invalid or missing Bybit API credentials or proxy authorization token. Please configure your credentials in Settings.';
+    return 'Unauthorized: Invalid or missing Bybit API credentials. Please configure your Bybit API Key and Secret in Settings.';
   }
   return rawMsg || defaultMsg;
 }

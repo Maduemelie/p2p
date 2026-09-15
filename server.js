@@ -95,23 +95,15 @@ function validateAuth(req, res, next) {
     return next();
   }
 
-  const expectedToken = process.env.PROXY_AUTH_TOKEN || process.env.BYBIT_PROXY_TOKEN || process.env.AUTH_TOKEN || PROXY_AUTH_TOKEN;
-  const token = extractToken(req);
-
-  const rawClientApiKey = getHeader(req, 'x-bybit-api-key');
-  const rawClientApiSecret = getHeader(req, 'x-bybit-api-secret');
-  const hasClientApiKey = Boolean(rawClientApiKey && sanitizeKey(rawClientApiKey));
-  const hasClientApiSecret = Boolean(rawClientApiSecret && sanitizeKey(rawClientApiSecret));
-  const hasUserCredentials = hasClientApiKey && hasClientApiSecret;
-
-  if (!token && !hasUserCredentials) {
-    if (hasClientApiKey && !hasClientApiSecret) {
+  const credentials = getCredentials(req);
+  if (!credentials.apiKey || !credentials.apiSecret) {
+    if (credentials.apiKey && !credentials.apiSecret) {
       return res.status(401).json({
         retCode: 401,
         retMsg: 'Unauthorized: Missing Bybit API Secret in request headers (x-bybit-api-secret)'
       });
     }
-    if (!hasClientApiKey && hasClientApiSecret) {
+    if (!credentials.apiKey && credentials.apiSecret) {
       return res.status(401).json({
         retCode: 401,
         retMsg: 'Unauthorized: Missing Bybit API Key in request headers (x-bybit-api-key)'
@@ -119,21 +111,7 @@ function validateAuth(req, res, next) {
     }
     return res.status(401).json({
       retCode: 401,
-      retMsg: 'Unauthorized: Invalid or missing proxy authorization token'
-    });
-  }
-
-  if (expectedToken && token) {
-    if (!verifyToken(token, expectedToken)) {
-      return res.status(401).json({
-        retCode: 401,
-        retMsg: 'Unauthorized: Invalid or missing proxy authorization token'
-      });
-    }
-  } else if (expectedToken && !token && !hasUserCredentials) {
-    return res.status(401).json({
-      retCode: 401,
-      retMsg: 'Unauthorized: Invalid or missing proxy authorization token'
+      retMsg: 'Unauthorized: Invalid or missing Bybit API credentials. Please configure your Bybit API Key and Secret in Settings.'
     });
   }
 

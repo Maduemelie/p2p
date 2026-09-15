@@ -66,3 +66,36 @@ Ensure all automated unit and invariant tests (`npm test`) continue passing clea
 
 ### Test Integrity
 - [ ] Automated test suite (`npm test`) passes 100% cleanly.
+
+## 2026-09-15T15:07:49Z
+
+This is a single self-contained feature; keep it small and focused.
+
+Add a Buyback Average Price & Range Calculator with dual-mode Profit Spread switching to the P2P Pricing Tab in `c:\dev\p2p`.
+
+Working directory: c:\dev\p2p
+Integrity mode: development
+
+## Requirements
+
+### R1. Dual-Mode Profit & Buyback Pricing Calculator
+Implement a calculator inside `js/views/pricing.view.js`, `js/pricing.js`, and `js/pricingEngine.js` that allows switching between two modes:
+- **Target-Driven Mode (Inside-Out):** User inputs Desired Average Buy Price, total volume goal (USDT), and Profit Difference ($\Delta$). System calculates the volume/price tier brackets needed to achieve the target average buy price, and calculates the Target Sell Price ($\text{Average Buy Price} + \Delta$).
+- **Market-Driven Mode (Outside-In):** User inputs Live Market Sell Price, total volume goal (USDT), and Profit Difference ($\Delta$). System calculates the Maximum Allowable Average Buy Price ($\text{Market Sell Price} - \Delta$) and determines the maximum buy ranges/brackets to stay within that average.
+
+### R2. Volume-Weighted Range & Goal-Seeking Solver
+Implement pure mathematical functions in `js/pricingEngine.js` to compute volume-weighted average prices (VWAP) across volume brackets/tiers and solve for tier allocations given a target total volume and target average buy price.
+
+### R3. Exact P2P Fee Integration
+Enforce fee logic:
+- **Buy Ad Side:** Include Bybit 0.3% Maker Fee and ₦50 fiat transfer inflow fee (stamp duty for transfers > ₦10,000) when calculating effective buy cost basis and net spread.
+- **Sell Ad Side:** Apply 0% Maker Fee and ₦0 fiat outflow fee for maker sell ads.
+
+## Acceptance Criteria
+
+### Functionality & UI Integration
+- [ ] UI provides a toggle/switch between Target-Driven and Market-Driven modes.
+- [ ] Mathematical calculations in `pricingEngine.js` are covered by unit tests.
+- [ ] Calculations correctly reflect Bybit 0.3% maker fee & ₦50 stamp duty on Buy side, and 0% maker fee on Sell side.
+- [ ] Live UI elements update dynamically when user adjusts inputs.
+

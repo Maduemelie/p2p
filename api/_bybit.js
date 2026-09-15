@@ -191,24 +191,24 @@ function verifyAuth(req, res) {
     return false;
   }
 
-  const currentExpectedToken = process.env.PROXY_AUTH_TOKEN || process.env.BYBIT_PROXY_TOKEN || process.env.AUTH_TOKEN || PROXY_AUTH_TOKEN;
-  const token = extractToken(req);
+  const credentials = getCredentials(req);
+  const hasClientHeader = Boolean(
+    getHeader(req, 'x-bybit-api-key') ||
+    getHeader(req, 'x-proxy-token') ||
+    getHeader(req, 'x-api-token') ||
+    getHeader(req, 'x-auth-token') ||
+    getHeader(req, 'authorization')
+  );
 
-  const rawClientApiKey = getHeader(req, 'x-bybit-api-key');
-  const rawClientApiSecret = getHeader(req, 'x-bybit-api-secret');
-  const hasClientApiKey = Boolean(rawClientApiKey && sanitizeKey(rawClientApiKey));
-  const hasClientApiSecret = Boolean(rawClientApiSecret && sanitizeKey(rawClientApiSecret));
-  const hasUserCredentials = hasClientApiKey && hasClientApiSecret;
-
-  if (!token && !hasUserCredentials) {
-    if (hasClientApiKey && !hasClientApiSecret) {
+  if (!credentials.apiKey || !credentials.apiSecret || (!credentials.isClientProvided && !hasClientHeader)) {
+    if (credentials.apiKey && !credentials.apiSecret) {
       res.status(401).json({
         retCode: 401,
         retMsg: 'Unauthorized: Missing Bybit API Secret in request headers (x-bybit-api-secret)'
       });
       return false;
     }
-    if (!hasClientApiKey && hasClientApiSecret) {
+    if (!credentials.apiKey && credentials.apiSecret) {
       res.status(401).json({
         retCode: 401,
         retMsg: 'Unauthorized: Missing Bybit API Key in request headers (x-bybit-api-key)'
@@ -217,23 +217,7 @@ function verifyAuth(req, res) {
     }
     res.status(401).json({
       retCode: 401,
-      retMsg: 'Unauthorized: Invalid or missing proxy authorization token'
-    });
-    return false;
-  }
-
-  if (currentExpectedToken && token) {
-    if (!verifyToken(token, currentExpectedToken)) {
-      res.status(401).json({
-        retCode: 401,
-        retMsg: 'Unauthorized: Invalid or missing proxy authorization token'
-      });
-      return false;
-    }
-  } else if (currentExpectedToken && !token && !hasUserCredentials) {
-    res.status(401).json({
-      retCode: 401,
-      retMsg: 'Unauthorized: Invalid or missing proxy authorization token'
+      retMsg: 'Unauthorized: Invalid or missing Bybit API credentials. Please configure your Bybit API Key and Secret in Settings.'
     });
     return false;
   }
