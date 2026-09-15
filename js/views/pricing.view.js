@@ -226,8 +226,8 @@ export function renderPricingView() {
         </div>
       </div>
 
-      <!-- Split Buy / Sell Pricing Calculators -->
-      <div class="form-grid mb-4">
+      <!-- Split Buy / Sell Pricing Calculators (Hidden for streamlined view) -->
+      <div class="form-grid mb-4" style="display: none;">
         
         <!-- Buy Ad Assistant (Capital Inflow) -->
         <div class="col-12 col-md-6 card">

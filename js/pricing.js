@@ -279,8 +279,6 @@ export async function refreshPricingData(showToast = false) {
  * Build dynamic pricing suggestions combining local FIFO state & public ad depth
  */
 export function calculateMargins() {
-  if (!cachedMarketDepth) return;
-
   // Retrieve user settings values
   const elPlatformFee = document.getElementById('input-platform-fee-pct') || document.getElementById('input-platform-fee');
   let platformFeePct = 0;
@@ -320,8 +318,8 @@ export function calculateMargins() {
   }
 
   // Competitor Lists
-  const buyAds = cachedMarketDepth.buyDepth || []; // Competitor buy ads (side 1)
-  const sellAds = cachedMarketDepth.sellDepth || []; // Competitor sell ads (side 0)
+  const buyAds = cachedMarketDepth ? (cachedMarketDepth.buyDepth || []) : []; // Competitor buy ads (side 1)
+  const sellAds = cachedMarketDepth ? (cachedMarketDepth.sellDepth || []) : []; // Competitor sell ads (side 0)
 
   // Sort: Buy ads descending (highest price first), Sell ads ascending (cheapest price first)
   const sortedBuyAds = [...buyAds].sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
