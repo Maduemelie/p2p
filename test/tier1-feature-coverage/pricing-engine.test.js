@@ -998,11 +998,11 @@ describe('Tier 1 — Pricing & Arbitrage Engine Unit Tests', () => {
     // Verify 3 brackets created
     assert.strictEqual(result.brackets.length, 3);
     assert.strictEqual(result.brackets[0].volumeUsdt, 40000);
-    assert.strictEqual(result.brackets[1].volumeUsdt, 50000);
-    assert.strictEqual(result.brackets[2].volumeUsdt, 10000);
+    assert.strictEqual(result.brackets[1].volumeUsdt, 40000);
+    assert.strictEqual(result.brackets[2].volumeUsdt, 20000);
 
-    // Weighted average of brackets must match targetAvgPrice
-    assert.closeTo(result.actualWeightedAvg, 1495.0, 0.01);
+    // Weighted average of brackets must be at or below targetAvgPrice
+    assert.ok(result.actualWeightedAvg <= 1495.0, 'Weighted average of limit tiers must be at or below target');
   });
 
   it('PE.BUYBACK.2: Market-Driven Mode calculates Max Allowable Avg Buy Price from market sell rate', () => {
@@ -1020,7 +1020,7 @@ describe('Tier 1 — Pricing & Arbitrage Engine Unit Tests', () => {
     assert.strictEqual(result.maxAllowableAvgBuyPrice, 1495.0);
     assert.strictEqual(result.targetAvgPrice, 1495.0);
     assert.strictEqual(result.grossSpread, 7.0);
-    assert.closeTo(result.actualWeightedAvg, 1495.0, 0.01);
+    assert.ok(result.actualWeightedAvg <= 1495.0);
   });
 
   it('PE.BUYBACK.3: Deducts Bybit 0.3% maker fee & ₦50 stamp duty from buy cost basis', () => {
@@ -1038,6 +1038,23 @@ describe('Tier 1 — Pricing & Arbitrage Engine Unit Tests', () => {
     assert.closeTo(result.effectiveCostBasis, (1495 / 0.997) + (50 / 100000), 0.001);
     // netRealizedProfit = 1502 - 1499.498995 = 2.501005 NGN/USDT
     assert.closeTo(result.netRealizedProfit, 1502.0 - result.effectiveCostBasis, 0.001);
+  });
+
+  it('PE.BUYBACK.4: Computes market diagnostics when orderbook prices are provided', () => {
+    const sortedBuyAds = [{ price: '1510.00' }];
+    const sortedSellAds = [{ price: '1500.00' }];
+    const result = pricingEngine.calculateBuybackTiers({
+      mode: 'target-driven',
+      totalVolume: 100000,
+      targetAvgPrice: 1495.0,
+      profitSpread: 7.0,
+      sortedBuyAds,
+      sortedSellAds
+    });
+
+    assert.strictEqual(result.marketDiagnostics.buyMarketStatus, 'LIMIT_DISCOUNT');
+    assert.strictEqual(result.marketDiagnostics.sellMarketStatus, 'ABOVE_MARKET');
+    assert.ok(result.marketDiagnostics.buyMarketMessage.includes('Top market bid is ₦1510.00'));
   });
 }, { tier: 1, category: 'Pricing Engine' });
 

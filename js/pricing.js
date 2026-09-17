@@ -584,6 +584,7 @@ export function calculateMargins() {
     platformFeePct: platformFeePct || 0.3,
     inflowFee,
     sortedBuyAds,
+    sortedSellAds,
     boughtVolume,
     boughtAvgPrice
   });
@@ -603,6 +604,9 @@ export function calculateMargins() {
   const elTargetBannerText = document.getElementById('buyback-target-banner-text');
   const elSessionStartedLabel = document.getElementById('buyback-session-started-label');
   const elSessionSummaryLabel = document.getElementById('buyback-session-summary-label');
+  const elMarketGuidance = document.getElementById('buyback-market-guidance');
+  const elMarketGuidanceText = document.getElementById('buyback-market-guidance-text');
+  const elTierLadder = document.getElementById('buyback-tier-ladder');
   const tbodyBrackets = document.getElementById('tbody-buyback-brackets');
 
   if (elBbAvgBuy) elBbAvgBuy.textContent = formatNGN(buybackAnalysis.targetAvgPrice);
@@ -666,13 +670,59 @@ export function calculateMargins() {
     }
   }
 
+  // Render Market Guidance Diagnostics
+  if (elMarketGuidance && elMarketGuidanceText && buybackAnalysis.marketDiagnostics) {
+    const { buyMarketMessage, sellMarketMessage } = buybackAnalysis.marketDiagnostics;
+    const messages = [buyMarketMessage, sellMarketMessage].filter(Boolean);
+    if (messages.length > 0) {
+      elMarketGuidanceText.innerHTML = messages.map(m => `<div>${escapeHtml(m)}</div>`).join('');
+      elMarketGuidance.style.display = 'block';
+    } else {
+      elMarketGuidance.style.display = 'none';
+    }
+  }
+
+  // Render Modern Mobile-Optimized Tier Ladder Cards
+  if (elTierLadder && Array.isArray(buybackAnalysis.brackets)) {
+    elTierLadder.innerHTML = buybackAnalysis.brackets.map(b => {
+      const tierBadgeClass = b.tier === 1 ? 'badge-primary' : (b.tier === 2 ? 'badge-warning' : 'badge-neutral');
+      return `
+        <div class="buyback-tier-card">
+          <div class="buyback-tier-header">
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge ${tierBadgeClass} tiny">${escapeHtml(b.name.split(':')[0])}</span>
+              <span class="fw-bold text-white small">${escapeHtml(b.name.split(':')[1] || b.name)}</span>
+            </div>
+            <div class="font-mono fw-bold text-success buyback-tier-rate">
+              ₦${b.targetPrice.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </div>
+          <div class="buyback-tier-body">
+            <div class="buyback-tier-col">
+              <span class="text-muted tiny">ALLOCATION</span>
+              <span class="font-mono text-info fw-bold small">${b.volumeUsdt.toLocaleString()} USDT <span class="text-muted tiny font-sans">(${b.volumePct}%)</span></span>
+            </div>
+            <div class="buyback-tier-col text-end">
+              <span class="text-muted tiny">TOTAL NAIRA</span>
+              <span class="font-mono text-secondary fw-bold small">₦${b.totalNgn.toLocaleString('en-NG', { maximumFractionDigits: 0 })}</span>
+            </div>
+          </div>
+          <div class="buyback-tier-footer">
+            <span class="text-muted tiny">${escapeHtml(b.description)}</span>
+            <span class="text-success tiny font-mono fw-bold">+₦${b.spreadCapture.toFixed(2)}/USDT spread</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Maintain hidden/fallback table for compatibility
   if (tbodyBrackets && Array.isArray(buybackAnalysis.brackets)) {
     tbodyBrackets.innerHTML = buybackAnalysis.brackets.map(b => {
-      const tierTitle = b.tier === 1 ? 'Tier 1: Top Live Bid' : (b.tier === 2 ? 'Tier 2: Mid-Depth (Rank 5)' : 'Tier 3: Deep Bid (Rank 10)');
       return `
         <tr>
           <td>
-            <div class="fw-bold text-white text-nowrap">${escapeHtml(tierTitle)}</div>
+            <div class="fw-bold text-white text-nowrap">${escapeHtml(b.name)}</div>
             <div class="text-muted tiny">${escapeHtml(b.description)}</div>
           </td>
           <td class="font-mono fw-bold text-info text-nowrap">

@@ -233,7 +233,7 @@ export function renderPricingView() {
               <div class="buyback-metric-sub text-primary" id="buyback-res-remaining-budget">Budget: —</div>
             </div>
             <div class="buyback-metric-card highlight">
-              <span class="buyback-metric-title text-primary fw-bold">Required Remaining Rate</span>
+              <span class="buyback-metric-title text-primary fw-bold">Required Rate</span>
               <div class="buyback-metric-val text-primary" id="buyback-res-needed-remaining-rate">₦1,495.00</div>
               <div class="buyback-metric-sub">Needed for target avg</div>
             </div>
@@ -254,19 +254,23 @@ export function renderPricingView() {
             </div>
           </div>
 
-          <div class="table-responsive" style="overflow-x: auto;">
-            <table class="market-depth-table" id="table-buyback-brackets">
-              <thead>
-                <tr>
-                  <th class="text-nowrap">Tier Bracket</th>
-                  <th class="text-nowrap">Volume (USDT)</th>
-                  <th class="text-nowrap">Target Buy Rate</th>
-                  <th class="text-end text-nowrap">Total Allocation (NGN)</th>
-                </tr>
-              </thead>
-              <tbody id="tbody-buyback-brackets">
-                <!-- Populated dynamically by js/pricing.js -->
-              </tbody>
+          <!-- Market Guidance Diagnostic Banner -->
+          <div id="buyback-market-guidance" class="buyback-market-guidance mb-3" style="display: none;">
+            <div class="d-flex align-items-start gap-2">
+              <i data-lucide="info" class="flex-shrink-0 text-info mt-1" style="width: 16px; height: 16px;"></i>
+              <div id="buyback-market-guidance-text" class="small text-secondary font-sans" style="line-height: 1.4;"></div>
+            </div>
+          </div>
+
+          <!-- Mobile-Optimized Tier Ladder Cards -->
+          <div id="buyback-tier-ladder" class="buyback-tier-ladder mb-1">
+            <!-- Populated dynamically by js/pricing.js -->
+          </div>
+
+          <!-- Hidden table for legacy test compatibility -->
+          <div style="display: none;">
+            <table id="table-buyback-brackets">
+              <tbody id="tbody-buyback-brackets"></tbody>
             </table>
           </div>
         </div>

@@ -428,7 +428,7 @@ export function calculateRecommendedLimits(priceOrOptions = 1500.0, targetSpread
 
 /**
  * Calculate volume-weighted buyback ranges, live trade progress, and profit spread targets.
- * Extracts bracket prices directly from live competitor order book bids and solves for remaining volume allocations.
+ * Generates actionable maker limit tiers anchored to target average buy price and sell market rates.
  *
  * @param {Object} params
  * @param {string} [params.mode='target-driven'] - 'target-driven' | 'market-driven'
@@ -439,9 +439,10 @@ export function calculateRecommendedLimits(priceOrOptions = 1500.0, targetSpread
  * @param {number} [params.platformFeePct=0.3] - Bybit Maker Fee % on Buy side (default 0.3%)
  * @param {number} [params.inflowFee=50] - Fiat inflow stamp duty fee in NGN
  * @param {Array<Object>} [params.sortedBuyAds=[]] - Sorted competitor buy ads (highest bid first)
+ * @param {Array<Object>} [params.sortedSellAds=[]] - Sorted competitor sell ads (lowest ask first)
  * @param {number} [params.boughtVolume=0] - Executed buy volume in USDT
  * @param {number} [params.boughtAvgPrice=0] - Realized average price of executed buy trades
- * @returns {Object} Buyback analysis, progress metrics & tier ladder output
+ * @returns {Object} Buyback analysis, progress metrics, tier ladder & market guidance
  */
 export function calculateBuybackTiers({
   mode = 'target-driven',
@@ -452,6 +453,7 @@ export function calculateBuybackTiers({
   platformFeePct = 0.3,
   inflowFee = 50.0,
   sortedBuyAds = [],
+  sortedSellAds = [],
   boughtVolume = 0,
   boughtAvgPrice = 0
 } = {}) {
@@ -501,78 +503,91 @@ export function calculateBuybackTiers({
     neededRemainingRate = (totalBudget - spentBudget) / remainingVolume;
   }
 
-  // Order Book Price Extraction
-  const validAds = Array.isArray(sortedBuyAds)
+  // Determine base anchor price for tier ladder
+  const baseRate = Math.round(neededRemainingRate * 100) / 100;
+  const stepDiscount = Math.max(1.0, Math.round(safeSpread * 0.4 * 100) / 100);
+
+  // 3 Strategic Maker Buy Limit Tiers:
+  // Tier 1: Base Target / Competitive Limit (Base Anchor)
+  // Tier 2: Mid-Discount Limit (Base - Step)
+  // Tier 3: Deep-Discount Limit (Base - 2.5 * Step)
+  const p1 = baseRate;
+  const p2 = Math.max(1.0, Math.round((baseRate - stepDiscount) * 100) / 100);
+  const p3 = Math.max(1.0, Math.round((baseRate - (stepDiscount * 2.5)) * 100) / 100);
+
+  // Volume distribution across remaining volume: 40% Tier 1, 40% Tier 2, 20% Tier 3
+  const volToDistribute = remainingVolume > 0 ? remainingVolume : safeVol;
+  const v1 = Math.round(volToDistribute * 0.40);
+  const v3 = Math.round(volToDistribute * 0.20);
+  const v2 = Math.max(0, volToDistribute - v1 - v3);
+
+  const actualWeightedAvg = volToDistribute > 0 ? ((v1 * p1) + (v2 * p2) + (v3 * p3)) / volToDistribute : baseRate;
+
+  // Market comparison and diagnostics
+  const validBuyAds = Array.isArray(sortedBuyAds)
     ? sortedBuyAds.filter(ad => ad && typeof ad === 'object' && !isNaN(parseFloat(ad.price)) && parseFloat(ad.price) > 0)
     : [];
+  const validSellAds = Array.isArray(sortedSellAds)
+    ? sortedSellAds.filter(ad => ad && typeof ad === 'object' && !isNaN(parseFloat(ad.price)) && parseFloat(ad.price) > 0)
+    : [];
 
-  let p1 = calculatedAvgBuyPrice;
-  let p2 = calculatedAvgBuyPrice;
-  let p3 = calculatedAvgBuyPrice;
+  const topBuyPrice = validBuyAds.length > 0 ? parseFloat(validBuyAds[0].price) : 0;
+  const cheapestSellPrice = validSellAds.length > 0 ? parseFloat(validSellAds[0].price) : 0;
 
-  if (validAds.length > 0) {
-    p1 = parseFloat(validAds[0].price);
-    const midIdx = Math.min(4, validAds.length - 1);
-    p2 = parseFloat(validAds[midIdx].price);
-    const deepIdx = Math.min(9, validAds.length - 1);
-    p3 = parseFloat(validAds[deepIdx].price);
-  }
-
-  p1 = Math.round(p1 * 100) / 100;
-  p2 = Math.round(p2 * 100) / 100;
-  p3 = Math.round(p3 * 100) / 100;
-
-  // Calculate volume distribution across remaining volume
-  const volToDistribute = remainingVolume > 0 ? remainingVolume : safeVol;
-  const targetAvgToSolve = remainingVolume > 0 ? neededRemainingRate : calculatedAvgBuyPrice;
-
-  let v1 = Math.round(volToDistribute * 0.40);
-  let v3 = Math.round(volToDistribute * 0.10);
-  let v2 = volToDistribute - v1 - v3;
-
-  // Adjust v2 / v1 if orderbook prices differ to maintain target volume-weighted average
-  if (p1 !== p3 && (p1 - p3) !== 0) {
-    // Solve (v1*p1 + v2*p2 + v3*p3)/V = targetAvgToSolve
-    const targetNgn = volToDistribute * targetAvgToSolve;
-    const estNgn = (v1 * p1) + (v2 * p2) + (v3 * p3);
-    const diffNgn = targetNgn - estNgn;
-    const priceDelta = p1 - p2;
-    if (Math.abs(priceDelta) > 0.01) {
-      const shiftVol = diffNgn / priceDelta;
-      v1 = Math.max(0, Math.min(volToDistribute, Math.round(v1 + shiftVol)));
-      v2 = Math.max(0, volToDistribute - v1 - v3);
+  let buyMarketStatus = 'NORMAL';
+  let buyMarketMessage = '';
+  if (topBuyPrice > 0) {
+    if (topBuyPrice > calculatedAvgBuyPrice) {
+      buyMarketStatus = 'LIMIT_DISCOUNT';
+      buyMarketMessage = `Top market bid is ₦${topBuyPrice.toFixed(2)} (₦${(topBuyPrice - calculatedAvgBuyPrice).toFixed(2)} above target). Post maker limit bids at these 3 tiers to protect your spread.`;
+    } else {
+      buyMarketStatus = 'IN_MARKET';
+      buyMarketMessage = `Top market bid is ₦${topBuyPrice.toFixed(2)} (within target rate). Maker limit fills will be fast.`;
     }
   }
 
-  const actualWeightedAvg = volToDistribute > 0 ? ((v1 * p1) + (v2 * p2) + (v3 * p3)) / volToDistribute : targetAvgToSolve;
+  let sellMarketStatus = 'NORMAL';
+  let sellMarketMessage = '';
+  if (cheapestSellPrice > 0) {
+    if (calculatedSellPrice <= cheapestSellPrice) {
+      sellMarketStatus = 'COMPETITIVE';
+      sellMarketMessage = `Target sell rate (₦${calculatedSellPrice.toFixed(2)}) matches or undercuts lowest market ask (₦${cheapestSellPrice.toFixed(2)}).`;
+    } else {
+      sellMarketStatus = 'ABOVE_MARKET';
+      sellMarketMessage = `Target sell rate (₦${calculatedSellPrice.toFixed(2)}) is above lowest market ask (₦${cheapestSellPrice.toFixed(2)}). Adjust target buy lower for faster sell execution.`;
+    }
+  }
 
   const brackets = [
     {
       tier: 1,
-      name: 'Bracket 1 (Fast Fill - Orderbook Rank 1)',
+      name: 'Tier 1: Target / Fast Fill Limit',
       volumeUsdt: v1,
       volumePct: volToDistribute > 0 ? Math.round((v1 / volToDistribute) * 100) : 40,
       targetPrice: p1,
       totalNgn: v1 * p1,
-      description: validAds.length > 0 ? `Top live bid from ${validAds[0].nickName || validAds[0].memberName || 'Merchant'}` : 'Top competitive orderbook bid'
+      spreadCapture: calculatedSellPrice - p1,
+      description: 'Upper boundary maker limit ad for initial fills at target rate'
     },
     {
       tier: 2,
-      name: 'Bracket 2 (Mid Depth - Orderbook Rank 5)',
+      name: 'Tier 2: Mid-Discount Limit',
       volumeUsdt: v2,
-      volumePct: volToDistribute > 0 ? Math.round((v2 / volToDistribute) * 100) : 50,
+      volumePct: volToDistribute > 0 ? Math.round((v2 / volToDistribute) * 100) : 40,
       targetPrice: p2,
       totalNgn: v2 * p2,
-      description: 'Mid-tier orderbook bid depth'
+      spreadCapture: calculatedSellPrice - p2,
+      description: 'Discounted maker limit ad (+₦' + stepDiscount.toFixed(2) + ' extra spread)'
     },
     {
       tier: 3,
-      name: 'Bracket 3 (Deep Buyback - Orderbook Rank 10)',
+      name: 'Tier 3: Deep-Discount Limit',
       volumeUsdt: v3,
-      volumePct: volToDistribute > 0 ? Math.round((v3 / volToDistribute) * 100) : 10,
+      volumePct: volToDistribute > 0 ? Math.round((v3 / volToDistribute) * 100) : 20,
       targetPrice: p3,
       totalNgn: v3 * p3,
-      description: 'Deep orderbook bid depth'
+      spreadCapture: calculatedSellPrice - p3,
+      description: 'Deep discount limit ad to capture market dumps and panic sells'
     }
   ];
 
@@ -598,6 +613,14 @@ export function calculateBuybackTiers({
       platformFeePerUnit,
       inflowFeePerUnit,
       totalFeePerUnit
+    },
+    marketDiagnostics: {
+      topBuyPrice,
+      cheapestSellPrice,
+      buyMarketStatus,
+      buyMarketMessage,
+      sellMarketStatus,
+      sellMarketMessage
     },
     brackets,
     actualWeightedAvg
