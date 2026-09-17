@@ -427,8 +427,8 @@ export function calculateRecommendedLimits(priceOrOptions = 1500.0, targetSpread
 }
 
 /**
- * Calculate volume-weighted buyback ranges and profit spread targets.
- * Supports both Target-Driven (Inside-Out) and Market-Driven (Outside-In) modes.
+ * Calculate volume-weighted buyback ranges, live trade progress, and profit spread targets.
+ * Extracts bracket prices directly from live competitor order book bids and solves for remaining volume allocations.
  *
  * @param {Object} params
  * @param {string} [params.mode='target-driven'] - 'target-driven' | 'market-driven'
@@ -438,7 +438,10 @@ export function calculateRecommendedLimits(priceOrOptions = 1500.0, targetSpread
  * @param {number} [params.profitSpread=7.0] - Target Profit Difference (Delta) in NGN/USDT
  * @param {number} [params.platformFeePct=0.3] - Bybit Maker Fee % on Buy side (default 0.3%)
  * @param {number} [params.inflowFee=50] - Fiat inflow stamp duty fee in NGN
- * @returns {Object} Buyback analysis & tier ladder output
+ * @param {Array<Object>} [params.sortedBuyAds=[]] - Sorted competitor buy ads (highest bid first)
+ * @param {number} [params.boughtVolume=0] - Executed buy volume in USDT
+ * @param {number} [params.boughtAvgPrice=0] - Realized average price of executed buy trades
+ * @returns {Object} Buyback analysis, progress metrics & tier ladder output
  */
 export function calculateBuybackTiers({
   mode = 'target-driven',
@@ -447,7 +450,10 @@ export function calculateBuybackTiers({
   marketSellPrice = 1502.0,
   profitSpread = 7.0,
   platformFeePct = 0.3,
-  inflowFee = 50.0
+  inflowFee = 50.0,
+  sortedBuyAds = [],
+  boughtVolume = 0,
+  boughtAvgPrice = 0
 } = {}) {
   const safeVol = (!totalVolume || isNaN(totalVolume) || totalVolume <= 0) ? 100000 : Number(totalVolume);
   const safeSpread = (!profitSpread || isNaN(profitSpread) || profitSpread <= 0) ? 7.0 : Number(profitSpread);
@@ -472,7 +478,6 @@ export function calculateBuybackTiers({
   }
 
   // Fees calculation on Buy Side:
-  // Effective Buy Cost per USDT = (Buy Price / (1 - phi)) + (Inflow Fee / Total Volume)
   const platformFeePerUnit = calculatedAvgBuyPrice * phi;
   const inflowFeePerUnit = safeInflowFee / safeVol;
   const totalFeePerUnit = platformFeePerUnit + inflowFeePerUnit;
@@ -482,44 +487,92 @@ export function calculateBuybackTiers({
   const netRealizedProfit = calculatedSellPrice - effectiveCostBasis;
   const grossSpread = calculatedSellPrice - calculatedAvgBuyPrice;
 
-  // Calculate 3-tier buy ladder brackets around calculatedAvgBuyPrice
-  const p1 = Math.round((calculatedAvgBuyPrice + 3.0) * 100) / 100;
-  const p3 = Math.round((calculatedAvgBuyPrice - 6.0) * 100) / 100;
-  const p2 = Math.round(((calculatedAvgBuyPrice - (0.40 * p1) - (0.10 * p3)) / 0.50) * 100) / 100;
+  // Live Trade Progress Calculation
+  const safeBoughtVol = Math.max(0, Number(boughtVolume) || 0);
+  const safeBoughtAvg = Math.max(0, Number(boughtAvgPrice) || 0);
+  const remainingVolume = Math.max(0, safeVol - safeBoughtVol);
+  const progressPercent = Math.min(100, Math.round((safeBoughtVol / safeVol) * 1000) / 10);
 
-  const v1 = Math.round(safeVol * 0.40);
-  const v2 = Math.round(safeVol * 0.50);
-  const v3 = safeVol - v1 - v2;
+  // Rate needed for remaining volume to land exact target average across total volume
+  let neededRemainingRate = calculatedAvgBuyPrice;
+  if (remainingVolume > 0 && safeBoughtVol > 0 && safeBoughtAvg > 0) {
+    const totalBudget = safeVol * calculatedAvgBuyPrice;
+    const spentBudget = safeBoughtVol * safeBoughtAvg;
+    neededRemainingRate = (totalBudget - spentBudget) / remainingVolume;
+  }
 
-  const actualWeightedAvg = ((v1 * p1) + (v2 * p2) + (v3 * p3)) / safeVol;
+  // Order Book Price Extraction
+  const validAds = Array.isArray(sortedBuyAds)
+    ? sortedBuyAds.filter(ad => ad && typeof ad === 'object' && !isNaN(parseFloat(ad.price)) && parseFloat(ad.price) > 0)
+    : [];
+
+  let p1 = calculatedAvgBuyPrice;
+  let p2 = calculatedAvgBuyPrice;
+  let p3 = calculatedAvgBuyPrice;
+
+  if (validAds.length > 0) {
+    p1 = parseFloat(validAds[0].price);
+    const midIdx = Math.min(4, validAds.length - 1);
+    p2 = parseFloat(validAds[midIdx].price);
+    const deepIdx = Math.min(9, validAds.length - 1);
+    p3 = parseFloat(validAds[deepIdx].price);
+  }
+
+  p1 = Math.round(p1 * 100) / 100;
+  p2 = Math.round(p2 * 100) / 100;
+  p3 = Math.round(p3 * 100) / 100;
+
+  // Calculate volume distribution across remaining volume
+  const volToDistribute = remainingVolume > 0 ? remainingVolume : safeVol;
+  const targetAvgToSolve = remainingVolume > 0 ? neededRemainingRate : calculatedAvgBuyPrice;
+
+  let v1 = Math.round(volToDistribute * 0.40);
+  let v3 = Math.round(volToDistribute * 0.10);
+  let v2 = volToDistribute - v1 - v3;
+
+  // Adjust v2 / v1 if orderbook prices differ to maintain target volume-weighted average
+  if (p1 !== p3 && (p1 - p3) !== 0) {
+    // Solve (v1*p1 + v2*p2 + v3*p3)/V = targetAvgToSolve
+    const targetNgn = volToDistribute * targetAvgToSolve;
+    const estNgn = (v1 * p1) + (v2 * p2) + (v3 * p3);
+    const diffNgn = targetNgn - estNgn;
+    const priceDelta = p1 - p2;
+    if (Math.abs(priceDelta) > 0.01) {
+      const shiftVol = diffNgn / priceDelta;
+      v1 = Math.max(0, Math.min(volToDistribute, Math.round(v1 + shiftVol)));
+      v2 = Math.max(0, volToDistribute - v1 - v3);
+    }
+  }
+
+  const actualWeightedAvg = volToDistribute > 0 ? ((v1 * p1) + (v2 * p2) + (v3 * p3)) / volToDistribute : targetAvgToSolve;
 
   const brackets = [
     {
       tier: 1,
-      name: 'Bracket 1 (Fast Fill - Top Bid)',
+      name: 'Bracket 1 (Fast Fill - Orderbook Rank 1)',
       volumeUsdt: v1,
-      volumePct: 40,
+      volumePct: volToDistribute > 0 ? Math.round((v1 / volToDistribute) * 100) : 40,
       targetPrice: p1,
       totalNgn: v1 * p1,
-      description: 'Competitive upper rate to capture fast orderflow'
+      description: validAds.length > 0 ? `Top live bid from ${validAds[0].nickName || validAds[0].memberName || 'Merchant'}` : 'Top competitive orderbook bid'
     },
     {
       tier: 2,
-      name: 'Bracket 2 (Core Volume)',
+      name: 'Bracket 2 (Mid Depth - Orderbook Rank 5)',
       volumeUsdt: v2,
-      volumePct: 50,
+      volumePct: volToDistribute > 0 ? Math.round((v2 / volToDistribute) * 100) : 50,
       targetPrice: p2,
       totalNgn: v2 * p2,
-      description: 'Base volume rate'
+      description: 'Mid-tier orderbook bid depth'
     },
     {
       tier: 3,
-      name: 'Bracket 3 (Deep Buyback)',
+      name: 'Bracket 3 (Deep Buyback - Orderbook Rank 10)',
       volumeUsdt: v3,
-      volumePct: 10,
+      volumePct: volToDistribute > 0 ? Math.round((v3 / volToDistribute) * 100) : 10,
       targetPrice: p3,
       totalNgn: v3 * p3,
-      description: 'Lower backfill rate for dips'
+      description: 'Deep orderbook bid depth'
     }
   ];
 
@@ -533,6 +586,14 @@ export function calculateBuybackTiers({
     grossSpread,
     netRealizedProfit,
     effectiveCostBasis,
+    progress: {
+      boughtVolume: safeBoughtVol,
+      boughtAvgPrice: safeBoughtAvg,
+      remainingVolume,
+      neededRemainingRate,
+      progressPercent,
+      isTargetAchieved: safeBoughtVol >= safeVol
+    },
     feeBreakdown: {
       platformFeePerUnit,
       inflowFeePerUnit,
@@ -542,4 +603,5 @@ export function calculateBuybackTiers({
     actualWeightedAvg
   };
 }
+
 
