@@ -121,18 +121,33 @@ export function renderPricingView() {
       </div>
 
       <!-- Buyback Target & Dual-Mode Profit Calculator Card -->
-      <div class="card mb-4">
-        <div class="d-flex align-items-center justify-content-between mb-2">
+      <div class="card mb-4" id="card-buyback-calculator">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
           <div class="d-flex align-items-center gap-2">
             <div class="action-icon-box bg-purple-glow">
               <i data-lucide="target"></i>
             </div>
             <div>
               <h3 class="card-title">Buyback Target & Range Calculator</h3>
-              <p class="card-subtitle">Calculate volume-weighted buyback ranges & link buy rates to profit targets</p>
+              <p class="card-subtitle">Volume-weighted orderbook buyback solver linked to profit targets</p>
             </div>
           </div>
-          <span class="badge badge-primary tiny" id="buyback-mode-badge">Target-Driven</span>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline" id="btn-reset-buyback-session" title="Reset tracking for a new buyback goal">
+              <i data-lucide="rotate-ccw"></i>
+              <span>New Buyback Session</span>
+            </button>
+            <span class="badge badge-primary tiny" id="buyback-mode-badge">Target-Driven</span>
+          </div>
+        </div>
+
+        <!-- Target Reached Celebratory Banner -->
+        <div id="buyback-target-banner" class="mb-3 p-3 text-center" style="display: none; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 8px;">
+          <div class="d-flex align-items-center justify-content-center gap-2 text-success fw-bold">
+            <i data-lucide="check-circle-2"></i>
+            <span id="buyback-target-banner-text" style="font-size: 1.05rem;">🎯 Buyback Goal Completed!</span>
+          </div>
+          <p class="text-secondary tiny mb-0 mt-1">You have fully acquired your target USDT volume at or below your target rate.</p>
         </div>
 
         <div class="form-grid mb-3">
@@ -189,43 +204,53 @@ export function renderPricingView() {
 
         <!-- Live Trade Execution Progress Bar -->
         <div class="mb-3 p-3" style="background: rgba(15, 23, 42, 0.7); border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.2);">
-          <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
             <span class="small font-mono fw-bold text-secondary">
-              <i data-lucide="activity"></i> BUYBACK INVENTORY PROGRESS
+              <i data-lucide="activity"></i> CURRENT BUYBACK SESSION PROGRESS
             </span>
             <span class="badge badge-primary tiny font-mono" id="buyback-progress-text">0.0% Complete</span>
           </div>
-          <div class="progress mb-2" style="height: 10px; background: rgba(255, 255, 255, 0.1); border-radius: 5px; overflow: hidden;">
+          <div class="progress mb-1" style="height: 10px; background: rgba(255, 255, 255, 0.1); border-radius: 5px; overflow: hidden;">
             <div id="buyback-progress-bar" class="progress-bar bg-primary" role="progressbar" style="width: 0%; height: 100%; transition: width 0.3s ease;"></div>
+          </div>
+          <div class="d-flex justify-content-between text-muted tiny font-mono mt-1">
+            <span id="buyback-session-started-label">Session: Active</span>
+            <span id="buyback-session-summary-label">$0.00 / $100,000 USDT</span>
           </div>
         </div>
 
         <!-- Buyback Summary & Brackets Results -->
         <div class="p-3" style="background: rgba(10, 16, 28, 0.6); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08);">
           <div class="form-grid mb-3">
-            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06);">
+            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); min-width: 0;">
               <span class="text-secondary tiny uppercase d-block mb-1">Bought So Far</span>
-              <span class="font-mono fw-bold text-accent text-nowrap" id="buyback-res-bought-so-far" style="font-size: 1.1rem;">$0.00 USDT</span>
+              <div class="font-mono fw-bold text-accent" id="buyback-res-bought-so-far" style="font-size: 1.05rem; word-break: break-all;">$0.00 USDT</div>
+              <div class="text-muted tiny mt-1" id="buyback-res-bought-avg">Avg: —</div>
             </div>
-            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06);">
+            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); min-width: 0;">
               <span class="text-secondary tiny uppercase d-block mb-1">Remaining Needed</span>
-              <span class="font-mono fw-bold text-warning text-nowrap" id="buyback-res-remaining-needed" style="font-size: 1.1rem;">$100,000 USDT</span>
+              <div class="font-mono fw-bold text-warning" id="buyback-res-remaining-needed" style="font-size: 1.05rem; word-break: break-all;">$100,000 USDT</div>
+              <div class="text-muted tiny mt-1" id="buyback-res-remaining-budget">Budget: —</div>
             </div>
-            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(59, 130, 246, 0.3);">
+            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(59, 130, 246, 0.3); min-width: 0;">
               <span class="text-primary tiny uppercase d-block mb-1 fw-bold">Required Rate Remaining</span>
-              <span class="font-mono fw-bold text-primary text-nowrap" id="buyback-res-needed-remaining-rate" style="font-size: 1.15rem;">₦1,495.00</span>
+              <div class="font-mono fw-bold text-primary" id="buyback-res-needed-remaining-rate" style="font-size: 1.1rem; word-break: break-all;">₦1,495.00</div>
+              <div class="text-muted tiny mt-1">To achieve target avg</div>
             </div>
-            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06);">
+            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); min-width: 0;">
               <span class="text-secondary tiny uppercase d-block mb-1">Target Avg Buy</span>
-              <span class="font-mono fw-bold text-success text-nowrap" id="buyback-res-avg-buy" style="font-size: 1.1rem;">₦1,495.00</span>
+              <div class="font-mono fw-bold text-success" id="buyback-res-avg-buy" style="font-size: 1.05rem; word-break: break-all;">₦1,495.00</div>
+              <div class="text-muted tiny mt-1">Goal benchmark</div>
             </div>
-            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06);">
+            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); min-width: 0;">
               <span class="text-secondary tiny uppercase d-block mb-1">Target Sell Rate</span>
-              <span class="font-mono fw-bold text-primary text-nowrap" id="buyback-res-sell-rate" style="font-size: 1.1rem;">₦1,502.00</span>
+              <div class="font-mono fw-bold text-primary" id="buyback-res-sell-rate" style="font-size: 1.05rem; word-break: break-all;">₦1,502.00</div>
+              <div class="text-muted tiny mt-1" id="buyback-res-gross-spread">Δ: ₦7.00/USDT</div>
             </div>
-            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06);">
+            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); min-width: 0;">
               <span class="text-secondary tiny uppercase d-block mb-1">Net Profit (after fees)</span>
-              <span class="font-mono fw-bold text-success text-nowrap" id="buyback-res-net-profit" style="font-size: 1.1rem;">₦2.50/USDT</span>
+              <div class="font-mono fw-bold text-success" id="buyback-res-net-profit" style="font-size: 1.05rem; word-break: break-all;">₦2.50/USDT</div>
+              <div class="text-muted tiny mt-1">Maker fee + stamp duty</div>
             </div>
           </div>
 

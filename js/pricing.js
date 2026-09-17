@@ -220,6 +220,10 @@ function setupListeners() {
     refreshPricingData(true);
   });
 
+  document.getElementById('btn-reset-buyback-session')?.addEventListener('click', () => {
+    resetBuybackSession();
+  });
+
   // Copy Suggested rates triggers
   document.getElementById('btn-copy-buy-price')?.addEventListener('click', () => {
     const el = document.getElementById('pricing-suggested-buy');
@@ -272,6 +276,29 @@ export async function refreshPricingData(showToast = false) {
       btnRefresh.querySelector('span').textContent = 'Refresh Market';
     }
     if (window.lucide) window.lucide.createIcons();
+  }
+}
+
+/**
+ * Get active buyback session start timestamp from storage
+ */
+export function getBuybackSessionStartTime() {
+  const stored = localStorage.getItem('bybit_p2p_buyback_session_start');
+  if (stored && !isNaN(Number(stored)) && Number(stored) > 0) {
+    return Number(stored);
+  }
+  return 0;
+}
+
+/**
+ * Reset buyback session timestamp to now to start a clean buyback goal
+ */
+export function resetBuybackSession() {
+  const now = Date.now();
+  localStorage.setItem('bybit_p2p_buyback_session_start', String(now));
+  calculateMargins();
+  if (window.showToast) {
+    window.showToast('Buyback session reset. Tracking new buy orders from now.', 'success');
   }
 }
 
@@ -525,8 +552,17 @@ export function calculateMargins() {
     if (elBbMarketSell) elBbMarketSell.value = bbMarketSell.toFixed(2);
   }
 
-  // Calculate executed buy trades inventory stats from store
-  const buyTrades = trades.filter(t => t && (t.direction === 'BUY' || t.type === 'BUY'));
+  // Calculate executed buy trades inventory stats scoped to active session
+  const sessionStartTime = getBuybackSessionStartTime();
+  const buyTrades = trades.filter(t => {
+    if (!t || (t.direction !== 'BUY' && t.type !== 'BUY')) return false;
+    if (sessionStartTime > 0) {
+      const tradeTime = new Date(t.timestamp || t.createdAt || t.orderTime || t.date || 0).getTime();
+      return tradeTime >= sessionStartTime;
+    }
+    return true;
+  });
+
   let boughtVolume = 0;
   let totalSpentNgn = 0;
   buyTrades.forEach(t => {
@@ -555,28 +591,40 @@ export function calculateMargins() {
   const elBbGrossSpread = document.getElementById('buyback-res-gross-spread');
   const elBbNetProfit = document.getElementById('buyback-res-net-profit');
   const elBbBoughtSoFar = document.getElementById('buyback-res-bought-so-far');
+  const elBbBoughtAvg = document.getElementById('buyback-res-bought-avg');
   const elBbRemainingNeeded = document.getElementById('buyback-res-remaining-needed');
+  const elBbRemainingBudget = document.getElementById('buyback-res-remaining-budget');
   const elBbNeededRateRemaining = document.getElementById('buyback-res-needed-remaining-rate');
   const elProgressBar = document.getElementById('buyback-progress-bar');
   const elProgressText = document.getElementById('buyback-progress-text');
+  const elTargetBanner = document.getElementById('buyback-target-banner');
+  const elTargetBannerText = document.getElementById('buyback-target-banner-text');
+  const elSessionStartedLabel = document.getElementById('buyback-session-started-label');
+  const elSessionSummaryLabel = document.getElementById('buyback-session-summary-label');
   const tbodyBrackets = document.getElementById('tbody-buyback-brackets');
 
   if (elBbAvgBuy) elBbAvgBuy.textContent = formatNGN(buybackAnalysis.targetAvgPrice);
   if (elBbSellRate) elBbSellRate.textContent = formatNGN(buybackAnalysis.targetSellPrice);
-  if (elBbGrossSpread) elBbGrossSpread.textContent = `₦${buybackAnalysis.grossSpread.toFixed(2)}/USDT`;
+  if (elBbGrossSpread) elBbGrossSpread.textContent = `Δ: ₦${buybackAnalysis.grossSpread.toFixed(2)}/USDT`;
   if (elBbNetProfit) {
     const isProfitable = buybackAnalysis.netRealizedProfit > 0;
     elBbNetProfit.textContent = `₦${buybackAnalysis.netRealizedProfit.toFixed(2)}/USDT`;
-    elBbNetProfit.className = isProfitable ? 'font-mono fw-bold text-success text-nowrap' : 'font-mono fw-bold text-danger text-nowrap';
+    elBbNetProfit.className = isProfitable ? 'font-mono fw-bold text-success' : 'font-mono fw-bold text-danger';
   }
 
   if (elBbBoughtSoFar) {
-    const avgStr = buybackAnalysis.progress.boughtAvgPrice > 0 ? ` @ ₦${buybackAnalysis.progress.boughtAvgPrice.toFixed(2)}` : '';
-    elBbBoughtSoFar.textContent = `$${buybackAnalysis.progress.boughtVolume.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT${avgStr}`;
+    elBbBoughtSoFar.textContent = `$${buybackAnalysis.progress.boughtVolume.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT`;
+  }
+  if (elBbBoughtAvg) {
+    elBbBoughtAvg.textContent = buybackAnalysis.progress.boughtAvgPrice > 0 ? `Avg: ₦${buybackAnalysis.progress.boughtAvgPrice.toFixed(2)}` : 'Avg: —';
   }
 
   if (elBbRemainingNeeded) {
     elBbRemainingNeeded.textContent = `$${buybackAnalysis.progress.remainingVolume.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT`;
+  }
+  if (elBbRemainingBudget) {
+    const remBudget = buybackAnalysis.progress.remainingVolume * buybackAnalysis.progress.neededRemainingRate;
+    elBbRemainingBudget.textContent = `Budget: ₦${remBudget.toLocaleString('en-NG', { maximumFractionDigits: 0 })}`;
   }
 
   if (elBbNeededRateRemaining) {
@@ -585,10 +633,35 @@ export function calculateMargins() {
 
   if (elProgressBar) {
     elProgressBar.style.width = `${buybackAnalysis.progress.progressPercent}%`;
+    elProgressBar.className = buybackAnalysis.progress.isTargetAchieved ? 'progress-bar bg-success' : 'progress-bar bg-primary';
   }
 
   if (elProgressText) {
     elProgressText.textContent = `${buybackAnalysis.progress.progressPercent.toFixed(1)}% Complete ($${buybackAnalysis.progress.boughtVolume.toLocaleString()} / $${buybackAnalysis.totalVolume.toLocaleString()})`;
+  }
+
+  if (elSessionStartedLabel) {
+    if (sessionStartTime > 0) {
+      const d = new Date(sessionStartTime);
+      elSessionStartedLabel.textContent = `Session started: ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+      elSessionStartedLabel.textContent = 'Session: Active';
+    }
+  }
+
+  if (elSessionSummaryLabel) {
+    elSessionSummaryLabel.textContent = `$${buybackAnalysis.progress.boughtVolume.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / $${buybackAnalysis.totalVolume.toLocaleString()} USDT`;
+  }
+
+  if (elTargetBanner) {
+    if (buybackAnalysis.progress.isTargetAchieved) {
+      elTargetBanner.style.display = 'block';
+      if (elTargetBannerText) {
+        elTargetBannerText.textContent = `🎯 Target Reached! ($${buybackAnalysis.progress.boughtVolume.toFixed(2)} / $${buybackAnalysis.totalVolume.toFixed(2)} USDT acquired @ ₦${buybackAnalysis.progress.boughtAvgPrice.toFixed(2)})`;
+      }
+    } else {
+      elTargetBanner.style.display = 'none';
+    }
   }
 
   if (tbodyBrackets && Array.isArray(buybackAnalysis.brackets)) {
