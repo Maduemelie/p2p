@@ -287,7 +287,9 @@ export function getBuybackSessionStartTime() {
   if (stored && !isNaN(Number(stored)) && Number(stored) > 0) {
     return Number(stored);
   }
-  return 0;
+  const now = Date.now();
+  localStorage.setItem('bybit_p2p_buyback_session_start', String(now));
+  return now;
 }
 
 /**
@@ -665,23 +667,26 @@ export function calculateMargins() {
   }
 
   if (tbodyBrackets && Array.isArray(buybackAnalysis.brackets)) {
-    tbodyBrackets.innerHTML = buybackAnalysis.brackets.map(b => `
-      <tr>
-        <td class="text-nowrap">
-          <div class="fw-semibold text-white">${escapeHtml(b.name)}</div>
-          <div class="text-muted tiny">${escapeHtml(b.description)}</div>
-        </td>
-        <td class="font-mono fw-bold text-info text-nowrap">
-          ${b.volumeUsdt.toLocaleString()} USDT <span class="tiny text-muted">(${b.volumePct}%)</span>
-        </td>
-        <td class="font-mono fw-bold text-success text-nowrap">
-          ₦${b.targetPrice.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </td>
-        <td class="text-end font-mono fw-bold text-secondary text-nowrap">
-          ₦${b.totalNgn.toLocaleString('en-NG', { maximumFractionDigits: 0 })}
-        </td>
-      </tr>
-    `).join('');
+    tbodyBrackets.innerHTML = buybackAnalysis.brackets.map(b => {
+      const tierTitle = b.tier === 1 ? 'Tier 1: Top Live Bid' : (b.tier === 2 ? 'Tier 2: Mid-Depth (Rank 5)' : 'Tier 3: Deep Bid (Rank 10)');
+      return `
+        <tr>
+          <td>
+            <div class="fw-bold text-white text-nowrap">${escapeHtml(tierTitle)}</div>
+            <div class="text-muted tiny">${escapeHtml(b.description)}</div>
+          </td>
+          <td class="font-mono fw-bold text-info text-nowrap">
+            ${b.volumeUsdt.toLocaleString()} <span class="tiny text-muted">USDT (${b.volumePct}%)</span>
+          </td>
+          <td class="font-mono fw-bold text-success text-nowrap">
+            ₦${b.targetPrice.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </td>
+          <td class="text-end font-mono fw-bold text-secondary text-nowrap">
+            ₦${b.totalNgn.toLocaleString('en-NG', { maximumFractionDigits: 0 })}
+          </td>
+        </tr>
+      `;
+    }).join('');
   }
 
   if (window.lucide) window.lucide.createIcons();

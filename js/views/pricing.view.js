@@ -221,36 +221,36 @@ export function renderPricingView() {
 
         <!-- Buyback Summary & Brackets Results -->
         <div class="p-3" style="background: rgba(10, 16, 28, 0.6); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08);">
-          <div class="form-grid mb-3">
-            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); min-width: 0;">
-              <span class="text-secondary tiny uppercase d-block mb-1">Bought So Far</span>
-              <div class="font-mono fw-bold text-accent" id="buyback-res-bought-so-far" style="font-size: 1.05rem; word-break: break-all;">$0.00 USDT</div>
-              <div class="text-muted tiny mt-1" id="buyback-res-bought-avg">Avg: —</div>
+          <div class="buyback-metric-grid mb-3">
+            <div class="buyback-metric-card">
+              <span class="buyback-metric-title">Bought So Far</span>
+              <div class="buyback-metric-val text-accent" id="buyback-res-bought-so-far">$0.00 USDT</div>
+              <div class="buyback-metric-sub" id="buyback-res-bought-avg">Avg: —</div>
             </div>
-            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); min-width: 0;">
-              <span class="text-secondary tiny uppercase d-block mb-1">Remaining Needed</span>
-              <div class="font-mono fw-bold text-warning" id="buyback-res-remaining-needed" style="font-size: 1.05rem; word-break: break-all;">$100,000 USDT</div>
-              <div class="text-muted tiny mt-1" id="buyback-res-remaining-budget">Budget: —</div>
+            <div class="buyback-metric-card highlight">
+              <span class="buyback-metric-title text-primary">Remaining Needed</span>
+              <div class="buyback-metric-val text-warning" id="buyback-res-remaining-needed">$100,000 USDT</div>
+              <div class="buyback-metric-sub text-primary" id="buyback-res-remaining-budget">Budget: —</div>
             </div>
-            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(59, 130, 246, 0.3); min-width: 0;">
-              <span class="text-primary tiny uppercase d-block mb-1 fw-bold">Required Rate Remaining</span>
-              <div class="font-mono fw-bold text-primary" id="buyback-res-needed-remaining-rate" style="font-size: 1.1rem; word-break: break-all;">₦1,495.00</div>
-              <div class="text-muted tiny mt-1">To achieve target avg</div>
+            <div class="buyback-metric-card highlight">
+              <span class="buyback-metric-title text-primary fw-bold">Required Remaining Rate</span>
+              <div class="buyback-metric-val text-primary" id="buyback-res-needed-remaining-rate">₦1,495.00</div>
+              <div class="buyback-metric-sub">Needed for target avg</div>
             </div>
-            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); min-width: 0;">
-              <span class="text-secondary tiny uppercase d-block mb-1">Target Avg Buy</span>
-              <div class="font-mono fw-bold text-success" id="buyback-res-avg-buy" style="font-size: 1.05rem; word-break: break-all;">₦1,495.00</div>
-              <div class="text-muted tiny mt-1">Goal benchmark</div>
+            <div class="buyback-metric-card">
+              <span class="buyback-metric-title">Target Avg Buy</span>
+              <div class="buyback-metric-val text-success" id="buyback-res-avg-buy">₦1,495.00</div>
+              <div class="buyback-metric-sub">Target Benchmark</div>
             </div>
-            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); min-width: 0;">
-              <span class="text-secondary tiny uppercase d-block mb-1">Target Sell Rate</span>
-              <div class="font-mono fw-bold text-primary" id="buyback-res-sell-rate" style="font-size: 1.05rem; word-break: break-all;">₦1,502.00</div>
-              <div class="text-muted tiny mt-1" id="buyback-res-gross-spread">Δ: ₦7.00/USDT</div>
+            <div class="buyback-metric-card">
+              <span class="buyback-metric-title">Target Sell Rate</span>
+              <div class="buyback-metric-val text-primary" id="buyback-res-sell-rate">₦1,502.00</div>
+              <div class="buyback-metric-sub text-warning" id="buyback-res-gross-spread">Δ: ₦7.00/USDT</div>
             </div>
-            <div class="card p-2 text-center" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); min-width: 0;">
-              <span class="text-secondary tiny uppercase d-block mb-1">Net Profit (after fees)</span>
-              <div class="font-mono fw-bold text-success" id="buyback-res-net-profit" style="font-size: 1.05rem; word-break: break-all;">₦2.50/USDT</div>
-              <div class="text-muted tiny mt-1">Maker fee + stamp duty</div>
+            <div class="buyback-metric-card">
+              <span class="buyback-metric-title">Net Profit (after fees)</span>
+              <div class="buyback-metric-val text-success" id="buyback-res-net-profit">₦2.50/USDT</div>
+              <div class="buyback-metric-sub">Maker fee + stamp duty</div>
             </div>
           </div>
 

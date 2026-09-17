@@ -2510,4 +2510,78 @@ img { max-width: 100%; display: block; }
   }
 }
 
+/* ==========================================================================
+   Buyback Calculator Responsive Grid & Metric Cards
+   ========================================================================== */
+.buyback-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-2);
+}
+
+@media (min-width: 600px) {
+  .buyback-metric-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-3);
+  }
+}
+
+@media (min-width: 992px) {
+  .buyback-metric-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.buyback-metric-card {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 84px;
+  overflow: hidden;
+}
+
+.buyback-metric-card.highlight {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.buyback-metric-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+
+.buyback-metric-val {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1.25;
+  word-break: normal;
+  white-space: nowrap;
+}
+
+@media (max-width: 400px) {
+  .buyback-metric-val {
+    font-size: 0.92rem;
+  }
+}
+
+.buyback-metric-sub {
+  font-size: 0.70rem;
+  color: var(--text-muted);
+  margin-top: 3px;
+  white-space: nowrap;
+}
+
+
 
