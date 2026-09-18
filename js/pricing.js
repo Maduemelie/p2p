@@ -12,7 +12,8 @@ import {
   calculateBuyPricing,
   calculateSellPricing,
   calculateRecommendedLimits,
-  calculateBuybackTiers
+  calculateBuybackTiers,
+  calculateSweetSpotPricing
 } from './pricingEngine.js';
 
 // Cache for market depth to allow local calculation runs without API spam
@@ -60,6 +61,9 @@ function loadSavedSettings() {
   const bbTargetPrice = localStorage.getItem('bybit_p2p_buyback_target_price') || '1495';
   const bbMarketSell = localStorage.getItem('bybit_p2p_buyback_market_sell') || '1502';
 
+  // Sweet Spot Profit Target (primary input)
+  const profitTarget = localStorage.getItem('bybit_p2p_profit_target') || bbProfitSpread || '7.0';
+
   const elPlatformFee = document.getElementById('input-platform-fee-pct') || document.getElementById('input-platform-fee');
   const elSpread = document.getElementById('input-target-spread');
   const elVol = document.getElementById('input-avg-volume');
@@ -75,6 +79,7 @@ function loadSavedSettings() {
   const elBbProfitSpread = document.getElementById('input-buyback-profit-spread');
   const elBbTargetPrice = document.getElementById('input-buyback-target-price');
   const elBbMarketSell = document.getElementById('input-buyback-market-sell');
+  const elProfitTarget = document.getElementById('input-profit-target');
 
   if (elPlatformFee && document.activeElement !== elPlatformFee) elPlatformFee.value = platformFee;
   if (elSpread && document.activeElement !== elSpread) elSpread.value = spread;
@@ -91,6 +96,7 @@ function loadSavedSettings() {
   if (elBbProfitSpread && document.activeElement !== elBbProfitSpread) elBbProfitSpread.value = bbProfitSpread;
   if (elBbTargetPrice && document.activeElement !== elBbTargetPrice) elBbTargetPrice.value = bbTargetPrice;
   if (elBbMarketSell && document.activeElement !== elBbMarketSell) elBbMarketSell.value = bbMarketSell;
+  if (elProfitTarget && document.activeElement !== elProfitTarget) elProfitTarget.value = profitTarget;
 
   updateBuybackModeVisibility(bbMode);
 }
@@ -163,6 +169,16 @@ function saveSettings() {
   if (elBbTargetPrice && elBbTargetPrice.value !== '') localStorage.setItem('bybit_p2p_buyback_target_price', elBbTargetPrice.value);
   if (elBbMarketSell && elBbMarketSell.value !== '') localStorage.setItem('bybit_p2p_buyback_market_sell', elBbMarketSell.value);
 
+  // Sync profit target: save to dedicated key AND to buyback profit spread for backward compat
+  const elProfitTarget = document.getElementById('input-profit-target');
+  if (elProfitTarget && elProfitTarget.value !== '') {
+    localStorage.setItem('bybit_p2p_profit_target', elProfitTarget.value);
+    localStorage.setItem('bybit_p2p_buyback_profit_spread', elProfitTarget.value);
+    // Also sync the hidden buyback profit spread input if it exists
+    const elBbPS = document.getElementById('input-buyback-profit-spread');
+    if (elBbPS && document.activeElement !== elBbPS) elBbPS.value = elProfitTarget.value;
+  }
+
   const maxFeeDragRaw = elMaxFeeDrag ? elMaxFeeDrag.value.trim() : '';
   const parsedFeeDrag = parseInt(maxFeeDragRaw, 10);
   const currentSettings = store.getSettings ? store.getSettings() : {};
@@ -188,6 +204,7 @@ function saveSettings() {
  */
 function setupListeners() {
   const inputs = [
+    'input-profit-target',
     'input-platform-fee-pct',
     'input-platform-fee',
     'input-target-spread',
@@ -540,11 +557,14 @@ export function calculateMargins() {
   }
 
   // -------------------------------------------------------------
-  // C. BUYBACK TARGET & DUAL-MODE PROFIT CALCULATOR
+  // C. SWEET SPOT PRICING ENGINE & BUYBACK CALCULATOR
   // -------------------------------------------------------------
+  // Primary input: Profit Target (₦/USDT) from the new input-profit-target field
+  const primaryProfitTarget = parseFloat(document.getElementById('input-profit-target')?.value) || 7.0;
+
   const bbMode = document.getElementById('input-buyback-mode')?.value || 'target-driven';
   const bbTotalVol = parseFloat(document.getElementById('input-buyback-total-vol')?.value) || 100000;
-  const bbProfitSpread = parseFloat(document.getElementById('input-buyback-profit-spread')?.value) || 7.0;
+  const bbProfitSpread = primaryProfitTarget; // Sync: profit target drives the buyback spread
   const bbTargetPrice = parseFloat(document.getElementById('input-buyback-target-price')?.value) || 1495;
   const elBbMarketSell = document.getElementById('input-buyback-market-sell');
   let bbMarketSell = elBbMarketSell ? parseFloat(elBbMarketSell.value) : 1502;
@@ -575,11 +595,28 @@ export function calculateMargins() {
   });
   const boughtAvgPrice = boughtVolume > 0 ? (totalSpentNgn / boughtVolume) : 0;
 
+  // D. SWEET SPOT CALCULATION (anchored to profit target + live order book)
+  const sweetSpotResult = calculateSweetSpotPricing({
+    sellDepth: sortedSellAds,
+    buyDepth: sortedBuyAds,
+    profitTarget: primaryProfitTarget,
+    cycleVolume: bbTotalVol,
+    tradeVolume: avgVolume,
+    platformFeePct: platformFeePct || 0.3,
+    platformFeePctSell: 0.0,
+    inflowFee,
+    outflowFee,
+    boughtVolume,
+    boughtAvgPrice,
+    filterLimits
+  });
+
+  // Use sweet spot result to drive the buyback tiers (backward compat with buybackAnalysis)
   const buybackAnalysis = calculateBuybackTiers({
     mode: bbMode,
     totalVolume: bbTotalVol,
-    targetAvgPrice: bbTargetPrice,
-    marketSellPrice: bbMarketSell,
+    targetAvgPrice: sweetSpotResult.maxBuyPrice > 0 ? sweetSpotResult.maxBuyPrice : bbTargetPrice,
+    marketSellPrice: sweetSpotResult.sellSweetSpot > 0 ? sweetSpotResult.sellSweetSpot : bbMarketSell,
     profitSpread: bbProfitSpread,
     platformFeePct: platformFeePct || 0.3,
     inflowFee,
@@ -589,6 +626,65 @@ export function calculateMargins() {
     boughtAvgPrice
   });
 
+  // E. UPDATE SWEET SPOT RECOMMENDATION CARDS
+  const elSweetBuyRate = document.getElementById('pricing-suggested-buy');
+  const elSweetSellRate = document.getElementById('pricing-suggested-sell');
+  const elSweetBuyStatus = document.getElementById('pricing-buy-status');
+  const elSweetSellStatus = document.getElementById('pricing-sell-status');
+  const elSweetBuyRankBadge = document.getElementById('sweet-spot-buy-rank-badge');
+  const elSweetSellRankBadge = document.getElementById('sweet-spot-sell-rank-badge');
+  const elSweetMaxBuy = document.getElementById('pricing-max-buy');
+
+  if (sweetSpotResult.isOffline) {
+    if (elSweetBuyRate) elSweetBuyRate.textContent = '—';
+    if (elSweetSellRate) elSweetSellRate.textContent = '—';
+    if (elSweetBuyStatus) elSweetBuyStatus.innerHTML = '<span class="badge badge-neutral">Order Book Offline</span>';
+    if (elSweetSellStatus) elSweetSellStatus.innerHTML = '<span class="badge badge-neutral">Order Book Offline</span>';
+    if (elSweetMaxBuy) elSweetMaxBuy.textContent = '—';
+  } else {
+    if (elSweetBuyRate) {
+      elSweetBuyRate.textContent = sweetSpotResult.buySweetSpot > 0 ? formatNGN(sweetSpotResult.buySweetSpot) : formatNGN(buyAnalysis.suggestedBuy);
+      elSweetBuyRate.className = sweetSpotResult.isSafe ? 'font-mono text-success fw-bold sweet-spot-rate' : 'font-mono text-warning fw-bold sweet-spot-rate';
+    }
+    if (elSweetSellRate) {
+      const sellPriceToDisplay = sellAnalysis.suggestedSell > 0 ? sellAnalysis.suggestedSell : sweetSpotResult.sellSweetSpot;
+      elSweetSellRate.textContent = sellPriceToDisplay > 0 ? formatNGN(sellPriceToDisplay) : '—';
+      elSweetSellRate.className = (sellAnalysis.hasCostBasis ? sellAnalysis.isSafe : true) ? 'font-mono text-success fw-bold sweet-spot-rate' : 'font-mono text-warning fw-bold sweet-spot-rate';
+    }
+    if (elSweetMaxBuy) elSweetMaxBuy.textContent = sweetSpotResult.maxBuyPrice > 0 ? formatNGN(sweetSpotResult.maxBuyPrice) : formatNGN(buyAnalysis.maxBuyPrice);
+
+    if (sweetSpotResult.isSafe) {
+      if (elSweetBuyStatus) elSweetBuyStatus.innerHTML = `<span class="badge badge-success">🟢 Safe • Net Profit: +₦${sweetSpotResult.realizedSpread.toFixed(2)}/USDT</span>`;
+    } else if (sweetSpotResult.status === 'COMPRESSED') {
+      if (elSweetBuyStatus) elSweetBuyStatus.innerHTML = `<span class="badge badge-danger">🔴 Compressed — Capped at Safe Ceiling</span>`;
+    } else if (sweetSpotResult.status === 'INVALID_TARGET') {
+      if (elSweetBuyStatus) elSweetBuyStatus.innerHTML = `<span class="badge badge-danger">🔴 Target exceeds market spread</span>`;
+    }
+
+    if (elSweetSellStatus) {
+      if (sellAnalysis.hasCostBasis && sellAnalysis.hasCompetitors) {
+        if (sellAnalysis.isSafe) {
+          elSweetSellStatus.innerHTML = `<span class="badge badge-success">🟢 Safe to Undercut • Spread: +₦${sellAnalysis.sellSpread.toFixed(2)}</span>`;
+        } else {
+          elSweetSellStatus.innerHTML = `<span class="badge badge-danger">🔴 Below Target Spread (Floored for Spread)</span>`;
+        }
+      } else if (sweetSpotResult.sellSweetSpot > 0) {
+        elSweetSellStatus.innerHTML = `<span class="badge badge-success">🟢 Rank ${sweetSpotResult.markers.sellTargetRank} Sweet Spot</span>`;
+      } else {
+        elSweetSellStatus.innerHTML = '<span class="badge badge-neutral">No sell depth</span>';
+      }
+    }
+  }
+
+  // Update rank badges
+  if (elSweetBuyRankBadge) {
+    elSweetBuyRankBadge.textContent = sweetSpotResult.markers.buyTargetRank > 0 ? `Rank #${sweetSpotResult.markers.buyTargetRank}` : 'Rank #—';
+  }
+  if (elSweetSellRankBadge) {
+    elSweetSellRankBadge.textContent = sweetSpotResult.markers.sellTargetRank > 0 ? `Rank #${sweetSpotResult.markers.sellTargetRank}` : 'Rank #—';
+  }
+
+  // F. UPDATE 6-CARD METRICS using sweet spot result (overriding buyback values with sweet spot anchors)
   const elBbAvgBuy = document.getElementById('buyback-res-avg-buy');
   const elBbSellRate = document.getElementById('buyback-res-sell-rate');
   const elBbGrossSpread = document.getElementById('buyback-res-gross-spread');
@@ -609,12 +705,18 @@ export function calculateMargins() {
   const elTierLadder = document.getElementById('buyback-tier-ladder');
   const tbodyBrackets = document.getElementById('tbody-buyback-brackets');
 
-  if (elBbAvgBuy) elBbAvgBuy.textContent = formatNGN(buybackAnalysis.targetAvgPrice);
-  if (elBbSellRate) elBbSellRate.textContent = formatNGN(buybackAnalysis.targetSellPrice);
-  if (elBbGrossSpread) elBbGrossSpread.textContent = `Δ: ₦${buybackAnalysis.grossSpread.toFixed(2)}/USDT`;
+  // Use sweet spot values when available, fallback to buyback analysis
+  const displayAvgBuy = sweetSpotResult.maxBuyPrice > 0 ? sweetSpotResult.maxBuyPrice : buybackAnalysis.targetAvgPrice;
+  const displaySellRate = sweetSpotResult.sellSweetSpot > 0 ? sweetSpotResult.sellSweetSpot : buybackAnalysis.targetSellPrice;
+  const displayGrossSpread = sweetSpotResult.sellSweetSpot > 0 ? sweetSpotResult.grossSpread : buybackAnalysis.grossSpread;
+  const displayNetProfit = sweetSpotResult.realizedSpread > 0 ? sweetSpotResult.realizedSpread : buybackAnalysis.netRealizedProfit;
+
+  if (elBbAvgBuy) elBbAvgBuy.textContent = formatNGN(displayAvgBuy);
+  if (elBbSellRate) elBbSellRate.textContent = formatNGN(displaySellRate);
+  if (elBbGrossSpread) elBbGrossSpread.textContent = `Δ: ₦${displayGrossSpread.toFixed(2)}/USDT`;
   if (elBbNetProfit) {
-    const isProfitable = buybackAnalysis.netRealizedProfit > 0;
-    elBbNetProfit.textContent = `₦${buybackAnalysis.netRealizedProfit.toFixed(2)}/USDT`;
+    const isProfitable = displayNetProfit > 0;
+    elBbNetProfit.textContent = `₦${displayNetProfit.toFixed(2)}/USDT`;
     elBbNetProfit.className = isProfitable ? 'font-mono fw-bold text-success' : 'font-mono fw-bold text-danger';
   }
 
@@ -746,7 +848,8 @@ export function calculateMargins() {
     sellAnalysis,
     buyLimits,
     sellLimits,
-    buybackAnalysis
+    buybackAnalysis,
+    sweetSpotResult
   };
 }
 
@@ -782,15 +885,21 @@ function renderOrderBooks(depth) {
         const maxLmt = parseFloat(ad.maxAmount || ad.maxSingleTransAmount) || 0;
         const advName = ad.nickName || ad.memberName || ad.userId || 'Advertiser';
 
+        const isSweetSpot = idx >= 2 && idx <= 4;
+        const rowClass = isSweetSpot
+          ? 'orderbook-row orderbook-row-sweetspot cursor-pointer'
+          : 'orderbook-row cursor-pointer';
+        const sweetBadge = isSweetSpot ? ` <span class="badge badge-primary tiny">Rank #${idx + 1}</span>` : '';
+
         const limitStr = (minLmt > 0 || maxLmt > 0)
           ? `Lmt: ₦${minLmt.toLocaleString(undefined, { maximumFractionDigits: 0 })} - ₦${maxLmt.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
           : 'Lmt: No Limit';
 
         return `
-          <tr class="orderbook-row cursor-pointer" data-direction="SELL" data-rate="${price}" data-volume="${available}" data-counterparty="${escapeHtml(advName)}" title="Tap to record Sell trade at ₦${price}">
+          <tr class="${rowClass}" data-direction="SELL" data-rate="${price}" data-volume="${available}" data-counterparty="${escapeHtml(advName)}" title="Tap to record Sell trade at ₦${price}">
             <td>
               <div class="fw-semibold truncate" style="max-width: 120px;" title="${escapeHtml(advName)}">
-                ${idx + 1}. ${escapeHtml(advName)}
+                ${idx + 1}. ${escapeHtml(advName)}${sweetBadge}
               </div>
               <div class="text-muted tiny">${limitStr}</div>
             </td>
@@ -821,11 +930,17 @@ function renderOrderBooks(depth) {
           ? `Lmt: ₦${minLmt.toLocaleString(undefined, { maximumFractionDigits: 0 })} - ₦${maxLmt.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
           : 'Lmt: No Limit';
 
+        const isSweetSpot = idx >= 2 && idx <= 4;
+        const rowClass = isSweetSpot
+          ? 'orderbook-row orderbook-row-sweetspot-sell cursor-pointer'
+          : 'orderbook-row cursor-pointer';
+        const sweetBadge = isSweetSpot ? ` <span class="badge badge-success tiny">Rank #${idx + 1}</span>` : '';
+
         return `
-          <tr class="orderbook-row cursor-pointer" data-direction="BUY" data-rate="${price}" data-volume="${available}" data-counterparty="${escapeHtml(advName)}" title="Tap to record Buy trade at ₦${price}">
+          <tr class="${rowClass}" data-direction="BUY" data-rate="${price}" data-volume="${available}" data-counterparty="${escapeHtml(advName)}" title="Tap to record Buy trade at ₦${price}">
             <td>
               <div class="fw-semibold truncate" style="max-width: 120px;" title="${escapeHtml(advName)}">
-                ${idx + 1}. ${escapeHtml(advName)}
+                ${idx + 1}. ${escapeHtml(advName)}${sweetBadge}
               </div>
               <div class="text-muted tiny">${limitStr}</div>
             </td>

@@ -86,7 +86,7 @@ export function calculateReferencePrice(ads = [], pricingMode = 'avg-10') {
  * @param {number} platformFeePct
  * @returns {number}
  */
-function normalizeFeeRate(platformFeePct) {
+export function normalizeFeeRate(platformFeePct) {
   if (platformFeePct === undefined || platformFeePct === null || isNaN(platformFeePct)) {
     return 0;
   }
@@ -472,6 +472,20 @@ export function calculateBuybackTiers({
     calculatedSellPrice = safeMarketSell;
     maxAllowableAvgBuyPrice = safeMarketSell - safeSpread;
     calculatedAvgBuyPrice = maxAllowableAvgBuyPrice;
+  } else if (mode === 'sweet-spot') {
+    const sweet = calculateSweetSpotPricing({
+      sellDepth: sortedSellAds,
+      buyDepth: sortedBuyAds,
+      profitTarget: safeSpread,
+      cycleVolume: safeVol,
+      platformFeePct,
+      inflowFee: safeInflowFee,
+      boughtVolume,
+      boughtAvgPrice
+    });
+    calculatedSellPrice = sweet.sellSweetSpot;
+    calculatedAvgBuyPrice = sweet.maxBuyPrice;
+    maxAllowableAvgBuyPrice = sweet.maxBuyPrice;
   } else {
     const safeTargetAvg = (!targetAvgPrice || isNaN(targetAvgPrice) || targetAvgPrice <= 0) ? 1495.0 : Number(targetAvgPrice);
     calculatedAvgBuyPrice = safeTargetAvg;
@@ -626,5 +640,408 @@ export function calculateBuybackTiers({
     actualWeightedAvg
   };
 }
+
+/**
+ * Calculate single-target sweet spot pricing from live Bybit P2P order book depth.
+ * Anchors directly on the merchant's specified profit target (₦/USDT) and Rank 3–5 active liquid tiers.
+ * Guarantees that (Effective Sell Revenue - Effective Buy Cost) >= Target Profit across all market states.
+ *
+ * @param {Object} params
+ * @param {Array<Object>} [params.sellDepth=[]] - Ascending ask ads (or sortedSellAds)
+ * @param {Array<Object>} [params.buyDepth=[]] - Descending bid ads (or sortedBuyAds)
+ * @param {number} [params.profitTarget=7.0] - Target profit in NGN per USDT
+ * @param {number} [params.cycleVolume=100000] - Total macro cycle volume in USDT
+ * @param {number} [params.tradeVolume=100] - Per-trade USDT volume for fee calculation
+ * @param {number} [params.platformFeePct=0.3] - Maker fee % on Buy side (0.3% default)
+ * @param {number} [params.platformFeePctSell=0.0] - Maker fee % on Sell side (0.0% default)
+ * @param {number} [params.inflowFee=50.0] - Fiat inflow stamp duty fee in NGN
+ * @param {number} [params.outflowFee=0.0] - Fiat outflow transfer fee in NGN
+ * @param {number} [params.boughtVolume=0] - Completed buy volume in current session
+ * @param {number} [params.boughtAvgPrice=0] - Average executed price of completed buys
+ * @param {boolean} [params.filterLimits=true] - Whether to filter dust / limit ads
+ * @param {number} [params.rankStart=3] - Sweet spot rank start (default 3)
+ * @param {number} [params.rankEnd=5] - Sweet spot rank end (default 5)
+ * @returns {Object} Sweet spot pricing result matching PROJECT.md interface contract
+ */
+export function calculateSweetSpotPricing(params = {}) {
+  const {
+    sellDepth = [],
+    buyDepth = [],
+    profitTarget = 7.0,
+    cycleVolume = 100000,
+    tradeVolume = 100,
+    platformFeePct = 0.3,
+    platformFeePctSell = 0.0,
+    inflowFee = 50.0,
+    outflowFee = 0.0,
+    boughtVolume = 0,
+    boughtAvgPrice = 0,
+    filterLimits = true,
+    rankStart = 3,
+    rankEnd = 5
+  } = params;
+
+  // Resilient parameter parsing supporting aliases
+  const rawProfitTarget = params.profitTarget !== undefined
+    ? params.profitTarget
+    : (params.profitSpread !== undefined ? params.profitSpread : params.targetSpread);
+  const safeProfitTarget = (rawProfitTarget !== undefined && !isNaN(Number(rawProfitTarget)))
+    ? Number(rawProfitTarget)
+    : 7.0;
+
+  const rawCycleVol = params.cycleVolume !== undefined
+    ? params.cycleVolume
+    : params.totalVolume;
+  const safeCycleVol = (!rawCycleVol || isNaN(Number(rawCycleVol)) || Number(rawCycleVol) <= 0)
+    ? 100000
+    : Number(rawCycleVol);
+
+  const rawTradeVol = params.tradeVolume !== undefined
+    ? params.tradeVolume
+    : params.avgVolume;
+  const safeTradeVol = (!rawTradeVol || isNaN(Number(rawTradeVol)) || Number(rawTradeVol) <= 0)
+    ? 100
+    : Number(rawTradeVol);
+
+  const safeInflowFee = (inflowFee !== undefined && !isNaN(Number(inflowFee))) ? Number(inflowFee) : 50.0;
+  const safeOutflowFee = (outflowFee !== undefined && !isNaN(Number(outflowFee))) ? Number(outflowFee) : 0.0;
+
+  const safeBoughtVol = Math.max(0, Number(boughtVolume) || 0);
+  const safeBoughtAvg = Math.max(0, Number(boughtAvgPrice) || 0);
+
+  const phiBuy = normalizeFeeRate(platformFeePct !== undefined ? platformFeePct : 0.3);
+  const divisor = Math.max(0.0001, 1 - phiBuy);
+  const phiSell = normalizeFeeRate(platformFeePctSell !== undefined ? platformFeePctSell : 0.0);
+
+  // Extract raw ads supporting common aliases
+  const rawSellAds = Array.isArray(sellDepth) && sellDepth.length > 0
+    ? sellDepth
+    : (Array.isArray(params.sortedSellAds) && params.sortedSellAds.length > 0
+      ? params.sortedSellAds
+      : (Array.isArray(params.sellItems) && params.sellItems.length > 0
+        ? params.sellItems
+        : (Array.isArray(params.activeSellAds) ? params.activeSellAds : [])));
+
+  const rawBuyAds = Array.isArray(buyDepth) && buyDepth.length > 0
+    ? buyDepth
+    : (Array.isArray(params.sortedBuyAds) && params.sortedBuyAds.length > 0
+      ? params.sortedBuyAds
+      : (Array.isArray(params.buyItems) && params.buyItems.length > 0
+        ? params.buyItems
+        : (Array.isArray(params.activeBuyAds) ? params.activeBuyAds : [])));
+
+  // 1. Sell Sweet Spot: Filter competitor ads, sort ascending, find Rank 3–5 median ask
+  let filteredSell = filterCompetitorAds(rawSellAds, safeTradeVol, filterLimits);
+  if (filteredSell.length === 0 && rawSellAds.length > 0 && filterLimits) {
+    filteredSell = filterCompetitorAds(rawSellAds, safeTradeVol, false);
+  }
+  filteredSell.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
+  const sellPrices = filteredSell.map(ad => parseFloat(ad.price) || 0).filter(p => p > 0);
+  const N = sellPrices.length;
+
+  let sellSweetSpot = 0;
+  let sellTargetRank = 0;
+
+  if (N >= 5) {
+    const rStart = (rankStart && rankStart >= 1) ? Math.floor(rankStart) : 3;
+    const rEnd = (rankEnd && rankEnd >= rStart) ? Math.floor(rankEnd) : 5;
+    if (rStart === 3 && rEnd === 5) {
+      sellSweetSpot = sellPrices[3]; // Rank 4 (median of Rank 3, 4, 5)
+      sellTargetRank = 4;
+    } else {
+      const slice = sellPrices.slice(rStart - 1, rEnd);
+      const mid = Math.floor(slice.length / 2);
+      sellSweetSpot = slice.length % 2 !== 0 ? slice[mid] : (slice[mid - 1] + slice[mid]) / 2;
+      sellTargetRank = Math.min(N, Math.round((rStart + rEnd) / 2));
+    }
+  } else if (N === 4) {
+    // Graceful fallback: N=4 -> (p3+p4)/2
+    sellSweetSpot = (sellPrices[2] + sellPrices[3]) / 2;
+    sellTargetRank = 4;
+  } else if (N === 3) {
+    // Graceful fallback: N=3 -> p3
+    sellSweetSpot = sellPrices[2];
+    sellTargetRank = 3;
+  } else if (N === 2) {
+    // Graceful fallback: N=2 -> p2
+    sellSweetSpot = sellPrices[1];
+    sellTargetRank = 2;
+  } else if (N === 1) {
+    // Graceful fallback: N=1 -> p1
+    sellSweetSpot = sellPrices[0];
+    sellTargetRank = 1;
+  } else {
+    // Graceful fallback: N=0 -> 0
+    sellSweetSpot = 0;
+    sellTargetRank = 0;
+  }
+  sellSweetSpot = Math.round(sellSweetSpot * 100) / 100;
+
+  // 2. Effective Sell Revenue
+  const effectiveSellRevenue = sellSweetSpot > 0
+    ? (sellSweetSpot * (1 - phiSell) - (safeOutflowFee / safeTradeVol))
+    : 0;
+
+  // 3. Maximum Safe Buy Rate (maxBuyPrice)
+  // maxBuyPrice = (1 - platformFeePct/100) * (effectiveSellRevenue - profitTarget - (inflowFee / tradeVolume))
+  // Strictly floor to 2 decimal places (Math.floor(val * 100) / 100) to guarantee (Sell Rev - Buy Cost) >= Target Profit
+  let maxBuyPrice = 0;
+  if (sellSweetSpot > 0) {
+    const rawMaxBuy = (1 - phiBuy) * (effectiveSellRevenue - safeProfitTarget - (safeInflowFee / safeTradeVol));
+    if (rawMaxBuy > 0) {
+      maxBuyPrice = Math.floor(rawMaxBuy * 100) / 100;
+    } else {
+      maxBuyPrice = 0;
+    }
+  }
+
+  // 4. Market Buy Sweet Spot: Filter competitor buy ads, sort descending, find Rank 3–5 median bid + ₦0.10
+  let filteredBuy = filterCompetitorAds(rawBuyAds, safeTradeVol, filterLimits);
+  if (filteredBuy.length === 0 && rawBuyAds.length > 0 && filterLimits) {
+    filteredBuy = filterCompetitorAds(rawBuyAds, safeTradeVol, false);
+  }
+  filteredBuy.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
+  const buyPrices = filteredBuy.map(ad => parseFloat(ad.price) || 0).filter(p => p > 0);
+  const M = buyPrices.length;
+
+  let baseBid = 0;
+  let buyTargetRank = 0;
+
+  if (M >= 5) {
+    const rStart = (rankStart && rankStart >= 1) ? Math.floor(rankStart) : 3;
+    const rEnd = (rankEnd && rankEnd >= rStart) ? Math.floor(rankEnd) : 5;
+    if (rStart === 3 && rEnd === 5) {
+      baseBid = buyPrices[3]; // Rank 4 (median of Rank 3, 4, 5)
+      buyTargetRank = 4;
+    } else {
+      const slice = buyPrices.slice(rStart - 1, rEnd);
+      const mid = Math.floor(slice.length / 2);
+      baseBid = slice.length % 2 !== 0 ? slice[mid] : (slice[mid - 1] + slice[mid]) / 2;
+      buyTargetRank = Math.min(M, Math.round((rStart + rEnd) / 2));
+    }
+  } else if (M === 4) {
+    baseBid = (buyPrices[2] + buyPrices[3]) / 2;
+    buyTargetRank = 4;
+  } else if (M === 3) {
+    baseBid = buyPrices[2];
+    buyTargetRank = 3;
+  } else if (M === 2) {
+    baseBid = buyPrices[1];
+    buyTargetRank = 2;
+  } else if (M === 1) {
+    baseBid = buyPrices[0];
+    buyTargetRank = 1;
+  } else {
+    baseBid = 0;
+    buyTargetRank = 0;
+  }
+
+  let marketBuySweetSpot = 0;
+  if (baseBid > 0) {
+    marketBuySweetSpot = Math.round((baseBid + 0.10) * 100) / 100;
+  } else {
+    marketBuySweetSpot = maxBuyPrice;
+  }
+
+  // 5. Spread Compression Handling
+  // buySweetSpot = Math.min(marketBuySweetSpot, maxBuyPrice)
+  // isSafe = marketBuySweetSpot <= maxBuyPrice
+  // isCompressed = marketBuySweetSpot > maxBuyPrice
+  // status = isCompressed ? 'COMPRESSED' : 'SAFE'
+  const buySweetSpot = (marketBuySweetSpot > 0 && maxBuyPrice > 0)
+    ? Math.min(marketBuySweetSpot, maxBuyPrice)
+    : (maxBuyPrice > 0 ? maxBuyPrice : marketBuySweetSpot);
+  const isSafe = marketBuySweetSpot <= maxBuyPrice && maxBuyPrice > 0;
+  const isCompressed = marketBuySweetSpot > maxBuyPrice && maxBuyPrice > 0;
+
+  let status = 'SAFE';
+  let statusMessage = 'Market spread is safe. Target profit guaranteed.';
+
+  if (sellSweetSpot <= 0) {
+    status = 'OFFLINE';
+    statusMessage = 'Order book offline or insufficient sell depth.';
+  } else if (maxBuyPrice <= 0) {
+    status = 'INVALID_TARGET';
+    statusMessage = 'Target profit exceeds feasible market spread.';
+  } else if (isCompressed) {
+    status = 'COMPRESSED';
+    statusMessage = `Spread compression detected: Market buy sweet spot (₦${marketBuySweetSpot.toFixed(2)}) exceeds safe ceiling (₦${maxBuyPrice.toFixed(2)}). Buy rate clamped to protect profit target.`;
+  }
+
+  // 6. Effective Buy Cost & Realized Spread
+  const effectiveBuyCost = buySweetSpot > 0
+    ? ((buySweetSpot / divisor) + (safeInflowFee / safeTradeVol))
+    : 0;
+  const realizedSpread = (sellSweetSpot > 0 && buySweetSpot > 0)
+    ? (effectiveSellRevenue - effectiveBuyCost)
+    : 0;
+
+  // 7. Fee Breakdown per unit volume
+  const platformFeePerUnit = buySweetSpot > 0 ? (buySweetSpot * phiBuy) : 0;
+  const fiatFeePerUnit = safeInflowFee / safeTradeVol;
+  const totalFeePerUnit = platformFeePerUnit + fiatFeePerUnit;
+
+  const feeBreakdown = {
+    platformFeePerUnit: Math.round(platformFeePerUnit * 10000) / 10000,
+    fiatFeePerUnit: Math.round(fiatFeePerUnit * 10000) / 10000,
+    totalFeePerUnit: Math.round(totalFeePerUnit * 10000) / 10000,
+    effectiveCostBasis: Math.round(effectiveBuyCost * 10000) / 10000
+  };
+
+  // 8. Cycle Guidance & Live Trade Tracking
+  const remainingVolume = Math.max(0, safeCycleVol - safeBoughtVol);
+  const progressPercent = Math.min(100, Math.round((safeBoughtVol / safeCycleVol) * 1000) / 10);
+  const isTargetAchieved = safeBoughtVol >= safeCycleVol;
+
+  let neededRemainingRate = maxBuyPrice;
+  if (remainingVolume > 0 && safeBoughtVol > 0 && safeBoughtAvg > 0) {
+    const totalBudget = safeCycleVol * maxBuyPrice;
+    const spentBudget = safeBoughtVol * safeBoughtAvg;
+    neededRemainingRate = (totalBudget - spentBudget) / remainingVolume;
+  }
+  neededRemainingRate = Math.round(neededRemainingRate * 100) / 100;
+
+  const cycleGuidance = {
+    cycleVolume: safeCycleVol,
+    boughtVolume: safeBoughtVol,
+    remainingVolume,
+    targetAvgBuyRate: maxBuyPrice,
+    neededRemainingRate,
+    progressPercent,
+    isTargetAchieved
+  };
+
+  // 9. 3-Tier Maker Ladder Allocations anchored to neededRemainingRate (Tier 1: 40%, Tier 2: 40%, Tier 3: 20%)
+  const baseRate = Math.round(neededRemainingRate * 100) / 100;
+  const stepDiscount = Math.max(1.0, Math.round(safeProfitTarget * 0.4 * 100) / 100);
+
+  const p1 = baseRate;
+  const p2 = Math.max(1.0, Math.round((baseRate - stepDiscount) * 100) / 100);
+  const p3 = Math.max(1.0, Math.round((baseRate - (stepDiscount * 2.5)) * 100) / 100);
+
+  const volToDistribute = remainingVolume > 0 ? remainingVolume : safeCycleVol;
+  const v1 = Math.round(volToDistribute * 0.40);
+  const v3 = Math.round(volToDistribute * 0.20);
+  const v2 = Math.max(0, volToDistribute - v1 - v3);
+
+  const actualWeightedAvg = volToDistribute > 0
+    ? Math.round((((v1 * p1) + (v2 * p2) + (v3 * p3)) / volToDistribute) * 100) / 100
+    : baseRate;
+
+  const brackets = [
+    {
+      tier: 1,
+      name: 'Tier 1: Target / Fast Fill Limit',
+      volumeUsdt: v1,
+      volumePct: volToDistribute > 0 ? Math.round((v1 / volToDistribute) * 100) : 40,
+      targetPrice: p1,
+      totalNgn: Math.round(v1 * p1 * 100) / 100,
+      spreadCapture: Math.round((sellSweetSpot - p1) * 100) / 100,
+      description: 'Upper boundary maker limit ad for initial fills at target rate'
+    },
+    {
+      tier: 2,
+      name: 'Tier 2: Mid-Discount Limit',
+      volumeUsdt: v2,
+      volumePct: volToDistribute > 0 ? Math.round((v2 / volToDistribute) * 100) : 40,
+      targetPrice: p2,
+      totalNgn: Math.round(v2 * p2 * 100) / 100,
+      spreadCapture: Math.round((sellSweetSpot - p2) * 100) / 100,
+      description: `Discounted maker limit ad (+₦${stepDiscount.toFixed(2)} extra spread)`
+    },
+    {
+      tier: 3,
+      name: 'Tier 3: Deep-Discount Limit',
+      volumeUsdt: v3,
+      volumePct: volToDistribute > 0 ? Math.round((v3 / volToDistribute) * 100) : 20,
+      targetPrice: p3,
+      totalNgn: Math.round(v3 * p3 * 100) / 100,
+      spreadCapture: Math.round((sellSweetSpot - p3) * 100) / 100,
+      description: 'Deep discount limit ad to capture market dumps and panic sells'
+    }
+  ];
+
+  // 10. Diagnostics
+  const topBuyPrice = buyPrices.length > 0 ? buyPrices[0] : 0;
+  const cheapestSellPrice = sellPrices.length > 0 ? sellPrices[0] : 0;
+
+  let buyMarketStatus = 'NORMAL';
+  let buyMarketMessage = '';
+  if (topBuyPrice > 0) {
+    if (topBuyPrice > maxBuyPrice) {
+      buyMarketStatus = 'LIMIT_DISCOUNT';
+      buyMarketMessage = `Top market bid is ₦${topBuyPrice.toFixed(2)} (₦${(topBuyPrice - maxBuyPrice).toFixed(2)} above safe ceiling). Post maker limit bids at these 3 tiers to protect your spread.`;
+    } else {
+      buyMarketStatus = 'IN_MARKET';
+      buyMarketMessage = `Top market bid is ₦${topBuyPrice.toFixed(2)} (within safe rate). Maker limit fills will be fast.`;
+    }
+  }
+
+  let sellMarketStatus = 'NORMAL';
+  let sellMarketMessage = '';
+  if (cheapestSellPrice > 0) {
+    if (sellSweetSpot <= cheapestSellPrice) {
+      sellMarketStatus = 'COMPETITIVE';
+      sellMarketMessage = `Target sell rate (₦${sellSweetSpot.toFixed(2)}) matches or undercuts lowest market ask (₦${cheapestSellPrice.toFixed(2)}).`;
+    } else {
+      sellMarketStatus = 'ABOVE_MARKET';
+      sellMarketMessage = `Target sell rate (₦${sellSweetSpot.toFixed(2)}) is above lowest market ask (₦${cheapestSellPrice.toFixed(2)}). Anchored at Rank 3–5 liquid tier.`;
+    }
+  }
+
+  const marketDiagnostics = {
+    topBuyPrice,
+    cheapestSellPrice,
+    buyMarketStatus,
+    buyMarketMessage,
+    sellMarketStatus,
+    sellMarketMessage
+  };
+
+  // 11. Markers
+  const markers = {
+    sellTargetRank,
+    buyTargetRank,
+    sellMarkerPrice: sellSweetSpot,
+    buyMarkerPrice: buySweetSpot
+  };
+
+  return {
+    sellSweetSpot,
+    buySweetSpot,
+    maxBuyPrice,
+    marketBuySweetSpot,
+    profitTarget: safeProfitTarget,
+    effectiveSellRevenue,
+    effectiveBuyCost,
+    realizedSpread,
+    isSafe,
+    isCompressed,
+    status,
+    statusMessage,
+    markers,
+    cycleGuidance,
+    feeBreakdown,
+    isOffline: sellSweetSpot <= 0,
+
+    // Aliases and extensions for full UI and controller interoperability
+    rawSuggestedBuy: marketBuySweetSpot,
+    suggestedBuy: buySweetSpot,
+    suggestedSell: sellSweetSpot,
+    targetSellPrice: sellSweetSpot,
+    targetAvgPrice: maxBuyPrice,
+    maxAllowableAvgBuyPrice: maxBuyPrice,
+    profitSpread: safeProfitTarget,
+    grossSpread: Math.round((sellSweetSpot - buySweetSpot) * 100) / 100,
+    netRealizedProfit: realizedSpread,
+    effectiveCostBasis: effectiveBuyCost,
+    progress: cycleGuidance,
+    brackets,
+    tiers: brackets,
+    actualWeightedAvg,
+    marketDiagnostics
+  };
+}
+
 
 

@@ -26,6 +26,7 @@ require('./tier1-feature-coverage/r4-m4-historical-analytics.test');
 require('./tier1-feature-coverage/r5-offline-pwa.test');
 require('./tier1-feature-coverage/active-buy-sell-ads.test');
 require('./tier1-feature-coverage/pricing-engine.test');
+require('./tier1-feature-coverage/sweet-spot-pricing.test');
 
 // 2. Load Tier 2 Suites: Boundary & Corner Cases
 require('./tier2-boundary-corner-cases/r1-boundary.test');
