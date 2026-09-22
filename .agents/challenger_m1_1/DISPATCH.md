@@ -1,13 +1,19 @@
-## 2026-08-24T17:24:20Z
-You are Challenger 1 for Milestone 1 (R1: API Proxy Security & Token Authorization).
-Your Working Directory: c:\dev\p2p\.agents\challenger_m1_1\
+## 2026-09-18T09:00:33Z
+You are Challenger 1 (M1 Mathematical Stress Verifier).
+Your Working Directory: c:\dev\p2p\.agents\challenger_m1_1
+Original Request Path: c:\dev\p2p\.agents\ORIGINAL_REQUEST.md
+Scope Document Path: c:\dev\p2p\PROJECT.md
 
-Read:
-- ORIGINAL_REQUEST.md at c:\dev\p2p\ORIGINAL_REQUEST.md
-- PROJECT.md at c:\dev\p2p\PROJECT.md
+Objective:
+Empirically challenge and stress-test the mathematical invariants of `calculateSweetSpotPricing` in `js/pricingEngine.js`.
 
-Tasks:
-1. Adversarially stress test the API authorization implementation in server.js and api/_bybit.js.
-2. Test header variations (Bearer, lower/upper case x-proxy-token, query param, body token), empty/whitespace tokens, wrong tokens, long tokens, missing tokens.
-3. Verify that unauthorized requests strictly return 401 across all 4 proxy endpoints.
-4. Report your empirical findings and verdict (APPROVE or REQUEST_CHANGES) in c:\dev\p2p\.agents\challenger_m1_1\handoff.md.
+Scope & Instructions:
+1. Read ORIGINAL_REQUEST.md and PROJECT.md.
+2. Formulate empirical verification tests in a scratch/test script:
+   - Fuzz 1,000+ randomized market depth configurations across varying prices (1,000 to 2,500 NGN), profit targets (₦1.00 to ₦50.00), trade volumes (10 to 1,000 USDT).
+   - Invariant 1: Unconditional spread guarantee: `(effectiveSellRevenue - effectiveBuyCost) >= profitTarget` whenever `buySweetSpot <= maxBuyPrice`.
+   - Invariant 2: At `maxBuyPrice`, net profit must strictly equal profit target (within floating point precision).
+   - Invariant 3: Clamping: when `marketBuySweetSpot > maxBuyPrice`, `buySweetSpot === maxBuyPrice` and `status === 'COMPRESSED'`.
+   - Invariant 4: Tier ladder average: `actualWeightedAvg <= neededRemainingRate`.
+3. Report your findings in c:\dev\p2p\.agents\challenger_m1_1\challenge.md and handoff report in c:\dev\p2p\.agents\challenger_m1_1\handoff.md with an explicit verdict: APPROVE or REJECT.
+4. Send a completion message to the orchestrator.

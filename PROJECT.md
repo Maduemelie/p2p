@@ -1,109 +1,129 @@
-# Project: P2P Arbitrage & Pricing Engine Redesign
+# Project: AI Development Content Generator
 
 ## Architecture
-- **Pricing Engine (`js/pricingEngine.js`)**: Pure mathematical module providing deterministic P2P arbitrage pricing, Bybit maker fee modeling (0.3% buy side, 0% sell side), Nigerian fiat fee accounting (₦50 stamp duty), Rank 3–5 median/cluster sweet spots, safe buy ceiling clamping, and volume-weighted guidance.
-- **Pricing Controller (`js/pricing.js`)**: Coordinates live Bybit P2P order book depth fetching (`cachedMarketDepth`), FIFO inventory basis (`avgHoldingCostPerUSDT`), parameter synchronization, DOM event listeners, and UI state reactivity.
-- **Pricing View (`js/views/pricing.view.js`)**: Renders the responsive single-focus pricing interface, high-contrast Buy/Sell recommendation cards with 1-click copy buttons, preserved mobile buyback session progress bar, 6-card metrics grid, market guidance diagnostics banner, 3-tier limit ladder cards, and order book depth tables with visual placement markers.
-- **Testing Track (`test/`)**: Automated Node.js test runner (`node test/run-tests.js`) verifying 758 baseline tests across 5 tiers plus new sweet-spot test suite (`test/tier1-feature-coverage/sweet-spot-pricing.test.js`).
+- **Python Package (`ai_content/`)**: Dedicated Python package managed with `uv` (pinning `requires-python = ">=3.12,<3.14"`), providing CLI commands via `click` (`generate`, `install-hook`, `status`).
+- **NPM Integration (`package.json`)**: Seamless integration into the existing Node.js project via `"ai:content": "uv run python -m ai_content.cli"` with argument passthrough (`npm run ai:content -- generate HEAD`).
+- **Git Context Collector (`ai_content/git_context.py`)**: Robust Git metadata extraction (canonical 40-character SHA, author, date, message, diff, changed files) with edge-case handling for root commits (`4b825dc...`), merge commits, and large diffs.
+- **CrewAI Pipeline (`ai_content/pipeline.py`)**: Sequential multi-agent CrewAI pipeline utilizing native Gemini (`gemini/gemini-2.0-flash` via `google-genai` and `GEMINI_API_KEY`):
+  1. Context Analyst: Analyzes git diff and generates structured `DevelopmentSessionReport` Pydantic model, atomically saved to `content/analysis/<sha>.json`.
+  2. Writers (Technical, Journal, Social): Generates deep-dive technical article, dev journal, and X/Twitter thread.
+  3. Quality Reviewer: Audits drafts against JSON report and writes finalized Markdown files to `content/articles/`, `content/journal/`, and `content/social/`.
+- **Git Post-Commit Hook (`.git/hooks/post-commit`)**: Asynchronous, non-blocking execution via POSIX `nohup` (`~320ms` commit time, well below the 1-second requirement), unsetting `GIT_INDEX_FILE`, with dual-layer duplicate protection checking `content/analysis/<sha>.json` and respecting `--force`.
+- **Testing Track (`test/ai-content/`)**: Independent E2E test suite covering CLI invocation, duplicate skipping, output generation, format verification, and hook non-blocking latency.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | Sell Sweet Spot Calculation | Compute optimal competitive sell rate targeting Rank 3–5 median/cluster in sellDepth with graceful degradation | M1 | R1.1 |
-| 2 | Safe Buy Ceiling Calculation | Compute maxBuyPrice strictly netting 0.3% maker fee and ₦50 stamp duty: 0.997 * (P_sell - Target - 50/V) | M1 | R1.2 |
-| 3 | Spread Compression Handling | Detect when market buy sweet spot > maxBuyPrice, cap suggested buy at maxBuyPrice, flag COMPRESSED status | M1 | R1.2 |
-| 4 | Average Buy Guidance & Anchoring | Compute required rate for remaining volume to lock cycle profit; anchor 3-tier limit ladder (40/40/20) to this rate | M1 | R1.3 |
-| 5 | Streamlined Single-Focus Input UI | Single primary input for Profit Target (₦/USDT) + Volume Goal; sync with legacy input IDs | M2 | R2.1 |
-| 6 | High-Contrast Recommendation Cards | Buy and Sell sweet spot cards with 1-click copy buttons and status badges unhidden from display:none | M2 | R2.2 |
-| 7 | Legacy Markup & Toggle Cleanup | Remove display:none blocks; place secondary test-required inputs into collapsible `<details>` | M2 | R2.3 |
-| 8 | Preserved 5 Mobile UI Components | Keep Buyback Progress Bar, 6-Card Metrics Grid, Guidance Banner, 3-Tier Ladder, and Depth Tables active & reactive | M2 | User Directive 08:26:31Z |
-| 9 | Visual Order Book Markers | Highlight Rank 3-5 sweet spot rows with classes and inline badges without altering .orderbook-row count | M2 | R3 |
-| 10 | FIFO & Modal Trade Prefill Consistency | Ensure order book row clicks trigger window.prefillTradeForm with correct directions and rates | M3 | R4 |
-| 11 | Comprehensive Automated Test Suite | Add sweet-spot-pricing.test.js covering all R1-R4 requirements; ensure 100% passing across all 758+ tests | M3 | R4 |
+| 1 | Python Toolchain & Pyproject Config | Configure `pyproject.toml` with `uv`, pinning Python `>=3.12,<3.14`, dependencies (`crewai`, `google-genai`, `click`, `pydantic`, `python-dotenv`) | M1 | R1 |
+| 2 | Configuration & Environment Loader | `ai_content/config.py` loading `REPO_ROOT / ".env"` for `GEMINI_API_KEY`, setting model defaults, updating `.env.example` and `.gitignore` | M1 | R1 |
+| 3 | Click CLI Skeleton & Subcommands | CLI with `generate`, `install-hook`, and `status` subcommands, accepting commit ref and `--force` flag | M1 | R1 |
+| 4 | NPM Script Integration | `"ai:content": "uv run python -m ai_content.cli"` in `package.json`, passing existing Node test suite (773/773 green) | M1 | R1 |
+| 5 | Git Context Extractor Core | Extract canonical 40-char SHA, author, timestamp, commit message, and changed files list | M2 | R2 |
+| 6 | Git Diff Extractor & Edge Cases | Extract unified git diff; handle root commits (`4b825dc...`), merge commits, detached HEAD, and diff truncation | M2 | R2 |
+| 7 | Structured Data Models | Pydantic V2 models for `DevelopmentSessionReport`, `CommitInfo`, `FileChangeDetail`, `KeyTakeaway` | M2 | R2, R3 |
+| 8 | CrewAI Context Analyst Agent | CrewAI agent and task to analyze git context and produce structured JSON report at `content/analysis/<sha>.json` | M3 | R3.1 |
+| 9 | CrewAI Writer Agents | Technical Writer (Markdown article), Journal Writer (Markdown dev log), and Social Writer (X thread) | M3 | R3.2 |
+| 10 | CrewAI Quality Reviewer Agent | Quality Reviewer auditing drafts against JSON report and writing final files to `content/articles/`, `content/journal/`, `content/social/` | M3 | R3.3 |
+| 11 | Post-Commit Hook Script | Shell hook `.git/hooks/post-commit` with `unset GIT_INDEX_FILE` and POSIX `nohup` non-blocking background spawn | M4 | R4 |
+| 12 | Duplicate Protection & Force Flag | Skip execution if `content/analysis/<sha>.json` exists; bypass when `--force` is passed; atomic file writing | M4 | R4 |
+| 13 | Hook Installer Subcommand | `ai:content install-hook` command to deploy and verify `.git/hooks/post-commit` permissions | M4 | R4 |
+| 14 | E2E Testing Suite (Tiers 1-4) | Comprehensive automated test suite verifying CLI, outputs, duplicate skipping, and hook latency | E2E | AC |
+| 15 | Adversarial Hardening (Tier 5) | Stress tests for corrupted JSON, missing API keys, empty commits, huge diffs, and rapid sequential commits | E2E | AC |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Single-Target Sweet Spot Pricing Engine Core | Implement `calculateSweetSpotPricing` in `js/pricingEngine.js` with full mathematical rigor, fee amortization, and tier anchoring | none | BLOCKED: Boundary defects identified by Challenger 2 |
-| M2 | Streamlined Pricing UI & Visual Markers | Refactor `js/views/pricing.view.js`, `js/pricing.js`, and styling to streamline UI, preserve 5 mobile components, and add visual markers | M1 | PLANNED |
-| M3 | Integration Consistency & Full Test Verification | Add new sweet-spot test suite, verify FIFO and trade modal integration, run full test suite to 100% green | M1, M2 | PLANNED |
+| M1 | Python Package, CLI & NPM Integration | `pyproject.toml`, `ai_content/config.py`, `ai_content/cli.py`, `package.json`, `.gitignore`, `.env.example` | none | DONE |
+| M2 | Git Context Collector & Data Models | `ai_content/git_context.py`, `ai_content/models.py`, Pydantic V2 schemas, edge cases | M1 | DONE |
+| M3 | CrewAI Pipeline & Gemini Integration | `ai_content/agents.py`, `ai_content/tasks.py`, `ai_content/pipeline.py`, Gemini LLM configuration | M1, M2 | DONE |
+| M4 | Post-Commit Hook & Duplicate Protection | `.git/hooks/post-commit`, hook installer, duplicate checking, atomic writing | M1, M2, M3 | DONE |
+| M5 | 100% E2E Pass & Adversarial Hardening | Verify all acceptance criteria against test suite (Tiers 1-5) | M1, M2, M3, M4 | IN_PROGRESS |
 
 ## Interface Contracts
 
-### M1: `calculateSweetSpotPricing(params)` in `js/pricingEngine.js`
-- **Inputs**:
-  ```javascript
-  {
-    sellDepth: Array<Object>,         // Ascending ask ads
-    buyDepth: Array<Object>,          // Descending bid ads
-    profitTarget: number,             // Target profit in ₦/USDT (default 7.0)
-    cycleVolume: number,              // Total cycle USDT (default 100000)
-    tradeVolume: number,              // Per-trade USDT for fee calculation (default 100)
-    platformFeePct: number,           // Maker fee % on Buy side (default 0.3)
-    platformFeePctSell: number,       // Maker fee % on Sell side (default 0.0)
-    inflowFee: number,                // Bank stamp duty / transfer fee (default 50.0)
-    outflowFee: number,               // Outflow fee (default 0.0)
-    boughtVolume: number,             // Completed buy volume in session
-    boughtAvgPrice: number,           // Average price of completed buys
-    filterLimits: boolean,            // Filter dust / limit ads
-    rankStart: number,                // Default 3
-    rankEnd: number                   // Default 5
-  }
+### M1 ↔ M2, M3, M4: Configuration & CLI Contract
+- **Module**: `ai_content.config`
+  ```python
+  REPO_ROOT: Path
+  GEMINI_API_KEY: str
+  GEMINI_MODEL: str  # Default "gemini/gemini-2.0-flash"
+  CONTENT_DIR: Path  # REPO_ROOT / "content"
+  ANALYSIS_DIR: Path # CONTENT_DIR / "analysis"
+  ARTICLES_DIR: Path # CONTENT_DIR / "articles"
+  JOURNAL_DIR: Path  # CONTENT_DIR / "journal"
+  SOCIAL_DIR: Path   # CONTENT_DIR / "social"
+  LOGS_DIR: Path     # CONTENT_DIR / "logs"
   ```
+- **CLI Entry**: `ai_content.cli:cli`
+  - `python -m ai_content.cli generate <commit_ref> [--force / -f]`
+  - `python -m ai_content.cli install-hook`
+  - `python -m ai_content.cli status`
+- **NPM Script**:
+  - `npm run ai:content -- <args>` forwards directly to `uv run python -m ai_content.cli <args>`.
+
+### M2 ↔ M3: Git Context & Data Models
+- **Function**: `collect_git_context(commit_ref: str = "HEAD", max_diff_chars: int = 30000) -> GitCommitContext`
+- **Model**: `GitCommitContext`
+  ```python
+  class GitCommitContext(BaseModel):
+      sha: str  # 40-char canonical hex
+      short_sha: str
+      author_name: str
+      author_email: str
+      date: str  # ISO-8601
+      message_subject: str
+      message_body: str
+      changed_files: List[FileChangeDetail]
+      diff: str
+      is_merge: bool
+      parent_shas: List[str]
+  ```
+- **Model**: `DevelopmentSessionReport`
+  ```python
+  class DevelopmentSessionReport(BaseModel):
+      commit_sha: str
+      timestamp: str
+      summary: str
+      architecture_impact: str
+      key_takeaways: List[str]
+      changed_components: List[str]
+      suggested_article_title: str
+      suggested_article_slug: str
+  ```
+
+### M3 ↔ M4: Pipeline Invocation & File Outputs
+- **Function**: `run_pipeline(commit_ref: str = "HEAD", force: bool = False) -> Dict[str, Path]`
 - **Outputs**:
-  ```javascript
-  {
-    sellSweetSpot: number,            // Rank 3-5 median ask
-    buySweetSpot: number,             // min(marketBuySweetSpot, maxBuyPrice)
-    maxBuyPrice: number,              // Safe buy ceiling
-    marketBuySweetSpot: number,       // Rank 3-5 median bid + 0.10
-    profitTarget: number,
-    effectiveSellRevenue: number,
-    effectiveBuyCost: number,
-    realizedSpread: number,           // effectiveSellRevenue - effectiveBuyCost
-    isSafe: boolean,                  // marketBuySweetSpot <= maxBuyPrice
-    isCompressed: boolean,            // marketBuySweetSpot > maxBuyPrice
-    status: string,                   // 'SAFE' | 'COMPRESSED' | 'OFFLINE' | 'INVALID_TARGET'
-    statusMessage: string,
-    markers: {
-      sellTargetRank: number,
-      buyTargetRank: number,
-      sellMarkerPrice: number,
-      buyMarkerPrice: number
-    },
-    cycleGuidance: {
-      cycleVolume: number,
-      boughtVolume: number,
-      remainingVolume: number,
-      targetAvgBuyRate: number,
-      neededRemainingRate: number,
-      progressPercent: number,
-      isTargetAchieved: boolean
-    },
-    feeBreakdown: {
-      platformFeePerUnit: number,
-      fiatFeePerUnit: number,
-      totalFeePerUnit: number,
-      effectiveCostBasis: number
-    },
-    isOffline: boolean
-  }
-  ```
+  - `content/analysis/<sha>.json` (JSON conforming to `DevelopmentSessionReport`)
+  - `content/articles/<sha>-<slug>.md`
+  - `content/journal/<sha>-<slug>.md`
+  - `content/social/<sha>-<slug>.md`
+- **Atomic Writing**: Write to `.tmp` first, then atomic rename.
 
-### M2: UI & Controller Contract in `js/pricing.js` & `js/views/pricing.view.js`
-- Primary input `#input-target-spread` synchronizes with `#input-buyback-profit-spread`.
-- `#pricing-suggested-buy` and `#pricing-suggested-sell` update dynamically with formatted NGN rates.
-- Copy buttons `#btn-copy-buy-price` and `#btn-copy-sell-price` copy clean numeric rates to clipboard.
-- Preserved DOM elements (Progress bar, 6-card metrics, diagnostics banner, 3-tier ladder) update dynamically based on `calculateSweetSpotPricing` outputs.
-- Depth table rows render `.orderbook-row-sweetspot-sell` and `.orderbook-row-sweetspot` with badge `<span class="badge badge-success tiny">🎯 Sell Sweet Spot</span>` without adding extra `<tr>` tags.
-
-### M3: Test Suite Contract in `test/`
-- Command: `npm test` (`node test/run-tests.js`).
-- Pass Condition: All existing 758 tests + all new sweet spot tests pass with 0 failures, exit code 0.
+### M4: Post-Commit Hook Contract
+- **File**: `.git/hooks/post-commit`
+- **Shell**: `#!/bin/sh`
+- **Latency**: `< 1 second` exit.
+- **Log**: `content/logs/post-commit.log`.
+- **Duplicate behavior**: If `content/analysis/<sha>.json` exists, exit immediately with status 0.
 
 ## Code Layout
-- `js/pricingEngine.js`: Pure math functions and sweet spot calculations.
-- `js/pricing.js`: Controller logic, depth orchestration, and view binding.
-- `js/views/pricing.view.js`: DOM markup generator for pricing tab.
-- `css/styles.css`: Styles for high-contrast cards, sweet spot row highlights, badges.
-- `test/tier1-feature-coverage/sweet-spot-pricing.test.js`: New automated test suite.
+- `pyproject.toml`: Python package specification & dependencies.
+- `package.json`: Node.js root config with `"ai:content"` script.
+- `ai_content/`:
+  - `__init__.py`: Package init.
+  - `config.py`: Path resolution, `.env` loading, settings.
+  - `models.py`: Pydantic V2 schemas for git context and reports.
+  - `git_context.py`: Git extraction, diff computation, edge cases.
+  - `agents.py`: CrewAI agent definitions (Analyst, Writers, Quality Reviewer).
+  - `tasks.py`: CrewAI task definitions and output schema bindings.
+  - `pipeline.py`: Orchestrates CrewAI crew, duplicate checks, atomic writes.
+  - `cli.py`: Click CLI entry point.
+- `content/`:
+  - `analysis/`: `<sha>.json` reports.
+  - `articles/`: Markdown technical articles.
+  - `journal/`: Markdown dev journals.
+  - `social/`: Markdown X/Twitter threads.
+  - `logs/`: `post-commit.log` (ignored by git).
+- `.git/hooks/post-commit`: Shell hook script.
+- `test/ai-content/`: E2E test suite.

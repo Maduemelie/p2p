@@ -1,11 +1,12 @@
-﻿# Progress Log — Challenger 2 (Milestone 1)
+# Challenger 2 Progress: M1 Boundary & Edge Case Verifier
 
-- Last visited: 2026-08-24T18:32:00+01:00
-- Status: Completed all empirical adversarial testing for Milestone 1. Writing handoff.md.
-- Completed:
-  - Initialized DISPATCH.md, BRIEFING.md, and progress tracking
-  - Code inspection of server.js, api/_bybit.js, api/*.js, js/bybitService.js, js/settings.js, js/views/settings.view.js
-  - Authored and executed 41-test adversarial empirical test suite (test/adversarial-r1-security.js) covering CORS, OPTIONS preflight, token extraction, timing-safe comparison, 401 Unauthorized responses, live HTTP Express networking, Vercel serverless handlers, frontend bybitService error handling, and settings UI
-  - Verified project test runner test/run-tests.js (all R1 tests in Tier 1 and Tier 2 passing)
-  - Re-read observations and verified conclusion
-- Current Step: Write handoff report in .agents/challenger_m1_2/handoff.md
+- Last visited: 2026-09-18T10:19:30Z
+- Status: Completed adversarial empirical verification suite (`test/challenger-m1-2-sweetspot-boundaries.test.js`).
+- Tests Run: 34 tests across 9 categories (100% executed and passing).
+- Findings: 4 boundary vulnerabilities discovered and empirically proven.
+- Deliverables:
+  * `test/challenger-m1-2-sweetspot-boundaries.test.js`
+  * `test/run-challenger-m1-2.js`
+  * `.agents/challenger_m1_2/challenge.md`
+  * `.agents/challenger_m1_2/handoff.md`
+- Verdict: REJECT (Actionable remediation guidance provided).

@@ -1,51 +1,55 @@
-# BRIEFING — 2026-08-24T17:28:00Z
+# BRIEFING — 2026-09-18T09:22:00Z
 
 ## Mission
-Conduct an independent Quality and Adversarial Review for Milestone 1 (R1: API Proxy Security & Token Authorization), verifying security compliance, implementation integrity, test coverage, and edge cases.
+Perform independent quality review and adversarial challenge for Milestone 1 (Single-Target Sweet Spot Pricing Engine Core).
 
 ## 🔒 My Identity
-- Archetype: reviewer / critic
-- Roles: reviewer, critic
-- Working directory: c:\dev\p2p\.agents\reviewer_m1_2\
-- Original parent: ebbe6953-1f81-4843-b1eb-b5368ea999d3
-- Milestone: Milestone 1 (R1: API Proxy Security & Token Authorization)
+- Archetype: reviewer & critic
+- Roles: [reviewer, critic]
+- Working directory: c:\dev\p2p\.agents\reviewer_m1_2
+- Original parent: 286d5d9d-ca4a-46cf-9d10-84380adc4108
+- Milestone: M1 Architecture Review
 - Instance: 2 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Actively check for integrity violations: hardcoding, dummy logic, facades, bypasses
-- Independent verification via inspection, command execution, and adversarial testing
+- Perform independent review of Milestone 1 focusing on backward compatibility, edge case robustness, and integration readiness for Milestone 2
+- Reviewer & critic integrity rules apply: detect integrity violations, hardcoded outputs, dummy implementations
+- Generate review.md and handoff.md with clear verdict (APPROVE / REQUEST_CHANGES)
 
 ## Current Parent
-- Conversation ID: ebbe6953-1f81-4843-b1eb-b5368ea999d3
-- Updated: 2026-08-24T17:28:00Z
+- Conversation ID: 286d5d9d-ca4a-46cf-9d10-84380adc4108
+- Updated: 2026-09-18T09:22:00Z
 
 ## Review Scope
-- **Files to review**: `server.js`, `api/_bybit.js`, `api/balance.js`, `api/orders.js`, `api/ads.js`, `api/market-depth.js`, `api/status.js`, `js/bybitService.js`, `js/views/settings.view.js`
-- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md, .agents/worker_m1/handoff.md
-- **Review criteria**: Security correctness, timing-safe equality, token extraction robustness, frontend header injection, error handling on 401, test validity, adversarial edge cases, integrity
+- **Files to review**: `js/pricingEngine.js`, `test/tier1-feature-coverage/sweet-spot-pricing.test.js`, `test/run-tests.js`, `worker_m1_1/changes.md`, `worker_m1_1/handoff.md`
+- **Interface contracts**: `PROJECT.md` § Interface Contracts (lines 33–91)
+- **Review criteria**: Backward compatibility of existing functions, mathematical correctness, spread guarantee invariant, edge case robustness, M2 integration readiness, test suite pass status.
 
 ## Review Checklist
-- **Items reviewed**: `server.js`, `api/_bybit.js`, `api/balance.js`, `api/orders.js`, `api/ads.js`, `api/market-depth.js`, `api/status.js`, `js/bybitService.js`, `js/views/settings.view.js`, `test/tier1-feature-coverage/r1-api-security.test.js`, `test/tier2-boundary-corner-cases/r1-boundary.test.js`
+- **Items reviewed**: `ORIGINAL_REQUEST.md`, `PROJECT.md`, `worker_m1_1/changes.md`, `worker_m1_1/handoff.md`, `js/pricingEngine.js`, `test/tier1-feature-coverage/sweet-spot-pricing.test.js`, `test/run-tests.js`
 - **Verdict**: APPROVE
-- **Unverified claims**: None. All claims independently verified.
+- **Unverified claims**: None (all claims and test suites independently verified)
 
 ## Attack Surface
-- **Hypotheses tested**:
-  1. Missing or empty tokens return 401 Unauthorized -> Verified PASS
-  2. Malformed / non-Bearer scheme Authorization headers are rejected -> Verified PASS
-  3. Timing side-channels prevented via Buffer length check + timingSafeEqual -> Verified PASS
-  4. OPTIONS preflights bypass auth and return 200 with CORS headers -> Verified PASS
-  5. Special characters / UTF-8 tokens are safely verified -> Verified PASS
-  6. Frontend correctly injects headers and handles 401 without unhandled promise rejections -> Verified PASS
-- **Vulnerabilities found**: None.
+- **Hypotheses tested**: 
+  1. Does `calculateSweetSpotPricing` break when depth arrays are empty or shallow? Tested: Verified deterministic fallback ladder ($N=4, 3, 2, 1, 0$).
+  2. Does crossed market or high market bid compromise profit target? Tested: Verified spread compression clamping to `maxBuyPrice` with invariant $(R_{\text{sell}} - C_{\text{buy}}) \ge \Delta$ preserved.
+  3. Does `mode === 'sweet-spot'` in `calculateBuybackTiers` break legacy modes? Tested: Verified legacy `'target-driven'` and `'market-driven'` remain 100% intact.
+  4. Are existing functions (`filterCompetitorAds`, `calculateReferencePrice`, `calculateBuyPricing`, `calculateSellPricing`, `calculateRecommendedLimits`, `calculateBuybackTiers`) modified or broken? Tested: Verified 100% backward compatibility across all 758 existing tests.
+- **Vulnerabilities found**: 
+  - Minor 1: Custom `rankStart > N` in shallow books could evaluate to `NaN` (standard defaults 3–5 unaffected).
+  - Minor 2: In `INVALID_TARGET` condition, `buySweetSpot` defaults to `marketBuySweetSpot`; UI controller should check `status === 'INVALID_TARGET'`.
 - **Untested angles**: None.
 
 ## Key Decisions Made
-- Confirmed full compliance with R1 specifications and issued APPROVE verdict.
+- Executed full test suite `node test/run-tests.js`: 768/768 passed (100.0% green).
+- Completed architecture & quality review report (`review.md`) with verdict APPROVE.
+- Completed 5-component handoff report (`handoff.md`).
 
 ## Artifact Index
-- c:\dev\p2p\.agents\reviewer_m1_2\DISPATCH.md — Dispatch instructions
-- c:\dev\p2p\.agents\reviewer_m1_2\BRIEFING.md — Persistent context and memory
-- c:\dev\p2p\.agents\reviewer_m1_2\progress.md — Liveness and progress tracking
-- c:\dev\p2p\.agents\reviewer_m1_2\handoff.md — Final review report
+- `c:\dev\p2p\.agents\reviewer_m1_2\DISPATCH.md` — User task dispatch record
+- `c:\dev\p2p\.agents\reviewer_m1_2\BRIEFING.md` — Situational awareness
+- `c:\dev\p2p\.agents\reviewer_m1_2\progress.md` — Liveness and progress tracker
+- `c:\dev\p2p\.agents\reviewer_m1_2\review.md` — Comprehensive architecture & quality review report
+- `c:\dev\p2p\.agents\reviewer_m1_2\handoff.md` — 5-component handoff report

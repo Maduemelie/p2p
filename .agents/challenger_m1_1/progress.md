@@ -1,11 +1,16 @@
-# Progress — Challenger 1 (Milestone 1)
+# Progress — Challenger 1 (M1 Mathematical Stress Verifier)
 
-Last visited: 2026-08-24T17:31:30Z
+Last visited: 2026-09-18T09:13:45Z
 
+## Status
 - [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] Read ORIGINAL_REQUEST.md and PROJECT.md
-- [x] Inspect server.js, api/_bybit.js, and proxy route endpoints
-- [x] Formulate attack vectors & test plan (header formats, casing, timing/type attack, query/body bypass, missing/empty/whitespace/long tokens, endpoint coverage)
-- [x] Write & execute empirical stress tests (`test/challenger-m1-security-stress.test.js` & `test/run-challenger.js`)
-- [x] Evaluate findings and formulate verdict (APPROVE)
-- [x] Write handoff.md & send message to parent
+- [x] Inspected ORIGINAL_REQUEST.md, PROJECT.md, and js/pricingEngine.js
+- [x] Analyzed mathematical formulation of calculateSweetSpotPricing and 4 Invariants
+- [x] Formulated empirical fuzzing & stress harness (1,500+ randomized iterations for Invariant 1, 1,500+ for Invariant 2, 1,000+ for Invariant 3, and 100+ multi-progress ladders for Invariant 4)
+- [x] Uncovered edge case: dust filter threshold scaling (5% of tradeVolume) wiping out retail order books under institutional trade volumes
+- [x] Refined stress tests to cover both retail dust boundary and institutional liquidity pricing
+- [x] Executed full test runner: 773/773 tests passing cleanly (100.0% green)
+- [x] Formulated findings in challenge.md (Verdict: APPROVE)
+- [x] Generated 5-component handoff report (handoff.md)
+- [x] Updated BRIEFING.md
+- [x] Ready to send completion message to orchestrator

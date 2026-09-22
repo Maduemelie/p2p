@@ -172,5 +172,40 @@ The following components MUST BE PRESERVED and seamlessly integrated into the ne
 
 Do NOT remove or hide these components. Ensure all cards and tier ladders remain active, reactive, and beautifully styled for mobile and desktop.
 
+## 2026-09-22T11:12:20Z
 
+# Teamwork Project Prompt — Draft
 
+> Status: Launched
+> Goal: Craft prompt → get user approval → delegate to teamwork_preview
+> Requested team: [none — teamwork routes from the description]
+
+Build an AI Development Content Generator in the `c:\dev\p2p` repository that runs via a Git post-commit hook and uses a CrewAI pipeline (with Gemini) to automatically generate a structured JSON report, a technical article, a development journal, and an X/Twitter thread from the commit context.
+
+Working directory: c:\dev\p2p
+Integrity mode: development
+
+## Requirements
+
+### R1. Python Package & CLI
+Create a dedicated Python package `ai_content/` (using a virtual environment or `uv`) with a CLI entry point (using `click` or `argparse`). Integrate it into the Node project via NPM scripts (e.g., `npm run ai:content`). Use `GEMINI_API_KEY` from the `.env` file and configure CrewAI to use Gemini (`gemini/gemini-2.0-flash` or similar).
+
+### R2. Git Context Collector
+Implement a module to extract commit metadata (SHA, author, message, date), the git diff, and the list of changed files for the target commit (or `HEAD`).
+
+### R3. CrewAI Content Pipeline
+Implement a sequential CrewAI pipeline with:
+1. **Context Analyst**: Analyzes git context and produces a structured JSON `DevelopmentSessionReport` saved to `content/analysis/<sha>.json`.
+2. **Writers**: Three parallel or sequential tasks for a Technical Writer (Markdown article), Journal Writer (Markdown journal), and Social Writer (X/Twitter thread).
+3. **Quality Reviewer**: Audits the generated drafts against the JSON report for accuracy before writing the final files to `content/articles/`, `content/journal/`, and `content/social/`.
+
+### R4. Git Post-Commit Hook & Duplicate Protection
+Install an asynchronous `.git/hooks/post-commit` script that runs the pipeline in the background without blocking the `git commit` command. Ensure the pipeline skips generation if the `content/analysis/<sha>.json` already exists (unless a `--force` flag is passed).
+
+## Acceptance Criteria
+
+### Automated Verification
+- [ ] Running `npm run ai:content -- generate HEAD` (or equivalent python CLI command) successfully executes the pipeline without errors.
+- [ ] The pipeline creates four files: `<sha>.json` in `content/analysis/`, and appropriately named markdown files in `content/articles/`, `content/journal/`, and `content/social/`.
+- [ ] The Git post-commit hook triggers generation in the background (a manual test commit does not hang the terminal for more than 1 second).
+- [ ] Running the command twice for the same commit skips the CrewAI generation on the second run.

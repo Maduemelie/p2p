@@ -75,3 +75,113 @@ Enforce fee logic:
 - [ ] Calculations correctly reflect Bybit 0.3% maker fee & ₦50 stamp duty on Buy side, and 0% maker fee on Sell side.
 - [ ] Live UI elements update dynamically when user adjusts inputs.
 
+## 2026-09-18T08:06:58Z
+
+Redesign the P2P Arbitrage & Pricing engine and UI to compute actionable Buy and Sell "sweet spots" directly from live Bybit P2P order book depth, anchored solely on the user's defined per-USDT profit target.
+
+Working directory: c:/dev/p2p
+Integrity mode: development
+
+## Requirements
+
+### R1. Single-Target Sweet Spot Pricing Engine
+The pricing engine must take a single user profit target (e.g. ₦X / USDT profit) and compute:
+1. **Sell Sweet Spot:** The optimal competitive sell price targeting the active liquid tier (Rank 3–5 median/cluster) in the Sell Order Book (Maker sell / Taker buy).
+2. **Buy Sweet Spot & Maximum Safe Buy Rate:** The optimal buy price and ceiling calculated as `Sell Sweet Spot - Profit Target - Platform Maker Fees (0.3% default on buy side) - Fiat Transfer Fees`.
+3. **Average Buy Guidance:** A clear average buy rate target to guarantee the locked profit target over the entire cycle.
+
+### R2. Streamlined Single-Focus Pricing UI
+Clean up the pricing interface to eliminate clutter:
+1. Replace complex forms and dual-mode toggles with a single primary input: **Profit Target (₦/USDT)** (with optional cycle volume).
+2. Display high-contrast **Buy Sweet Spot** and **Sell Sweet Spot** recommendation cards with one-click copy buttons and status badges.
+3. Remove hidden legacy markup blocks (`style="display: none;"`) and unused calculation controls.
+
+### R3. Visual Order Book Markers
+Render the live Buy and Sell order book tables (top 10 active competitor ads) with clear visual indicators and badges marking the exact row where the merchant's suggested Buy and Sell ads will sit.
+
+### R4. System & Integration Consistency
+Maintain compatibility with existing FIFO inventory stores, trade recording modals, and Bybit proxy depth APIs (`npm test` test suite must remain green).
+
+## Acceptance Criteria
+
+### Mathematical Correctness & Spread Guarantee
+- [ ] Given any valid profit target (e.g., ₦7.00/USDT) and live order book data, the engine computes Buy and Sell rates where `(Effective Sell Revenue - Effective Buy Cost) >= Target Profit`.
+- [ ] Incorporates platform maker fee (0.30% default on buy side) and fiat fees accurately into cost basis.
+- [ ] When the market buy sweet spot is above the safe ceiling, the engine caps the suggested buy rate at `maxBuyPrice` and alerts the user of spread compression.
+
+### UI & UX Verification
+- [ ] The user only needs to provide their Profit Target to get immediate, actionable recommendations.
+- [ ] Order book tables dynamically highlight the corresponding sweet spot tier row for both Buy and Sell sides.
+- [ ] Clipboard copy buttons work smoothly for both Buy and Sell recommended rates.
+- [ ] All automated unit and regression tests in `test/` pass without failure (`npm test`).
+
+## 2026-09-18T08:26:31Z
+
+[CRITICAL USER INSTRUCTION & SPECIFICATION UPDATE]
+The user explicitly reviewed the current mobile UI and instructed:
+"Do not remove this from the ui work it into your design"
+
+The following components MUST BE PRESERVED and seamlessly integrated into the new sweet-spot driven design:
+1. **Current Buyback Session Progress Bar**: (Progress %, Volume acquired vs goal, session start time).
+2. **The 6-Card Metrics Grid**:
+   - `Bought So Far` ($USDT + Avg rate)
+   - `Remaining Needed` ($USDT + Naira Budget)
+   - `Required Rate` (Needed for target average)
+   - `Target Avg Buy` (Sweet spot buy benchmark)
+   - `Target Sell Rate` (Sweet spot sell benchmark + Gross spread Δ)
+   - `Net Profit (After Fees)` (Realized net profit per USDT after 0.3% maker fee & fiat fee)
+3. **Market Guidance Diagnostics Banner**: Real-time comparison between target rates and live order book top bids/asks.
+4. **The 3-Tier Limit Ladder Cards**:
+   - `Tier 1: Target / Fast Fill Limit` (40% allocation)
+   - `Tier 2: Mid-Discount Limit` (40% allocation)
+   - `Tier 3: Deep-Discount Limit` (20% allocation)
+5. **Live Order Book Depth Tables** with visual indicators showing where these sweet spot and tier rates sit in the order book.
+
+**How it works with the single Profit Target:**
+- User specifies their **Profit Target (₦/USDT)** and **Total Volume Goal (USDT)**.
+- The engine uses the live Order Book (Rank 3–5 sweet spot on Sell side) as the anchor:
+  * Sell Target = Sell Sweet Spot
+  * Target Avg Buy = Sell Target - Profit Target - Fees
+  * Live trade progress calculates the exact Required Rate for remaining USDT
+  * Tier 1, 2, 3 are anchored to this required rate.
+  * Order books visually mark the sweet spot and tier levels.
+
+Do NOT remove or hide these components. Ensure all cards and tier ladders remain active, reactive, and beautifully styled for mobile and desktop.
+
+## 2026-09-22T11:12:20Z
+
+# Teamwork Project Prompt — Draft
+
+> Status: Launched
+> Goal: Craft prompt → get user approval → delegate to teamwork_preview
+> Requested team: [none — teamwork routes from the description]
+
+Build an AI Development Content Generator in the `c:\dev\p2p` repository that runs via a Git post-commit hook and uses a CrewAI pipeline (with Gemini) to automatically generate a structured JSON report, a technical article, a development journal, and an X/Twitter thread from the commit context.
+
+Working directory: c:\dev\p2p
+Integrity mode: development
+
+## Requirements
+
+### R1. Python Package & CLI
+Create a dedicated Python package `ai_content/` (using a virtual environment or `uv`) with a CLI entry point (using `click` or `argparse`). Integrate it into the Node project via NPM scripts (e.g., `npm run ai:content`). Use `GEMINI_API_KEY` from the `.env` file and configure CrewAI to use Gemini (`gemini/gemini-2.0-flash` or similar).
+
+### R2. Git Context Collector
+Implement a module to extract commit metadata (SHA, author, message, date), the git diff, and the list of changed files for the target commit (or `HEAD`).
+
+### R3. CrewAI Content Pipeline
+Implement a sequential CrewAI pipeline with:
+1. **Context Analyst**: Analyzes git context and produces a structured JSON `DevelopmentSessionReport` saved to `content/analysis/<sha>.json`.
+2. **Writers**: Three parallel or sequential tasks for a Technical Writer (Markdown article), Journal Writer (Markdown journal), and Social Writer (X/Twitter thread).
+3. **Quality Reviewer**: Audits the generated drafts against the JSON report for accuracy before writing the final files to `content/articles/`, `content/journal/`, and `content/social/`.
+
+### R4. Git Post-Commit Hook & Duplicate Protection
+Install an asynchronous `.git/hooks/post-commit` script that runs the pipeline in the background without blocking the `git commit` command. Ensure the pipeline skips generation if the `content/analysis/<sha>.json` already exists (unless a `--force` flag is passed).
+
+## Acceptance Criteria
+
+### Automated Verification
+- [ ] Running `npm run ai:content -- generate HEAD` (or equivalent python CLI command) successfully executes the pipeline without errors.
+- [ ] The pipeline creates four files: `<sha>.json` in `content/analysis/`, and appropriately named markdown files in `content/articles/`, `content/journal/`, and `content/social/`.
+- [ ] The Git post-commit hook triggers generation in the background (a manual test commit does not hang the terminal for more than 1 second).
+- [ ] Running the command twice for the same commit skips the CrewAI generation on the second run.

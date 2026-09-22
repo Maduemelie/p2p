@@ -14,3 +14,13 @@ npm-debug.log*
 .idea/
 .agents/
 
+# Python / Virtual Environments
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# AI Content Generation Logs
+content/logs/
+
