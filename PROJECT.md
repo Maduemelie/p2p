@@ -37,7 +37,7 @@
 | M2 | Git Context Collector & Data Models | `ai_content/git_context.py`, `ai_content/models.py`, Pydantic V2 schemas, edge cases | M1 | DONE |
 | M3 | CrewAI Pipeline & Gemini Integration | `ai_content/agents.py`, `ai_content/tasks.py`, `ai_content/pipeline.py`, Gemini LLM configuration | M1, M2 | DONE |
 | M4 | Post-Commit Hook & Duplicate Protection | `.git/hooks/post-commit`, hook installer, duplicate checking, atomic writing | M1, M2, M3 | DONE |
-| M5 | 100% E2E Pass & Adversarial Hardening | Verify all acceptance criteria against test suite (Tiers 1-5) | M1, M2, M3, M4 | IN_PROGRESS |
+| M5 | 100% E2E Pass & Adversarial Hardening | Verify all acceptance criteria against test suite (Tiers 1-5) | M1, M2, M3, M4 | DONE |
 
 ## Interface Contracts
 

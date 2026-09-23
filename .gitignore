@@ -21,6 +21,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# AI Content Generation Logs
-content/logs/
+# AI Content Generation Output & Test Scratch
+content/
+.test_scratch/
 

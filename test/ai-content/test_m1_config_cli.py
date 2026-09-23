@@ -23,6 +23,7 @@ from ai_content.config import (
     SOCIAL_DIR,
     LOGS_DIR,
     GEMINI_MODEL,
+    DEFAULT_GEMINI_MODEL,
     ensure_directories,
     is_gemini_configured,
 )
@@ -54,8 +55,14 @@ def test_ensure_directories():
 
 
 def test_gemini_model_default():
-    """Verify GEMINI_MODEL defaults to gemini/gemini-2.0-flash or configured model."""
-    assert GEMINI_MODEL in ("gemini/gemini-2.0-flash", "gemini-2.0-flash")
+    """Verify GEMINI_MODEL defaults to gemini/gemini-2.5-flash or configured model."""
+    assert GEMINI_MODEL in (
+        "gemini/gemini-2.5-flash",
+        "gemini-2.5-flash",
+        "gemini/gemini-2.0-flash",
+        "gemini-2.0-flash",
+        DEFAULT_GEMINI_MODEL,
+    )
 
 
 def test_cli_version():

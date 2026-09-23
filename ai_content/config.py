@@ -52,7 +52,7 @@ def ensure_directories() -> None:
 
 
 # 4. Gemini Settings
-DEFAULT_GEMINI_MODEL: str = "gemini/gemini-2.0-flash"
+DEFAULT_GEMINI_MODEL: str = "gemini/gemini-2.5-flash"
 
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)

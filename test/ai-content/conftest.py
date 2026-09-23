@@ -13,6 +13,9 @@ from typing import Generator
 
 import pytest
 
+# Ensure deterministic offline mock mode for all pytest executions
+os.environ["AI_CONTENT_MOCK"] = "1"
+
 
 @pytest.fixture
 def git_repo(tmp_path: Path) -> Generator[Path, None, None]:

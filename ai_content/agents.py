@@ -35,7 +35,7 @@ def get_llm(
     if not key or not key.strip():
         return None
 
-    model_name = model or os.getenv("GEMINI_MODEL") or GEMINI_MODEL or "gemini/gemini-2.0-flash"
+    model_name = model or os.getenv("GEMINI_MODEL") or GEMINI_MODEL or "gemini/gemini-2.5-flash"
     # Ensure standard provider prefix for CrewAI native Gemini completion
     if not model_name.startswith("gemini/") and not model_name.startswith("google/"):
         model_name = f"gemini/{model_name}"

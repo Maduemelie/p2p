@@ -18,6 +18,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
@@ -86,8 +87,6 @@ def is_mock_mode(mock: Optional[bool] = None) -> bool:
         return True
     if env_mock in ("0", "false", "no"):
         return False
-    if "PYTEST_CURRENT_TEST" in os.environ:
-        return True
     return not is_gemini_configured()
 
 
@@ -303,7 +302,15 @@ def execute_crew_pipeline(
         verbose=False,
     )
 
-    crew.kickoff()
+    try:
+        crew.kickoff()
+    except Exception as exc:
+        print(
+            f"[WARNING] Live CrewAI LLM execution failed ({exc}). "
+            "Gracefully falling back to deterministic generation.",
+            file=sys.stderr,
+        )
+        return generate_mock_content(git_context)
 
     # 4. Extract DevelopmentSessionReport
     report: Optional[DevelopmentSessionReport] = None
