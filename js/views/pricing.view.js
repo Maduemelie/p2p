@@ -120,7 +120,7 @@ export function renderPricingView() {
               <span class="badge badge-neutral">Offline</span>
             </div>
             <div class="text-muted tiny font-mono mt-2">
-              Target Spread: <span id="pricing-target-sell-price" class="fw-bold text-warning">₦0.00</span>
+              Minimum Safe Sell: <span id="pricing-target-sell-price" class="fw-bold text-warning">₦0.00</span>
             </div>
           </div>
 

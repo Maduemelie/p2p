@@ -647,9 +647,9 @@ export function calculateMargins() {
       elSweetBuyRate.className = sweetSpotResult.isSafe ? 'font-mono text-success fw-bold sweet-spot-rate' : 'font-mono text-warning fw-bold sweet-spot-rate';
     }
     if (elSweetSellRate) {
-      const sellPriceToDisplay = sellAnalysis.suggestedSell > 0 ? sellAnalysis.suggestedSell : sweetSpotResult.sellSweetSpot;
+      const sellPriceToDisplay = sweetSpotResult.sellSweetSpot > 0 ? sweetSpotResult.sellSweetSpot : sellAnalysis.suggestedSell;
       elSweetSellRate.textContent = sellPriceToDisplay > 0 ? formatNGN(sellPriceToDisplay) : '—';
-      elSweetSellRate.className = (sellAnalysis.hasCostBasis ? sellAnalysis.isSafe : true) ? 'font-mono text-success fw-bold sweet-spot-rate' : 'font-mono text-warning fw-bold sweet-spot-rate';
+      elSweetSellRate.className = 'font-mono text-success fw-bold sweet-spot-rate';
     }
     if (elSweetMaxBuy) elSweetMaxBuy.textContent = sweetSpotResult.maxBuyPrice > 0 ? formatNGN(sweetSpotResult.maxBuyPrice) : formatNGN(buyAnalysis.maxBuyPrice);
 
@@ -662,14 +662,14 @@ export function calculateMargins() {
     }
 
     if (elSweetSellStatus) {
-      if (sellAnalysis.hasCostBasis && sellAnalysis.hasCompetitors) {
+      if (sweetSpotResult.sellSweetSpot > 0) {
+        elSweetSellStatus.innerHTML = `<span class="badge badge-success">🟢 Rank ${sweetSpotResult.markers?.sellTargetRank || '#'} Sweet Spot</span>`;
+      } else if (sellAnalysis.hasCostBasis && sellAnalysis.hasCompetitors) {
         if (sellAnalysis.isSafe) {
           elSweetSellStatus.innerHTML = `<span class="badge badge-success">🟢 Safe to Undercut • Spread: +₦${sellAnalysis.sellSpread.toFixed(2)}</span>`;
         } else {
           elSweetSellStatus.innerHTML = `<span class="badge badge-danger">🔴 Below Target Spread (Floored for Spread)</span>`;
         }
-      } else if (sweetSpotResult.sellSweetSpot > 0) {
-        elSweetSellStatus.innerHTML = `<span class="badge badge-success">🟢 Rank ${sweetSpotResult.markers.sellTargetRank} Sweet Spot</span>`;
       } else {
         elSweetSellStatus.innerHTML = '<span class="badge badge-neutral">No sell depth</span>';
       }
