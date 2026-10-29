@@ -47,14 +47,18 @@ export function renderSettingsView() {
                <h3 class="card-title">Transfers Log</h3>
                <p class="card-subtitle">Track movements of USDT (Wallets) or Naira (Banks)</p>
              </div>
-             <div class="d-flex gap-2">
+             <div class="d-flex gap-2 flex-wrap">
                <button class="btn btn-sm btn-outline" id="btn-open-transfer-modal">
                  <i data-lucide="repeat"></i>
                  <span>Log USDT</span>
                </button>
-               <button class="btn btn-sm btn-primary" id="btn-open-bank-transfer-modal">
+               <button class="btn btn-sm btn-outline" id="btn-open-bank-transfer-modal">
                  <i data-lucide="landmark"></i>
                  <span>Log Naira</span>
+               </button>
+               <button class="btn btn-sm btn-primary" id="btn-open-external-deposit-modal">
+                 <i data-lucide="download"></i>
+                 <span>Deposit</span>
                </button>
              </div>
            </div>

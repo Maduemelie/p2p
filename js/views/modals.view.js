@@ -144,6 +144,85 @@ export function renderModalsView() {
         </form>
       </div>
     </div>
+
+    <!-- Modal: External Deposit / Capital Injection -->
+    <div class="modal-backdrop hidden" id="modal-external-deposit-backdrop">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <h3 class="modal-title">Record External Deposit</h3>
+            <p class="modal-subtitle">Log naira received from savings, salary, or other external sources</p>
+          </div>
+          <button class="btn-icon" id="btn-close-external-deposit-modal" aria-label="Close">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <form id="form-log-external-deposit" class="modal-body">
+          <div class="form-group mb-3">
+            <label for="ext-deposit-date" class="form-label">
+              <i data-lucide="calendar"></i> Date &amp; Time
+            </label>
+            <input type="datetime-local" id="ext-deposit-date" class="form-input" required>
+          </div>
+
+          <div class="form-group mb-3">
+            <label for="ext-deposit-source" class="form-label">
+              <i data-lucide="piggy-bank"></i> Source
+            </label>
+            <select id="ext-deposit-source" class="form-select" required>
+              <option value="Savings Account" selected>Savings Account</option>
+              <option value="Salary / Income">Salary / Income</option>
+              <option value="Gift / Personal">Gift / Personal</option>
+              <option value="Loan / Borrowed">Loan / Borrowed</option>
+              <option value="Other External">Other External</option>
+            </select>
+          </div>
+
+          <div class="form-group mb-3">
+            <label for="ext-deposit-to-bank" class="form-label">
+              <i data-lucide="arrow-down-left"></i> Deposit Into (Bank Account)
+            </label>
+            <select id="ext-deposit-to-bank" class="form-select" required>
+              <option value="" disabled selected>Select Destination Account</option>
+            </select>
+          </div>
+
+          <div class="form-grid mb-3">
+            <div class="form-group col-12 col-md-6">
+              <label for="ext-deposit-amount" class="form-label">
+                <i data-lucide="banknote"></i> Amount
+              </label>
+              <div class="input-affix-wrapper">
+                <span class="input-prefix">₦</span>
+                <input type="number" step="0.01" min="0.01" id="ext-deposit-amount" class="form-input font-mono" placeholder="100,000.00" required>
+              </div>
+            </div>
+            <div class="form-group col-12 col-md-6">
+              <label for="ext-deposit-fee" class="form-label">
+                <i data-lucide="receipt"></i> Transfer Fee
+              </label>
+              <div class="input-affix-wrapper">
+                <span class="input-prefix">₦</span>
+                <input type="number" step="0.01" min="0" id="ext-deposit-fee" class="form-input font-mono" placeholder="0.00" value="0.00">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group mb-3">
+            <label for="ext-deposit-notes" class="form-label">
+              <i data-lucide="file-text"></i> Notes (Optional)
+            </label>
+            <input type="text" id="ext-deposit-notes" class="form-input" placeholder="e.g. Moved from GTBank savings to fund P2P trades">
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-external-deposit-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Deposit</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Modal: Log Bank Transfer -->
     <div class="modal-backdrop hidden" id="modal-bank-transfer-backdrop">
       <div class="modal-card">

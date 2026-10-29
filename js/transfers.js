@@ -9,6 +9,7 @@ import { formatNGN, formatUSDT, formatDateTime, getLocalIsoDateTime, escapeHtml 
 export function initTransfers() {
   setupTransferModal();
   setupBankTransferModal();
+  setupExternalDepositModal();
   renderTransfersList();
 
   // Listen for store updates
@@ -160,6 +161,84 @@ function setupBankTransferModal() {
 
     closeModal();
     if (window.showToast) window.showToast(`Transfer of ${formatNGN(amount)} logged successfully!`, 'success');
+  });
+}
+
+
+function setupExternalDepositModal() {
+  const modal = document.getElementById('modal-external-deposit-backdrop');
+  const btnOpen = document.getElementById('btn-open-external-deposit-modal');
+  const btnClose = document.getElementById('btn-close-external-deposit-modal');
+  const btnCancel = document.getElementById('btn-cancel-external-deposit-modal');
+  const form = document.getElementById('form-log-external-deposit');
+  const dateInput = document.getElementById('ext-deposit-date');
+
+  function openModal() {
+    if (form) form.reset();
+    if (dateInput) dateInput.value = getLocalIsoDateTime();
+
+    // Populate destination bank dropdown
+    const banks = store.getBankAccounts();
+    const toSelect = document.getElementById('ext-deposit-to-bank');
+    
+    if (toSelect) {
+      toSelect.innerHTML = '<option value="" disabled selected>Select Destination Account</option>' +
+        banks.map(b => `<option value="${b.id}">${escapeHtml(b.name)} (${escapeHtml(b.alias || '')} •••• ${escapeHtml(b.last4)})</option>`).join('');
+    }
+
+    if (modal) modal.classList.remove('hidden');
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function closeModal() {
+    if (modal) modal.classList.add('hidden');
+  }
+
+  btnOpen?.addEventListener('click', openModal);
+  btnClose?.addEventListener('click', closeModal);
+  btnCancel?.addEventListener('click', closeModal);
+
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const date = dateInput?.value || new Date().toISOString();
+    const source = document.getElementById('ext-deposit-source')?.value || 'External';
+    const toBankId = document.getElementById('ext-deposit-to-bank')?.value;
+    const amount = parseFloat(document.getElementById('ext-deposit-amount')?.value) || 0;
+    const fee = parseFloat(document.getElementById('ext-deposit-fee')?.value) || 0;
+    const notes = document.getElementById('ext-deposit-notes')?.value?.trim() || '';
+
+    if (amount <= 0) {
+      if (window.showToast) window.showToast('Please enter a valid amount.', 'error');
+      return;
+    }
+
+    if (!toBankId) {
+      if (window.showToast) window.showToast('Please select a destination bank account.', 'error');
+      return;
+    }
+
+    const toBank = store.getBankAccountById(toBankId);
+    if (!toBank) {
+      if (window.showToast) window.showToast('Invalid bank account selected.', 'error');
+      return;
+    }
+
+    store.addTransfer({
+      date,
+      from: `${source} (External)`,
+      to: `${toBank.name} (•••• ${toBank.last4})`,
+      fromBankId: null,
+      toBankId,
+      amount,
+      fee,
+      notes: notes || `External deposit from ${source}`,
+      asset: 'NGN',
+      category: 'external-deposit'
+    });
+
+    closeModal();
+    if (window.showToast) window.showToast(`Deposit of ${formatNGN(amount)} recorded!`, 'success');
   });
 }
 
