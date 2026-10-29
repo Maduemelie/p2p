@@ -1,5 +1,97 @@
 const _bybit = require('./_bybit');
 
+/**
+ * Handle Ad Update (POST /v5/p2p/item/update)
+ */
+async function handleUpdateAd(req, res, credentials, body) {
+  // 1. Order Immutability Guard
+  const rawId = body.id || body.itemId || body.orderId;
+  if (body.orderId || (typeof rawId === 'string' && rawId.toLowerCase().startsWith('order_'))) {
+    return res.status(400).json({
+      retCode: -1,
+      error: 'IMMUTABLE_ORDER',
+      retMsg: 'Active P2P trade orders are locked in escrow and cannot be edited by exchange design. Only advertisements can be modified.'
+    });
+  }
+
+  // 2. Validate Required Ad ID
+  const adId = body.id || body.itemId;
+  if (!adId || String(adId).trim() === '') {
+    return res.status(400).json({
+      retCode: 10001,
+      retMsg: 'Invalid parameters: id (or itemId) is required'
+    });
+  }
+
+  // 3. Validate Price and Limits
+  if (typeof body.price === 'boolean' || typeof body.minAmount === 'boolean' || typeof body.maxAmount === 'boolean') {
+    return res.status(400).json({
+      retCode: 10001,
+      retMsg: 'Invalid parameters: limits and price cannot be boolean values'
+    });
+  }
+
+  const priceNum = Number(body.price);
+  const minNum = Number(body.minAmount);
+  const maxNum = Number(body.maxAmount);
+
+  if (body.price === undefined || isNaN(priceNum) || priceNum <= 0 ||
+      body.minAmount === undefined || isNaN(minNum) || minNum <= 0 ||
+      body.maxAmount === undefined || isNaN(maxNum) || maxNum <= 0 ||
+      minNum > maxNum) {
+    return res.status(400).json({
+      retCode: 10001,
+      retMsg: 'Invalid parameters: minAmount cannot exceed maxAmount and values must be positive'
+    });
+  }
+
+  if (body.quantity !== undefined && body.quantity !== null && String(body.quantity).trim() !== '') {
+    const qtyNum = Number(body.quantity);
+    if (isNaN(qtyNum) || qtyNum <= 0) {
+      return res.status(400).json({
+        retCode: 10001,
+        retMsg: 'Invalid parameters: quantity must be a positive number'
+      });
+    }
+  }
+
+  // 4. Normalize to Bybit V5 Specification
+  const bybitPayload = {
+    id: String(adId).trim(),
+    actionType: body.actionType || 'MODIFY',
+    priceType: Number(body.priceType || 1),
+    price: String(body.price),
+    minAmount: String(body.minAmount),
+    maxAmount: String(body.maxAmount),
+    ...(body.quantity !== undefined && body.quantity !== null && String(body.quantity).trim() !== ''
+      ? { quantity: String(body.quantity) }
+      : {}),
+    ...(body.paymentPeriod !== undefined && body.paymentPeriod !== null && String(body.paymentPeriod).trim() !== ''
+      ? { paymentPeriod: String(body.paymentPeriod) }
+      : {}),
+    ...(Array.isArray(body.paymentIds) && body.paymentIds.length > 0
+      ? { paymentIds: body.paymentIds.map(String) }
+      : {}),
+    ...(body.remark ? { remark: String(body.remark) } : {})
+  };
+
+  const jsonBodyString = JSON.stringify(bybitPayload);
+  const endpointPath = '/v5/p2p/item/update';
+
+  try {
+    const response = await _bybit.executeWithFailover('POST', endpointPath, jsonBodyString, bybitPayload, credentials);
+    return res.status(200).json(response.data);
+  } catch (error) {
+    console.error('[Vercel Ad Update Error]:', error.response?.data || error.message);
+    const statusCode = error.response ? error.response.status : 500;
+    let errorData = error.response?.data;
+    if (!errorData || typeof errorData !== 'object') {
+      errorData = { retCode: statusCode, retMsg: error.response?.statusText || error.message };
+    }
+    return res.status(statusCode).json(errorData);
+  }
+}
+
 module.exports = async function handler(req, res) {
   if (!_bybit.verifyAuth(req, res)) return;
 
@@ -8,6 +100,29 @@ module.exports = async function handler(req, res) {
   const credentials = _bybit.getCredentials(req);
   if (!credentials.apiKey || !credentials.apiSecret) {
     return res.status(500).json({ retCode: -1, retMsg: 'Bybit API credentials not configured in request headers or environment variables' });
+  }
+
+  let body = req.body;
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body); } catch (e) { body = {}; }
+  } else if (!body || typeof body !== 'object') {
+    body = {};
+  }
+
+  // Detect Ad Update vs. Ad List Request
+  const rawUrl = req.url || '';
+  const isUpdateAction = 
+    rawUrl.includes('/update') || 
+    rawUrl.includes('/edit') || 
+    req.query?.action === 'update' || 
+    req.query?.action === 'modify' ||
+    body.action === 'update' ||
+    body.actionType === 'MODIFY' ||
+    body.actionType === 'ACTIVE' ||
+    ((body.id || body.itemId) && (body.price !== undefined || body.minAmount !== undefined || body.maxAmount !== undefined));
+
+  if (isUpdateAction && (req.method === 'POST' || req.method === 'PUT')) {
+    return handleUpdateAd(req, res, credentials, body);
   }
 
   try {
@@ -143,3 +258,5 @@ module.exports = async function handler(req, res) {
     res.status(statusCode).json(errorData);
   }
 };
+
+module.exports.handleUpdateAd = handleUpdateAd;

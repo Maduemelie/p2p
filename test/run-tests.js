@@ -27,6 +27,7 @@ require('./tier1-feature-coverage/r5-offline-pwa.test');
 require('./tier1-feature-coverage/active-buy-sell-ads.test');
 require('./tier1-feature-coverage/pricing-engine.test');
 require('./tier1-feature-coverage/sweet-spot-pricing.test');
+require('./tier1-feature-coverage/trade-limits-and-competitors.test');
 
 // 2. Load Tier 2 Suites: Boundary & Corner Cases
 require('./tier2-boundary-corner-cases/r1-boundary.test');
@@ -71,6 +72,9 @@ require('./empirical-m1-pricing-invariants.test');
 require('./challenger-m2-1-ui-fuzzing-stress.test');
 require('./challenger-m2-2-git-operations.test');
 require('./challenger-m5-adversarial.test');
+require('./challenger-m1-overlap-queue-stress.test');
+require('./challenger-m1-trade-limits-store.test');
+require('./challenger-m3-pricing-reactive-stress.test');
 
 
 // Parse CLI flags

@@ -34,6 +34,9 @@ module.exports = async function handler(req, res) {
   if (dispatchPath === '/api/orders' || dispatchPath === '/orders') {
     return ordersHandler(req, res);
   }
+  if (dispatchPath === '/api/ads/update' || dispatchPath === '/ads/update' || dispatchPath === '/api/ads/edit' || dispatchPath === '/ads/edit') {
+    return adsHandler(req, res);
+  }
   if (dispatchPath === '/api/ads' || dispatchPath === '/ads') {
     return adsHandler(req, res);
   }

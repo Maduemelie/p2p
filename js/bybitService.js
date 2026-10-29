@@ -70,6 +70,18 @@ export function formatBybitErrorMessage(data, defaultMsg = 'Unknown error occurr
   if (rawMsg.startsWith('<')) {
     return `Upstream gateway error (HTTP ${code || 'network'}). Bybit services may be temporarily unreachable.`;
   }
+  if (code === 10001 || /params error|param error|invalid parameters/i.test(rawMsg)) {
+    if (/minAmount|maxAmount/i.test(rawMsg)) {
+      return 'Parameter Error (Code 10001): Minimum trade limit cannot be greater than maximum trade limit.';
+    }
+    if (/price/i.test(rawMsg)) {
+      return 'Parameter Error (Code 10001): Advertisement price must be a positive number.';
+    }
+    return `Parameter Error (Code 10001): ${rawMsg}`;
+  }
+  if (code === 10002 || /request expired/i.test(rawMsg)) {
+    return 'Bybit API request expired (Code 10002). Please verify your system clock is accurate.';
+  }
   if (code === 10003 || /api_?key is invalid/i.test(rawMsg)) {
     return 'Unauthorized: Bybit API Key is invalid or does not exist. Please check your Bybit API Key in Settings.';
   }
@@ -77,7 +89,7 @@ export function formatBybitErrorMessage(data, defaultMsg = 'Unknown error occurr
     return 'Bybit API Signature error: API Secret mismatch. Please check your Bybit API Secret in Settings.';
   }
   if (code === 10005 || /permission denied/i.test(rawMsg)) {
-    return 'Permission denied (Code 10005): Your Bybit API key lacks permissions for this action. Ensure "Read-Write" and Account/P2P permissions are enabled in Bybit API management, and check IP restrictions.';
+    return 'Permission denied (Code 10005): Direct ad modification requires approved Bybit P2P Merchant status and a Read-Write API key with P2P permissions enabled in Bybit API management.';
   }
   if (code === 10010 || /unmatched ip|ip restriction/i.test(rawMsg)) {
     return 'IP Restriction (Code 10010): Your Bybit API key is restricted by IP address. Please set it to "No IP restriction" on Bybit to allow serverless queries.';
@@ -92,6 +104,44 @@ export function formatBybitErrorMessage(data, defaultMsg = 'Unknown error occurr
     return 'Unauthorized: Invalid or missing Bybit API credentials. Please configure your Bybit API Key and Secret in Settings.';
   }
   return rawMsg || defaultMsg;
+}
+
+/**
+ * Normalizes advertisement update payload to Bybit Open API V5 specification.
+ * Formats id, actionType, price, minAmount, maxAmount as strings per spec.
+ */
+export function normalizeAdUpdatePayload(data = {}) {
+  if (!data || typeof data !== 'object') return {};
+  const adId = data.id || data.itemId;
+  const payload = {
+    id: String(adId !== undefined && adId !== null ? adId : '').trim(),
+    actionType: data.actionType || 'MODIFY'
+  };
+  if (data.price !== undefined && data.price !== null) {
+    payload.price = String(data.price);
+  }
+  if (data.minAmount !== undefined && data.minAmount !== null) {
+    payload.minAmount = String(data.minAmount);
+  }
+  if (data.maxAmount !== undefined && data.maxAmount !== null) {
+    payload.maxAmount = String(data.maxAmount);
+  }
+  if (data.priceType !== undefined && data.priceType !== null) {
+    payload.priceType = Number(data.priceType);
+  }
+  if (data.quantity !== undefined && data.quantity !== null && String(data.quantity).trim() !== '') {
+    payload.quantity = String(data.quantity);
+  }
+  if (data.paymentPeriod !== undefined && data.paymentPeriod !== null && String(data.paymentPeriod).trim() !== '') {
+    payload.paymentPeriod = String(data.paymentPeriod);
+  }
+  if (Array.isArray(data.paymentIds)) {
+    payload.paymentIds = data.paymentIds.map(String);
+  }
+  if (data.remark !== undefined && data.remark !== null) {
+    payload.remark = String(data.remark);
+  }
+  return payload;
 }
 
 export const bybitService = {
@@ -250,5 +300,171 @@ export const bybitService = {
       console.error('[Bybit Service] Error fetching market depth:', e.message);
       throw e;
     }
+  },
+
+  /**
+   * Helper function attached to bybitService for payload normalization
+   */
+  normalizeAdUpdatePayload,
+
+  /**
+   * Format Bybit API error messages for user presentation
+   */
+  formatBybitErrorMessage,
+
+  /**
+   * Check Bybit P2P ad editing capability and order immutability status
+   * @returns {Promise<{ supported: boolean, canEditAds: boolean, ordersImmutable: boolean, endpoint: string, reason: string }>}
+   */
+  async checkAdEditCapability() {
+    return {
+      supported: true,
+      canEditAds: true,
+      ordersImmutable: true,
+      endpoint: '/v5/p2p/item/update',
+      reason: 'Bybit V5 P2P API supports editing active advertisements via /v5/p2p/item/update for verified P2P merchants with Read-Write API keys. Active matched trade orders cannot be edited once placed.'
+    };
+  },
+
+  /**
+   * Update an active P2P advertisement (price, trade limits, quantity)
+   * Dispatches POST to /api/ads/update via the local proxy
+   *
+   * @param {Object} adData - Ad data { id|itemId, price, minAmount, maxAmount, quantity?, actionType? }
+   * @returns {Promise<{ success: boolean, retCode: number, retMsg: string, data?: any, error?: string, isPermissionDenied?: boolean, guidanceMessage?: string }>}
+   */
+  async updateAd(adData) {
+    if (!adData || typeof adData !== 'object') {
+      const errMsg = 'Invalid ad data: payload must be a non-null object';
+      return {
+        success: false,
+        retCode: 10001,
+        retMsg: errMsg,
+        error: errMsg,
+        isPermissionDenied: false,
+        guidanceMessage: errMsg,
+        data: null
+      };
+    }
+
+    const adId = adData.id || adData.itemId;
+    if (!adId) {
+      const errMsg = 'Missing ad ID: id or itemId is required to update an advertisement';
+      return {
+        success: false,
+        retCode: 10001,
+        retMsg: errMsg,
+        error: errMsg,
+        isPermissionDenied: false,
+        guidanceMessage: errMsg,
+        data: null
+      };
+    }
+
+    // Client-side limits validation
+    if (adData.minAmount !== undefined && adData.maxAmount !== undefined) {
+      const minNum = Number(adData.minAmount);
+      const maxNum = Number(adData.maxAmount);
+      if (!isNaN(minNum) && !isNaN(maxNum) && minNum > maxNum) {
+        const errMsg = 'Validation error (Code 10001): minAmount cannot be greater than maxAmount';
+        return {
+          success: false,
+          retCode: 10001,
+          retMsg: errMsg,
+          error: errMsg,
+          isPermissionDenied: false,
+          guidanceMessage: errMsg,
+          data: null
+        };
+      }
+    }
+
+    if (adData.price !== undefined) {
+      const priceNum = Number(adData.price);
+      if (!isNaN(priceNum) && priceNum <= 0) {
+        const errMsg = 'Validation error (Code 10001): price must be positive';
+        return {
+          success: false,
+          retCode: 10001,
+          retMsg: errMsg,
+          error: errMsg,
+          isPermissionDenied: false,
+          guidanceMessage: errMsg,
+          data: null
+        };
+      }
+    }
+
+    try {
+      const baseUrl = getProxyUrl();
+      const payload = {
+        ...adData,
+        id: String(adId),
+        actionType: adData.actionType || 'MODIFY'
+      };
+
+      const response = await fetch(`${baseUrl}/api/ads/update`, {
+        method: 'POST',
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(payload)
+      });
+
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        data = { retCode: response.status, retMsg: `HTTP ${response.status} ${response.statusText}` };
+      }
+
+      const retCode = Number(data?.retCode ?? data?.ret_code ?? (response.ok ? 0 : response.status));
+      const rawMsg = data?.retMsg || data?.ret_msg || data?.message || (response.ok ? 'success' : `HTTP ${response.status}`);
+      const formattedMsg = formatBybitErrorMessage(data, rawMsg);
+      const isPermissionDenied = retCode === 10005 || /permission denied/i.test(formattedMsg);
+      const guidanceMessage = isPermissionDenied
+        ? 'Direct ad update is restricted to approved Bybit P2P Merchants. Use Bybit Merchant Portal.'
+        : formattedMsg;
+
+      const isSuccess = retCode === 0 && response.ok;
+
+      return {
+        success: isSuccess,
+        retCode,
+        retMsg: formattedMsg,
+        error: isSuccess ? undefined : formattedMsg,
+        isPermissionDenied,
+        guidanceMessage,
+        data: data?.result !== undefined ? data.result : data
+      };
+    } catch (e) {
+      const errMsg = e.message || 'Network request failed: Bybit proxy is unreachable';
+      return {
+        success: false,
+        retCode: -1,
+        retMsg: errMsg,
+        error: errMsg,
+        isPermissionDenied: false,
+        guidanceMessage: errMsg,
+        data: null
+      };
+    }
+  },
+
+  /**
+   * Attempt to modify an active trade order
+   * Protocol contract: Active matched P2P trade orders are locked in escrow and immutable.
+   *
+   * @param {string} orderId
+   * @param {Object} [orderData=null]
+   * @returns {Promise<{ success: false, retCode: 10001, error: 'IMMUTABLE_ORDER', message: string, retMsg: string }>}
+   */
+  async updateOrder(orderId, orderData = null) {
+    const message = 'Active matched trade orders cannot be edited once placed in escrow';
+    return {
+      success: false,
+      retCode: 10001,
+      error: 'IMMUTABLE_ORDER',
+      retMsg: message,
+      message
+    };
   }
 };

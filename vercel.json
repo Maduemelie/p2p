@@ -4,6 +4,7 @@
   "rewrites": [
     { "source": "/api/balance", "destination": "/api/balance.js" },
     { "source": "/api/orders", "destination": "/api/orders.js" },
+    { "source": "/api/ads/update", "destination": "/api/ads.js" },
     { "source": "/api/ads", "destination": "/api/ads.js" },
     { "source": "/api/market-depth", "destination": "/api/market-depth.js" },
     { "source": "/api/status", "destination": "/api/status.js" },

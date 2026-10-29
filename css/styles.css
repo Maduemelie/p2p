@@ -2757,3 +2757,65 @@ img { max-width: 100%; display: block; }
     flex: 1 1 100%;
   }
 }
+
+/* ==========================================================================
+   Milestone 3: Bybit Ad Modification, Immediate Competitors & Fill Speed
+   ========================================================================== */
+
+.bybit-ad-edit-status,
+.api-capability-banner {
+  border-left: 4px solid var(--primary, #3b82f6);
+  background: rgba(59, 130, 246, 0.08);
+  border-radius: var(--radius-md, 8px);
+  padding: 12px 16px;
+  transition: all 0.2s ease;
+}
+
+.bybit-ad-edit-status.is-restricted {
+  border-left-color: var(--warning, #f59e0b);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.btn-update-ad {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.orderbook-row.immediate-competitor {
+  background: rgba(245, 158, 11, 0.08) !important;
+}
+
+.orderbook-row.immediate-competitor:hover {
+  background: rgba(245, 158, 11, 0.16) !important;
+}
+
+.badge-immediate-competitor {
+  background: rgba(245, 158, 11, 0.22) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  font-size: 0.65rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.competitor-limits {
+  font-family: var(--font-mono, monospace);
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.72rem;
+  margin-top: 2px;
+}
+
+.pricing-queue-position {
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.pricing-fill-speed-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+

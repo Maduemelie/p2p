@@ -23,6 +23,49 @@ const DEFAULT_BANKS = [
   { id: 'bank_gtb_default', name: 'GTBank', last4: '9012', alias: 'GTB Corporate' }
 ];
 
+/**
+ * Validate and sanitize trade limit boundaries in NGN
+ * @param {number|string} minLimit - Minimum trade limit
+ * @param {number|string} maxLimit - Maximum trade limit
+ * @returns {{
+ *   isValid: boolean,
+ *   errors: string[],
+ *   sanitized: { minTradeLimitNgn: number, maxTradeLimitNgn: number } | null
+ * }}
+ */
+export function validateTradeLimits(minLimit, maxLimit) {
+  const errors = [];
+  const rawMin = (typeof minLimit === 'boolean') ? NaN : minLimit;
+  const rawMax = (typeof maxLimit === 'boolean') ? NaN : maxLimit;
+
+  const min = (rawMin !== undefined && rawMin !== null && (typeof rawMin !== 'string' || rawMin.trim() !== ''))
+    ? Number(rawMin)
+    : NaN;
+  const max = (rawMax !== undefined && rawMax !== null && (typeof rawMax !== 'string' || rawMax.trim() !== ''))
+    ? Number(rawMax)
+    : NaN;
+
+  if (isNaN(min) || !Number.isFinite(min) || min <= 0) {
+    errors.push(`Minimum trade limit must be a positive number greater than 0, received: ${minLimit}.`);
+  }
+  if (isNaN(max) || !Number.isFinite(max) || max <= 0) {
+    errors.push(`Maximum trade limit must be a positive number greater than 0, received: ${maxLimit}.`);
+  }
+  if (errors.length === 0 && min > max) {
+    errors.push(`Minimum trade limit (₦${min.toLocaleString()}) cannot exceed maximum trade limit (₦${max.toLocaleString()}).`);
+  }
+
+  if (errors.length > 0) {
+    return { isValid: false, errors, sanitized: null };
+  }
+
+  return {
+    isValid: true,
+    errors: [],
+    sanitized: { minTradeLimitNgn: min, maxTradeLimitNgn: max }
+  };
+}
+
 class Store {
   constructor() {
     this.init();
@@ -299,7 +342,17 @@ class Store {
    *   filterLimits: boolean
    * }}
    */
-   getSettings() {
+  /**
+   * Validate trade limits using the store's validation engine
+   * @param {number|string} minLimit
+   * @param {number|string} maxLimit
+   * @returns {{ isValid: boolean, errors: string[], sanitized: { minTradeLimitNgn: number, maxTradeLimitNgn: number } | null }}
+   */
+  validateTradeLimits(minLimit, maxLimit) {
+    return validateTradeLimits(minLimit, maxLimit);
+  }
+
+  getSettings() {
     const defaults = {
       platformFeePct: 0.3,
       inflowFee: 50,
@@ -309,9 +362,26 @@ class Store {
       pricingMode: 'avg-10',
       depthLimit: 50,
       filterLimits: true,
-      maxFeeDragPct: 20
+      maxFeeDragPct: 20,
+      minTradeLimitNgn: 15000,
+      maxTradeLimitNgn: 40000
     };
     const saved = this.getItem(STORAGE_KEYS.SETTINGS, {});
+
+    // Validate saved trade limits if present, falling back to defaults if missing, invalid, or inverted
+    let minTradeLimitNgn = defaults.minTradeLimitNgn;
+    let maxTradeLimitNgn = defaults.maxTradeLimitNgn;
+
+    if (saved.minTradeLimitNgn !== undefined || saved.maxTradeLimitNgn !== undefined) {
+      const candidateMin = saved.minTradeLimitNgn !== undefined ? saved.minTradeLimitNgn : defaults.minTradeLimitNgn;
+      const candidateMax = saved.maxTradeLimitNgn !== undefined ? saved.maxTradeLimitNgn : defaults.maxTradeLimitNgn;
+      const validation = validateTradeLimits(candidateMin, candidateMax);
+      if (validation.isValid && validation.sanitized) {
+        minTradeLimitNgn = validation.sanitized.minTradeLimitNgn;
+        maxTradeLimitNgn = validation.sanitized.maxTradeLimitNgn;
+      }
+    }
+
     return {
       platformFeePct: saved.platformFeePct !== undefined ? Number(saved.platformFeePct) : defaults.platformFeePct,
       inflowFee: saved.inflowFee !== undefined ? Number(saved.inflowFee) : defaults.inflowFee,
@@ -322,7 +392,9 @@ class Store {
       depthLimit: saved.depthLimit !== undefined ? Number(saved.depthLimit) : defaults.depthLimit,
       filterLimits: saved.filterLimits !== undefined ? Boolean(saved.filterLimits) : defaults.filterLimits,
       maxFeeDragPct: saved.maxFeeDragPct !== undefined ? Number(saved.maxFeeDragPct) : defaults.maxFeeDragPct,
-      ...saved
+      ...saved,
+      minTradeLimitNgn,
+      maxTradeLimitNgn
     };
   }
 
@@ -333,9 +405,22 @@ class Store {
    */
   saveSettings(settings = {}) {
     const current = this.getSettings();
+
+    // Determine target trade limits
+    const targetMin = settings.minTradeLimitNgn !== undefined ? settings.minTradeLimitNgn : current.minTradeLimitNgn;
+    const targetMax = settings.maxTradeLimitNgn !== undefined ? settings.maxTradeLimitNgn : current.maxTradeLimitNgn;
+
+    // Validate trade limits
+    const limitValidation = this.validateTradeLimits(targetMin, targetMax);
+    if (!limitValidation.isValid) {
+      throw new Error(`[Store] Invalid trade limits: ${limitValidation.errors.join(' ')}`);
+    }
+
     const updated = {
       ...current,
-      ...settings
+      ...settings,
+      minTradeLimitNgn: limitValidation.sanitized.minTradeLimitNgn,
+      maxTradeLimitNgn: limitValidation.sanitized.maxTradeLimitNgn
     };
     this.saveItem(STORAGE_KEYS.SETTINGS, updated);
     this.notify('settings', updated);

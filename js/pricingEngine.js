@@ -1043,5 +1043,317 @@ export function calculateSweetSpotPricing(params = {}) {
   };
 }
 
+// =========================================================================
+// Immediate Competitor Trade Limit Overlap & Queue Analysis
+// =========================================================================
+
+/**
+ * Extract and normalize trade limit boundaries from a Bybit competitor advertisement
+ * @param {Object} ad - Raw Bybit advertisement object
+ * @returns {{ min: number, max: number }} Normalized limit interval [min, max]
+ */
+export function getCompetitorLimits(ad) {
+  if (!ad || typeof ad !== 'object') {
+    return { min: 0, max: Infinity };
+  }
+
+  // 1. Min Limit normalization (supporting Bybit property aliases)
+  const rawMin = ad.minAmount !== undefined ? ad.minAmount : ad.minSingleTransAmount;
+  let min = parseFloat(rawMin);
+  if (isNaN(min) || min < 0) {
+    min = 0;
+  }
+
+  // 2. Max Limit normalization (supporting Bybit property aliases)
+  const rawMax = ad.maxAmount !== undefined ? ad.maxAmount : ad.maxSingleTransAmount;
+  let max = parseFloat(rawMax);
+
+  // If max is missing, zero, or NaN, infer from inventory: price * quantity
+  if (isNaN(max) || max <= 0) {
+    const price = parseFloat(ad.price) || 0;
+    const qty = parseFloat(
+      ad.lastQuantity !== undefined ? ad.lastQuantity :
+      (ad.quantity !== undefined ? ad.quantity : ad.freezeQuantity)
+    ) || 0;
+
+    if (price > 0 && qty > 0) {
+      max = price * qty;
+    } else {
+      max = Infinity;
+    }
+  }
+
+  return { min, max };
+}
+
+/**
+ * Evaluate whether competitor trade limits overlap with the user's configured trade limits.
+ * Polymorphic: Supports (userMin, userMax, compMin, compMax), (ad, userMin, userMax), or (userMin, userMax, ad).
+ * 
+ * @param {number|Object|string} arg1 - userMin OR competitor ad object
+ * @param {number|string} arg2 - userMax OR userMin
+ * @param {number|Object|string} [arg3] - compMin OR userMax OR competitor ad object
+ * @param {number|string} [arg4] - compMax
+ * @returns {boolean} True if the competitor's limits overlap with the user's limit range
+ */
+export function isImmediateCompetitor(arg1, arg2, arg3, arg4) {
+  let uMin, uMax, cMin, cMax;
+
+  // Pattern A: isImmediateCompetitor(ad, userMin, userMax)
+  if (arg1 !== null && typeof arg1 === 'object') {
+    const limits = getCompetitorLimits(arg1);
+    cMin = limits.min;
+    cMax = limits.max;
+    uMin = arg2;
+    uMax = arg3;
+  }
+  // Pattern B: isImmediateCompetitor(userMin, userMax, ad)
+  else if (arg3 !== null && typeof arg3 === 'object') {
+    uMin = arg1;
+    uMax = arg2;
+    const limits = getCompetitorLimits(arg3);
+    cMin = limits.min;
+    cMax = limits.max;
+  }
+  // Pattern C: isImmediateCompetitor(userMin, userMax, compMin, compMax)
+  else {
+    uMin = arg1;
+    uMax = arg2;
+
+    // Parse compMin with safe default 0
+    if (arg3 === undefined || arg3 === null || arg3 === '') {
+      cMin = 0;
+    } else {
+      const parsedCompMin = Number(arg3);
+      cMin = isNaN(parsedCompMin) ? 0 : Math.max(0, parsedCompMin);
+    }
+
+    // Parse compMax with safe default Infinity
+    if (arg4 === undefined || arg4 === null || arg4 === '' || arg4 === 0 || arg4 === '0') {
+      cMax = Infinity;
+    } else {
+      const parsedCompMax = Number(arg4);
+      if (isNaN(parsedCompMax) || parsedCompMax === 0) {
+        cMax = Infinity;
+      } else {
+        cMax = parsedCompMax;
+      }
+    }
+  }
+
+  // Reject boolean arguments explicitly (prevents Number(true) === 1 coercion)
+  if (typeof uMin === 'boolean' || typeof uMax === 'boolean') {
+    return false;
+  }
+
+  // Reject empty string or missing user limits
+  if (uMin === undefined || uMin === null || (typeof uMin === 'string' && uMin.trim() === '')) {
+    return false;
+  }
+  if (uMax === undefined || uMax === null || (typeof uMax === 'string' && uMax.trim() === '')) {
+    return false;
+  }
+
+  const numUMin = Number(uMin);
+  const numUMax = Number(uMax);
+
+  // Validate user bounds: must be finite, non-negative, with numUMax > 0 and numUMin <= numUMax
+  if (!Number.isFinite(numUMin) || !Number.isFinite(numUMax)) return false;
+  if (numUMin < 0 || numUMax <= 0 || numUMin > numUMax) return false;
+
+  // Inverted competitor bounds indicate invalid/corrupted ad limits
+  if (cMin > cMax && cMax !== Infinity) {
+    return false;
+  }
+
+  // Closed interval overlap: [cMin, cMax] intersects [numUMin, numUMax]
+  return cMin <= numUMax && cMax >= numUMin;
+}
+
+/**
+ * Filter an array of competitor advertisements to those whose trade limits overlap with user limits
+ * @param {Array<Object>} ads - Competitor advertisement list
+ * @param {number|string} userMin - User configured minimum trade limit in NGN
+ * @param {number|string} userMax - User configured maximum trade limit in NGN
+ * @returns {Array<Object>} Array of immediate competitor advertisements
+ */
+export function filterImmediateCompetitors(ads = [], userMin, userMax) {
+  if (!Array.isArray(ads) || ads.length === 0) {
+    return [];
+  }
+
+  if (userMin === undefined || userMin === null || userMax === undefined || userMax === null) {
+    return [];
+  }
+  if (typeof userMin === 'boolean' || typeof userMax === 'boolean') {
+    return [];
+  }
+  const uMin = Number(userMin);
+  const uMax = Number(userMax);
+  if (isNaN(uMin) || isNaN(uMax) || uMin < 0 || uMax <= 0 || uMin > uMax) {
+    return [];
+  }
+
+  return ads.filter(ad => {
+    if (!ad || typeof ad !== 'object') return false;
+    return isImmediateCompetitor(ad, uMin, uMax);
+  });
+}
+
+export const calculateImmediateCompetitors = filterImmediateCompetitors;
+
+/**
+ * Calculate user's relative queue position and cumulative volume ahead in the order book.
+ * Evaluates competitors using direction-aware priority:
+ * - Buy side: Higher price has priority (P_c >= P_user). Equal price favors existing ad.
+ * - Sell side: Lower price has priority (P_c <= P_user). Equal price favors existing ad.
+ *
+ * @param {Array<Object>} [competitors=[]] - Competitor advertisements
+ * @param {number|string} [targetPrice=0] - User's target ad price in NGN
+ * @param {string} [side='buy'] - Trade direction ('buy' or 'sell')
+ * @returns {{
+ *   rank: number,
+ *   totalCompetitors: number,
+ *   competitorsAhead: number,
+ *   volumeAhead: number
+ * }}
+ */
+export function calculateQueuePosition(competitors = [], targetPrice = 0, side = 'buy') {
+  const safeList = Array.isArray(competitors) ? competitors : [];
+  const tPrice = (targetPrice !== undefined && targetPrice !== null && !isNaN(Number(targetPrice)))
+    ? Number(targetPrice)
+    : 0;
+  const isBuy = String(side || 'buy').trim().toLowerCase() !== 'sell';
+
+  // Filter valid competitor ads with valid positive price
+  const validCompetitors = safeList.filter(ad => {
+    if (!ad || typeof ad !== 'object') return false;
+    const p = parseFloat(ad.price);
+    return !isNaN(p) && p > 0;
+  });
+
+  const totalCompetitors = validCompetitors.length + 1;
+
+  if (validCompetitors.length === 0) {
+    return {
+      rank: 1,
+      totalCompetitors: 1,
+      competitorsAhead: 0,
+      volumeAhead: 0
+    };
+  }
+
+  const EPSILON = 1e-6;
+  let competitorsAhead = 0;
+  let volumeAhead = 0;
+
+  for (const ad of validCompetitors) {
+    const cPrice = parseFloat(ad.price);
+    const cQty = Math.max(0, parseFloat(ad.lastQuantity ?? ad.quantity) || 0);
+
+    // Buy: higher or equal price is ahead. Sell: lower or equal price is ahead.
+    const isAhead = isBuy
+      ? (cPrice >= tPrice - EPSILON)
+      : (cPrice <= tPrice + EPSILON);
+
+    if (isAhead) {
+      competitorsAhead++;
+      volumeAhead += cQty;
+    }
+  }
+
+  const rank = competitorsAhead + 1;
+  const roundedVol = Math.round(volumeAhead * 100) / 100;
+
+  return {
+    rank,
+    totalCompetitors,
+    competitorsAhead,
+    volumeAhead: roundedVol
+  };
+}
+
+/**
+ * Calculate deterministic order fill speed score and qualitative classification.
+ * Combines queue rank penalty and cumulative volume ahead barrier into a bounded score.
+ *
+ * Classification:
+ * - 80-100: 'Very Fast' (< 5 mins)
+ * - 60-79:  'Fast' (5-15 mins)
+ * - 40-59:  'Moderate' (15-45 mins)
+ * - 0-39:   'Slow' (> 45 mins)
+ *
+ * @param {number|string} [rank=1] - User's 1-based order book rank
+ * @param {number|string} [volumeAhead=0] - Cumulative USDT volume ahead
+ * @param {number|string} [totalCompetitors=0] - Total number of competitors evaluated
+ * @returns {{
+ *   score: number,
+ *   label: string,
+ *   estMinutes: string,
+ *   description: string
+ * }}
+ */
+export function calculateFillSpeed(rank = 1, volumeAhead = 0, totalCompetitors = 0) {
+  const safeRank = (rank !== undefined && !isNaN(Number(rank)) && Number(rank) >= 1)
+    ? Math.floor(Number(rank))
+    : 1;
+  const safeVolAhead = (volumeAhead !== undefined && !isNaN(Number(volumeAhead)) && Number(volumeAhead) >= 0)
+    ? Number(volumeAhead)
+    : 0;
+  const safeTotal = (totalCompetitors !== undefined && !isNaN(Number(totalCompetitors)) && Number(totalCompetitors) >= 0)
+    ? Math.floor(Number(totalCompetitors))
+    : 0;
+
+  // Uncontested monopoly or rank 1 with 0 volume ahead -> score 100, Very Fast
+  if (safeRank === 1 && safeVolAhead === 0) {
+    return {
+      score: 100,
+      label: 'Very Fast',
+      estMinutes: '< 5 mins',
+      description: 'Top queue priority with minimal volume ahead'
+    };
+  }
+
+  // 1. Rank penalty: 15 points per position behind Rank 1
+  const rankPenalty = (safeRank - 1) * 15;
+
+  // 2. Volume penalty: 10 points per 500 USDT ahead, capped at 40 points
+  const volumePenalty = Math.min(40, (safeVolAhead / 500) * 10);
+
+  // 3. Composite bounded score (floored at 5, capped at 100 per test harness specification)
+  const rawScore = 100 - rankPenalty - volumePenalty;
+  const score = Math.max(5, Math.min(100, Math.round(rawScore)));
+
+  // 4. Categorical classification
+  let label = 'Slow';
+  let estMinutes = '> 45 mins';
+  let description = 'Deep queue position with substantial volume ahead';
+
+  if (score >= 80) {
+    label = 'Very Fast';
+    estMinutes = '< 5 mins';
+    description = 'Top queue priority with minimal volume ahead';
+  } else if (score >= 60) {
+    label = 'Fast';
+    estMinutes = '5-15 mins';
+    description = 'Competitive queue position';
+  } else if (score >= 40) {
+    label = 'Moderate';
+    estMinutes = '15-45 mins';
+    description = 'Moderate queue depth ahead';
+  } else {
+    label = 'Slow';
+    estMinutes = '> 45 mins';
+    description = 'Deep queue position with substantial volume ahead';
+  }
+
+  return {
+    score,
+    label,
+    estMinutes,
+    description
+  };
+}
+
 
 

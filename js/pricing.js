@@ -13,7 +13,12 @@ import {
   calculateSellPricing,
   calculateRecommendedLimits,
   calculateBuybackTiers,
-  calculateSweetSpotPricing
+  calculateSweetSpotPricing,
+  getCompetitorLimits,
+  isImmediateCompetitor,
+  filterImmediateCompetitors,
+  calculateQueuePosition,
+  calculateFillSpeed
 } from './pricingEngine.js';
 
 // Cache for market depth to allow local calculation runs without API spam
@@ -22,6 +27,8 @@ let cachedMarketDepth = null;
 export function initPricing() {
   loadSavedSettings();
   setupListeners();
+  initAdModificationControls();
+  checkBybitCapability();
   refreshPricingData();
 
   // Listen for store modifications to update cost-basis dynamically
@@ -33,6 +40,73 @@ export function initPricing() {
       calculateMargins();
     }
   });
+}
+
+/**
+ * Validate trade limit input fields, apply .is-invalid styling, and update error container
+ * @returns {{ isValid: boolean, min: number, max: number, error: string|null }}
+ */
+export function validateAndDisplayTradeLimits() {
+  const elMin = document.getElementById('input-user-min-limit') || document.getElementById('input-min-trade-limit');
+  const elMax = document.getElementById('input-user-max-limit') || document.getElementById('input-max-trade-limit');
+  const elErr = document.getElementById('trade-limits-error');
+  const elErrText = document.getElementById('trade-limits-error-text');
+
+  if (!elMin || !elMax) {
+    return { isValid: true, min: 15000, max: 40000, error: null };
+  }
+
+  const rawMin = elMin.value !== undefined ? String(elMin.value).replace(/[,\s]/g, '').trim() : '';
+  const rawMax = elMax.value !== undefined ? String(elMax.value).replace(/[,\s]/g, '').trim() : '';
+  const min = Number(rawMin);
+  const max = Number(rawMax);
+
+  let error = null;
+  let minInvalid = false;
+  let maxInvalid = false;
+
+  if (rawMin === '' || isNaN(min) || !Number.isFinite(min) || min <= 0) {
+    error = 'Minimum trade limit must be a positive number greater than 0';
+    minInvalid = true;
+  } else if (rawMax === '' || isNaN(max) || !Number.isFinite(max) || max <= 0) {
+    error = 'Maximum trade limit must be a positive number greater than 0';
+    maxInvalid = true;
+  } else if (min > max) {
+    error = 'Minimum trade limit cannot exceed maximum limit';
+    minInvalid = true;
+    maxInvalid = true;
+  }
+
+  if (minInvalid) {
+    elMin.classList.add('is-invalid');
+  } else {
+    elMin.classList.remove('is-invalid');
+  }
+
+  if (maxInvalid) {
+    elMax.classList.add('is-invalid');
+  } else {
+    elMax.classList.remove('is-invalid');
+  }
+
+  if (error) {
+    if (elErr) {
+      elErr.style.display = 'block';
+      if (elErrText) {
+        elErrText.textContent = error;
+      } else {
+        elErr.textContent = error;
+      }
+    }
+    return { isValid: false, min, max, error };
+  } else {
+    if (elErr) {
+      elErr.style.display = 'none';
+      if (elErrText) elErrText.textContent = '';
+      else elErr.textContent = '';
+    }
+    return { isValid: true, min, max, error: null };
+  }
 }
 
 /**
@@ -63,6 +137,29 @@ function loadSavedSettings() {
 
   // Sweet Spot Profit Target (primary input)
   const profitTarget = localStorage.getItem('bybit_p2p_profit_target') || bbProfitSpread || '7.0';
+
+  // Retrieve trade limit settings from store or localStorage
+  const defaultMin = (storeSettings.minTradeLimitNgn !== undefined && !isNaN(Number(storeSettings.minTradeLimitNgn)) && Number(storeSettings.minTradeLimitNgn) > 0)
+    ? String(storeSettings.minTradeLimitNgn)
+    : '15000';
+  const defaultMax = (storeSettings.maxTradeLimitNgn !== undefined && !isNaN(Number(storeSettings.maxTradeLimitNgn)) && Number(storeSettings.maxTradeLimitNgn) >= Number(defaultMin))
+    ? String(storeSettings.maxTradeLimitNgn)
+    : '40000';
+
+  const userMin = localStorage.getItem('bybit_p2p_user_min_limit')
+    || localStorage.getItem('bybit_p2p_pricing_min_limit')
+    || defaultMin;
+  const userMax = localStorage.getItem('bybit_p2p_user_max_limit')
+    || localStorage.getItem('bybit_p2p_pricing_max_limit')
+    || defaultMax;
+
+  const elMinLimit = document.getElementById('input-user-min-limit') || document.getElementById('input-min-trade-limit');
+  const elMaxLimit = document.getElementById('input-user-max-limit') || document.getElementById('input-max-trade-limit');
+
+  if (elMinLimit && document.activeElement !== elMinLimit) elMinLimit.value = userMin;
+  if (elMaxLimit && document.activeElement !== elMaxLimit) elMaxLimit.value = userMax;
+
+  validateAndDisplayTradeLimits();
 
   const elPlatformFee = document.getElementById('input-platform-fee-pct') || document.getElementById('input-platform-fee');
   const elSpread = document.getElementById('input-target-spread');
@@ -179,23 +276,43 @@ function saveSettings() {
     if (elBbPS && document.activeElement !== elBbPS) elBbPS.value = elProfitTarget.value;
   }
 
+  // Validate and persist trade limits
+  const limitCheck = validateAndDisplayTradeLimits();
+  if (limitCheck.isValid) {
+    const minStr = String(limitCheck.min);
+    const maxStr = String(limitCheck.max);
+    localStorage.setItem('bybit_p2p_user_min_limit', minStr);
+    localStorage.setItem('bybit_p2p_user_max_limit', maxStr);
+    localStorage.setItem('bybit_p2p_pricing_min_limit', minStr);
+    localStorage.setItem('bybit_p2p_pricing_max_limit', maxStr);
+  }
+
   const maxFeeDragRaw = elMaxFeeDrag ? elMaxFeeDrag.value.trim() : '';
   const parsedFeeDrag = parseInt(maxFeeDragRaw, 10);
   const currentSettings = store.getSettings ? store.getSettings() : {};
   const maxFeeDragVal = !isNaN(parsedFeeDrag) ? parsedFeeDrag : (currentSettings.maxFeeDragPct || 20);
 
   if (store.saveSettings) {
-    store.saveSettings({
-      platformFeePct: parseFloat(platformFeeVal) || 0.3,
-      targetSpread: elSpread && elSpread.value !== '' ? parseFloat(elSpread.value) || 5.0 : 5.0,
-      avgVolume: elVol && elVol.value !== '' ? parseFloat(elVol.value) || 100.0 : 100.0,
-      inflowFee: elInflow && elInflow.value !== '' ? parseFloat(elInflow.value) || 50.0 : 50.0,
-      outflowFee: elOutflow && elOutflow.value !== '' ? (parseFloat(elOutflow.value) || 0) : 0,
-      pricingMode: elMode ? elMode.value : 'avg-10',
-      depthLimit: elDepthLimit && elDepthLimit.value !== '' ? parseInt(elDepthLimit.value, 10) || 50 : 50,
-      filterLimits: elFilterLimits ? elFilterLimits.checked : true,
-      maxFeeDragPct: maxFeeDragVal
-    });
+    try {
+      const payload = {
+        platformFeePct: parseFloat(platformFeeVal) || 0.3,
+        targetSpread: elSpread && elSpread.value !== '' ? parseFloat(elSpread.value) || 5.0 : 5.0,
+        avgVolume: elVol && elVol.value !== '' ? parseFloat(elVol.value) || 100.0 : 100.0,
+        inflowFee: elInflow && elInflow.value !== '' ? parseFloat(elInflow.value) || 50.0 : 50.0,
+        outflowFee: elOutflow && elOutflow.value !== '' ? (parseFloat(elOutflow.value) || 0) : 0,
+        pricingMode: elMode ? elMode.value : 'avg-10',
+        depthLimit: elDepthLimit && elDepthLimit.value !== '' ? parseInt(elDepthLimit.value, 10) || 50 : 50,
+        filterLimits: elFilterLimits ? elFilterLimits.checked : true,
+        maxFeeDragPct: maxFeeDragVal
+      };
+      if (limitCheck.isValid) {
+        payload.minTradeLimitNgn = limitCheck.min;
+        payload.maxTradeLimitNgn = limitCheck.max;
+      }
+      store.saveSettings(payload);
+    } catch (e) {
+      console.warn('[Pricing] store.saveSettings validation warning:', e.message);
+    }
   }
 }
 
@@ -205,6 +322,10 @@ function saveSettings() {
 function setupListeners() {
   const inputs = [
     'input-profit-target',
+    'input-user-min-limit',
+    'input-user-max-limit',
+    'input-min-trade-limit',
+    'input-max-trade-limit',
     'input-platform-fee-pct',
     'input-platform-fee',
     'input-target-spread',
@@ -325,6 +446,8 @@ export function resetBuybackSession() {
  * Build dynamic pricing suggestions combining local FIFO state & public ad depth
  */
 export function calculateMargins() {
+  const storeSettings = store.getSettings ? store.getSettings() : {};
+
   // Retrieve user settings values
   const elPlatformFee = document.getElementById('input-platform-fee-pct') || document.getElementById('input-platform-fee');
   let platformFeePct = 0;
@@ -841,6 +964,110 @@ export function calculateMargins() {
     }).join('');
   }
 
+  // -------------------------------------------------------------
+  // G. IMMEDIATE COMPETITOR, QUEUE POSITION & FILL SPEED ANALYSIS
+  // -------------------------------------------------------------
+  const elMinLimit = document.getElementById('input-user-min-limit') || document.getElementById('input-min-trade-limit');
+  const elMaxLimit = document.getElementById('input-user-max-limit') || document.getElementById('input-max-trade-limit');
+  const userMin = elMinLimit && !isNaN(Number(elMinLimit.value)) && Number(elMinLimit.value) > 0
+    ? Number(elMinLimit.value)
+    : (Number(storeSettings.minTradeLimitNgn) || 15000);
+  const userMax = elMaxLimit && !isNaN(Number(elMaxLimit.value)) && Number(elMaxLimit.value) >= userMin
+    ? Number(elMaxLimit.value)
+    : (Number(storeSettings.maxTradeLimitNgn) || 40000);
+
+  const immediateBuyCompetitors = filterImmediateCompetitors(sortedBuyAds, userMin, userMax);
+  const immediateSellCompetitors = filterImmediateCompetitors(sortedSellAds, userMin, userMax);
+
+  const targetBuyPrice = sweetSpotResult.buySweetSpot > 0 ? sweetSpotResult.buySweetSpot : buyAnalysis.suggestedBuy;
+  const targetSellPrice = sweetSpotResult.sellSweetSpot > 0 ? sweetSpotResult.sellSweetSpot : sellAnalysis.suggestedSell;
+
+  const buyQueue = calculateQueuePosition(immediateBuyCompetitors, targetBuyPrice, 'buy');
+  const sellQueue = calculateQueuePosition(immediateSellCompetitors, targetSellPrice, 'sell');
+
+  const buyFillSpeed = calculateFillSpeed(buyQueue.rank, buyQueue.volumeAhead, buyQueue.totalCompetitors);
+  const sellFillSpeed = calculateFillSpeed(sellQueue.rank, sellQueue.volumeAhead, sellQueue.totalCompetitors);
+
+  // Update Sweet Spot Card Queue Rank Badges
+  if (elSweetBuyRankBadge) {
+    elSweetBuyRankBadge.textContent = buyQueue.totalCompetitors === 1 ? 'Monopoly (100% Priority)' : `Rank #${buyQueue.rank} of ${buyQueue.totalCompetitors}`;
+    elSweetBuyRankBadge.className = buyQueue.rank === 1 ? 'badge badge-success tiny' : 'badge badge-primary tiny';
+  }
+  if (elSweetSellRankBadge) {
+    elSweetSellRankBadge.textContent = sellQueue.totalCompetitors === 1 ? 'Monopoly (100% Priority)' : `Rank #${sellQueue.rank} of ${sellQueue.totalCompetitors}`;
+    elSweetSellRankBadge.className = sellQueue.rank === 1 ? 'badge badge-success tiny' : 'badge badge-primary tiny';
+  }
+
+  // Update Dedicated Queue Position Elements in Sweet Spot Cards
+  const elBuyQueueRank = document.getElementById('pricing-buy-queue-rank');
+  const elBuyVolAhead = document.getElementById('pricing-buy-volume-ahead');
+  const elBuyImmCount = document.getElementById('pricing-buy-imm-count');
+  if (elBuyQueueRank) elBuyQueueRank.textContent = buyQueue.totalCompetitors === 1 ? 'Rank #1 of 1 (Monopoly)' : `Rank #${buyQueue.rank} of ${buyQueue.totalCompetitors}`;
+  if (elBuyVolAhead) elBuyVolAhead.textContent = `Ahead: ${buyQueue.volumeAhead.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} USDT`;
+  if (elBuyImmCount) elBuyImmCount.textContent = `${immediateBuyCompetitors.length} Immediate Competitor${immediateBuyCompetitors.length === 1 ? '' : 's'}`;
+
+  const elSellQueueRank = document.getElementById('pricing-sell-queue-rank');
+  const elSellVolAhead = document.getElementById('pricing-sell-volume-ahead');
+  const elSellImmCount = document.getElementById('pricing-sell-imm-count');
+  if (elSellQueueRank) elSellQueueRank.textContent = sellQueue.totalCompetitors === 1 ? 'Rank #1 of 1 (Monopoly)' : `Rank #${sellQueue.rank} of ${sellQueue.totalCompetitors}`;
+  if (elSellVolAhead) elSellVolAhead.textContent = `Ahead: ${sellQueue.volumeAhead.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} USDT`;
+  if (elSellImmCount) elSellImmCount.textContent = `${immediateSellCompetitors.length} Immediate Competitor${immediateSellCompetitors.length === 1 ? '' : 's'}`;
+
+  // Update Fill Speed Card (#card-fill-speed-analysis)
+  const updateFillSpeedUI = (side, speed, queue) => {
+    const elLabel = document.getElementById(`fill-speed-${side}-label`);
+    const elMinutes = document.getElementById(`fill-speed-${side}-minutes`);
+    const elEstTime = document.getElementById(`fill-speed-${side}-est-time`);
+    const elScore = document.getElementById(`fill-speed-${side}-score-text`);
+    const elProgress = document.getElementById(`fill-speed-${side}-progress`);
+    const elProgressBar = document.getElementById(`fill-speed-${side}-progress-bar`);
+    const elDesc = document.getElementById(`fill-speed-${side}-description`);
+    const elQueueSummary = document.getElementById(`fill-speed-${side}-queue-summary`);
+    const elVolumeSummary = document.getElementById(`fill-speed-${side}-volume-summary`);
+
+    const badgeClass = speed.label === 'Very Fast' ? 'badge badge-success'
+      : speed.label === 'Fast' ? 'badge badge-primary'
+      : speed.label === 'Moderate' ? 'badge badge-warning'
+      : 'badge badge-danger';
+    const barClass = speed.score >= 80 ? 'progress-bar bg-success'
+      : speed.score >= 60 ? 'progress-bar bg-primary'
+      : speed.score >= 40 ? 'progress-bar bg-warning'
+      : 'progress-bar bg-danger';
+
+    if (elLabel) {
+      elLabel.textContent = speed.label;
+      elLabel.className = `${badgeClass} font-mono`;
+    }
+    if (elMinutes) {
+      if (elEstTime) {
+        elEstTime.textContent = speed.estMinutes;
+      } else {
+        elMinutes.textContent = speed.estMinutes;
+      }
+    }
+    if (elEstTime) elEstTime.textContent = speed.estMinutes;
+    if (elScore) elScore.textContent = `Score: ${speed.score}/100`;
+    if (elProgress) {
+      elProgress.style.width = `${speed.score}%`;
+      elProgress.className = barClass;
+    }
+    if (elProgressBar) {
+      elProgressBar.style.width = `${speed.score}%`;
+      elProgressBar.className = barClass;
+    }
+    if (elDesc) elDesc.textContent = speed.description;
+    if (elQueueSummary) elQueueSummary.textContent = `Queue Rank: #${queue.rank} of ${queue.totalCompetitors}`;
+    if (elVolumeSummary) elVolumeSummary.textContent = `${queue.volumeAhead.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} USDT ahead`;
+  };
+
+  updateFillSpeedUI('buy', buyFillSpeed, buyQueue);
+  updateFillSpeedUI('sell', sellFillSpeed, sellQueue);
+
+  // Re-render order books reactively with updated user limits
+  if (cachedMarketDepth) {
+    renderOrderBooks(cachedMarketDepth, userMin, userMax);
+  }
+
   if (window.lucide) window.lucide.createIcons();
 
   return {
@@ -849,7 +1076,12 @@ export function calculateMargins() {
     buyLimits,
     sellLimits,
     buybackAnalysis,
-    sweetSpotResult
+    sweetSpotResult,
+    userLimits: { minTradeLimitNgn: userMin, maxTradeLimitNgn: userMax },
+    buyQueue,
+    sellQueue,
+    buyFillSpeed,
+    sellFillSpeed
   };
 }
 
@@ -858,13 +1090,20 @@ export const calculatePricing = calculateMargins;
 
 /**
  * Render P2P market depth items in tabular forms
+ * @param {Object} depth
+ * @param {number} [uMinParam]
+ * @param {number} [uMaxParam]
  */
-function renderOrderBooks(depth) {
+export function renderOrderBooks(depth, uMinParam, uMaxParam) {
   const buyTbody = document.querySelector('#pricing-buy-orderbook tbody');
   const sellTbody = document.querySelector('#pricing-sell-orderbook tbody');
 
-  const buyItems = depth.buyDepth || [];
-  const sellItems = depth.sellDepth || [];
+  const storeSettings = store.getSettings ? store.getSettings() : {};
+  const userMin = uMinParam !== undefined ? Number(uMinParam) : (Number(storeSettings.minTradeLimitNgn) || 15000);
+  const userMax = uMaxParam !== undefined ? Number(uMaxParam) : (Number(storeSettings.maxTradeLimitNgn) || 40000);
+
+  const buyItems = depth?.buyDepth || [];
+  const sellItems = depth?.sellDepth || [];
 
   // Sort copy: Buy descending (highest first), Sell ascending (lowest first)
   const sortedBuyItems = [...buyItems].sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
@@ -881,27 +1120,32 @@ function renderOrderBooks(depth) {
       buyTbody.innerHTML = displayBuyItems.map((ad, idx) => {
         const price = parseFloat(ad.price) || 0;
         const available = parseFloat(ad.lastQuantity) || 0;
-        const minLmt = parseFloat(ad.minAmount || ad.minSingleTransAmount) || 0;
-        const maxLmt = parseFloat(ad.maxAmount || ad.maxSingleTransAmount) || 0;
+        const { min: minLmt, max: maxLmt } = getCompetitorLimits(ad);
         const advName = ad.nickName || ad.memberName || ad.userId || 'Advertiser';
 
+        const isImm = isImmediateCompetitor(ad, userMin, userMax);
         const isSweetSpot = idx >= 2 && idx <= 4;
-        const rowClass = isSweetSpot
-          ? 'orderbook-row orderbook-row-sweetspot cursor-pointer'
-          : 'orderbook-row cursor-pointer';
-        const sweetBadge = isSweetSpot ? ` <span class="badge badge-primary tiny">Rank #${idx + 1}</span>` : '';
+        const sweetClass = isSweetSpot ? 'orderbook-row-sweetspot' : '';
+        const immClass = isImm ? 'immediate-competitor' : 'regular-competitor';
+        const rowClass = `orderbook-row cursor-pointer ${sweetClass} ${immClass}`.trim();
 
-        const limitStr = (minLmt > 0 || maxLmt > 0)
-          ? `Lmt: ₦${minLmt.toLocaleString(undefined, { maximumFractionDigits: 0 })} - ₦${maxLmt.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-          : 'Lmt: No Limit';
+        const sweetBadge = isSweetSpot ? ` <span class="badge badge-primary tiny">Rank #${idx + 1}</span>` : '';
+        const immBadge = isImm ? ` <span class="badge badge-warning tiny badge-immediate-competitor" title="Immediate Competitor">Immediate</span>` : '';
+
+        let limitStr = 'Lmt: No Limit';
+        if (minLmt > 0 || Number.isFinite(maxLmt)) {
+          const minFormatted = `₦${Math.round(minLmt).toLocaleString('en-NG')}`;
+          const maxFormatted = Number.isFinite(maxLmt) ? `₦${Math.round(maxLmt).toLocaleString('en-NG')}` : '∞';
+          limitStr = `Lmt: ${minFormatted} - ${maxFormatted}`;
+        }
 
         return `
           <tr class="${rowClass}" data-direction="SELL" data-rate="${price}" data-volume="${available}" data-counterparty="${escapeHtml(advName)}" title="Tap to record Sell trade at ₦${price}">
             <td>
-              <div class="fw-semibold truncate" style="max-width: 120px;" title="${escapeHtml(advName)}">
-                ${idx + 1}. ${escapeHtml(advName)}${sweetBadge}
+              <div class="fw-semibold truncate" style="max-width: 140px;" title="${escapeHtml(advName)}">
+                <span>${idx + 1}. ${escapeHtml(advName)}</span>${sweetBadge}${immBadge}
               </div>
-              <div class="text-muted tiny">${limitStr}</div>
+              <div class="text-muted tiny competitor-limits">${limitStr}</div>
             </td>
             <td class="font-mono fw-bold text-success">
               ₦${price.toLocaleString('en-NG', { minimumFractionDigits: 2 })}
@@ -922,27 +1166,32 @@ function renderOrderBooks(depth) {
       sellTbody.innerHTML = displaySellItems.map((ad, idx) => {
         const price = parseFloat(ad.price) || 0;
         const available = parseFloat(ad.lastQuantity) || 0;
-        const minLmt = parseFloat(ad.minAmount || ad.minSingleTransAmount) || 0;
-        const maxLmt = parseFloat(ad.maxAmount || ad.maxSingleTransAmount) || 0;
+        const { min: minLmt, max: maxLmt } = getCompetitorLimits(ad);
         const advName = ad.nickName || ad.memberName || ad.userId || 'Advertiser';
 
-        const limitStr = (minLmt > 0 || maxLmt > 0)
-          ? `Lmt: ₦${minLmt.toLocaleString(undefined, { maximumFractionDigits: 0 })} - ₦${maxLmt.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-          : 'Lmt: No Limit';
-
+        const isImm = isImmediateCompetitor(ad, userMin, userMax);
         const isSweetSpot = idx >= 2 && idx <= 4;
-        const rowClass = isSweetSpot
-          ? 'orderbook-row orderbook-row-sweetspot-sell cursor-pointer'
-          : 'orderbook-row cursor-pointer';
+        const sweetClass = isSweetSpot ? 'orderbook-row-sweetspot-sell' : '';
+        const immClass = isImm ? 'immediate-competitor' : 'regular-competitor';
+        const rowClass = `orderbook-row cursor-pointer ${sweetClass} ${immClass}`.trim();
+
         const sweetBadge = isSweetSpot ? ` <span class="badge badge-success tiny">Rank #${idx + 1}</span>` : '';
+        const immBadge = isImm ? ` <span class="badge badge-warning tiny badge-immediate-competitor" title="Immediate Competitor">Immediate</span>` : '';
+
+        let limitStr = 'Lmt: No Limit';
+        if (minLmt > 0 || Number.isFinite(maxLmt)) {
+          const minFormatted = `₦${Math.round(minLmt).toLocaleString('en-NG')}`;
+          const maxFormatted = Number.isFinite(maxLmt) ? `₦${Math.round(maxLmt).toLocaleString('en-NG')}` : '∞';
+          limitStr = `Lmt: ${minFormatted} - ${maxFormatted}`;
+        }
 
         return `
           <tr class="${rowClass}" data-direction="BUY" data-rate="${price}" data-volume="${available}" data-counterparty="${escapeHtml(advName)}" title="Tap to record Buy trade at ₦${price}">
             <td>
-              <div class="fw-semibold truncate" style="max-width: 120px;" title="${escapeHtml(advName)}">
-                ${idx + 1}. ${escapeHtml(advName)}${sweetBadge}
+              <div class="fw-semibold truncate" style="max-width: 140px;" title="${escapeHtml(advName)}">
+                <span>${idx + 1}. ${escapeHtml(advName)}</span>${sweetBadge}${immBadge}
               </div>
-              <div class="text-muted tiny">${limitStr}</div>
+              <div class="text-muted tiny competitor-limits">${limitStr}</div>
             </td>
             <td class="font-mono fw-bold text-danger">
               ₦${price.toLocaleString('en-NG', { minimumFractionDigits: 2 })}
@@ -972,4 +1221,276 @@ function renderOrderBooks(depth) {
       }
     });
   });
+}
+
+/**
+ * Check Bybit capability and display banner if restricted
+ */
+export async function checkBybitCapability() {
+  try {
+    if (bybitService && typeof bybitService.checkAdEditCapability === 'function') {
+      const cap = await bybitService.checkAdEditCapability();
+      const statusBanner = document.getElementById('bybit-ad-edit-status');
+      if (!cap.canEditAds && statusBanner) {
+        statusBanner.style.display = 'block';
+        statusBanner.classList.remove('hidden');
+        const msgEl = document.getElementById('bybit-ad-edit-status-message');
+        if (msgEl) {
+          msgEl.textContent = cap.reason || 'Direct ad modification requires Bybit P2P Merchant Advertiser status. Manage ads via Bybit Merchant Portal.';
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[Pricing] Ad edit capability check warning:', e.message);
+  }
+}
+
+/**
+ * Initialize ad modification interactive controls
+ */
+export function initAdModificationControls() {
+  document.getElementById('btn-update-buy-ad')?.addEventListener('click', () => {
+    openAdUpdateModal('buy');
+  });
+
+  document.getElementById('btn-update-sell-ad')?.addEventListener('click', () => {
+    openAdUpdateModal('sell');
+  });
+
+  document.getElementById('btn-close-update-ad-modal')?.addEventListener('click', closeAdUpdateModal);
+  document.getElementById('btn-cancel-update-ad')?.addEventListener('click', closeAdUpdateModal);
+
+  document.getElementById('form-update-ad')?.addEventListener('submit', handleAdUpdateSubmit);
+
+  document.getElementById('btn-copy-ad-fallback')?.addEventListener('click', handleCopyAdFallback);
+  document.getElementById('btn-modal-copy-ad-params')?.addEventListener('click', handleCopyAdModalParams);
+}
+
+/**
+ * Open ad update modal pre-filled with sweet spot price and user limits
+ * @param {'buy'|'sell'} [side='buy']
+ */
+export function openAdUpdateModal(side = 'buy') {
+  const isBuy = side === 'buy';
+  const modalBackdrop = document.getElementById('modal-update-ad-backdrop');
+  if (!modalBackdrop) return;
+
+  // 1. Determine recommended price from sweet spot rate
+  const rateElemId = isBuy ? 'pricing-suggested-buy' : 'pricing-suggested-sell';
+  const rateText = document.getElementById(rateElemId)?.textContent || '';
+  const recommendedPrice = parseFloat(rateText.replace(/[₦,]/g, '').trim()) || 0;
+
+  // 2. Read user trade limits from store settings or inputs
+  const elMinLimit = document.getElementById('input-user-min-limit') || document.getElementById('input-min-trade-limit');
+  const elMaxLimit = document.getElementById('input-user-max-limit') || document.getElementById('input-max-trade-limit');
+  const settings = store.getSettings ? store.getSettings() : {};
+  const userMin = elMinLimit && !isNaN(Number(elMinLimit.value)) && Number(elMinLimit.value) > 0
+    ? Number(elMinLimit.value)
+    : (Number(settings.minTradeLimitNgn) || 15000);
+  const userMax = elMaxLimit && !isNaN(Number(elMaxLimit.value)) && Number(elMaxLimit.value) >= userMin
+    ? Number(elMaxLimit.value)
+    : (Number(settings.maxTradeLimitNgn) || 40000);
+
+  // 3. Populate form fields
+  const elPrice = document.getElementById('input-ad-price');
+  const elMin = document.getElementById('input-ad-min-limit');
+  const elMax = document.getElementById('input-ad-max-limit');
+  const elTargetRate = document.getElementById('modal-target-sweet-spot-rate');
+  const elCurrentRate = document.getElementById('modal-current-ad-rate');
+  const elBadge = document.getElementById('modal-ad-side-badge');
+  const elTitle = document.getElementById('modal-update-ad-title');
+  const elAlert = document.getElementById('modal-ad-edit-alert');
+
+  if (elPrice) elPrice.value = recommendedPrice > 0 ? recommendedPrice.toFixed(2) : '';
+  if (elMin) elMin.value = userMin;
+  if (elMax) elMax.value = userMax;
+  if (elTargetRate) elTargetRate.textContent = recommendedPrice > 0 ? `₦${recommendedPrice.toFixed(2)}` : '—';
+  if (elCurrentRate) elCurrentRate.textContent = '—';
+  if (elBadge) {
+    elBadge.textContent = isBuy ? 'BUY AD' : 'SELL AD';
+    elBadge.className = isBuy ? 'badge badge-primary tiny font-mono' : 'badge badge-success tiny font-mono';
+  }
+  if (elTitle) {
+    elTitle.textContent = `Update Bybit Active ${isBuy ? 'Buy' : 'Sell'} Ad`;
+  }
+  if (elAlert) {
+    elAlert.classList.add('hidden');
+    elAlert.style.display = 'none';
+    elAlert.innerHTML = '';
+  }
+
+  modalBackdrop.style.display = 'flex';
+  modalBackdrop.classList.remove('hidden');
+  if (window.lucide) window.lucide.createIcons();
+}
+
+/**
+ * Close ad update modal
+ */
+export function closeAdUpdateModal() {
+  const modalBackdrop = document.getElementById('modal-update-ad-backdrop');
+  if (modalBackdrop) {
+    modalBackdrop.style.display = 'none';
+    modalBackdrop.classList.add('hidden');
+  }
+}
+
+/**
+ * Handle submission of Bybit advertisement modification form
+ * @param {Event} e
+ */
+export async function handleAdUpdateSubmit(e) {
+  if (e && typeof e.preventDefault === 'function') {
+    e.preventDefault();
+  }
+
+  const adId = document.getElementById('input-ad-id')?.value.trim();
+  const price = parseFloat(document.getElementById('input-ad-price')?.value);
+  const minAmount = parseFloat(document.getElementById('input-ad-min-limit')?.value);
+  const maxAmount = parseFloat(document.getElementById('input-ad-max-limit')?.value);
+  const quantityVal = document.getElementById('input-ad-quantity')?.value.trim();
+  const quantity = quantityVal ? parseFloat(quantityVal) : undefined;
+
+  // Validation
+  if (!adId) {
+    if (window.showToast) window.showToast('Please enter an Advertisement ID', 'error');
+    return;
+  }
+  if (isNaN(price) || price <= 0) {
+    if (window.showToast) window.showToast('Advertisement price must be a positive number', 'error');
+    return;
+  }
+  if (isNaN(minAmount) || isNaN(maxAmount) || minAmount <= 0 || maxAmount <= 0) {
+    if (window.showToast) window.showToast('Trade limits must be positive numbers', 'error');
+    return;
+  }
+  if (minAmount > maxAmount) {
+    if (window.showToast) window.showToast('Minimum trade limit cannot exceed maximum trade limit', 'error');
+    return;
+  }
+
+  const btnSubmit = document.getElementById('btn-submit-update-ad');
+  if (btnSubmit) {
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = '<i data-lucide="loader-2"></i> <span>Updating Bybit...</span>';
+  }
+
+  try {
+    const payload = {
+      id: adId,
+      price,
+      minAmount,
+      maxAmount,
+      actionType: 'MODIFY'
+    };
+    if (quantity !== undefined && !isNaN(quantity) && quantity > 0) {
+      payload.quantity = quantity;
+    }
+
+    const result = await bybitService.updateAd(payload);
+
+    if (result && (result.success || result.retCode === 0)) {
+      if (window.showToast) {
+        window.showToast('Advertisement updated successfully on Bybit!', 'success');
+      }
+      closeAdUpdateModal();
+      refreshPricingData(false);
+    } else if (result && (result.isPermissionDenied || result.retCode === 10005)) {
+      const guidance = result.guidanceMessage || 'Permission denied: Direct ad modification requires Bybit P2P Merchant status.';
+      if (window.showToast) window.showToast(guidance, 'warning');
+
+      const statusBanner = document.getElementById('bybit-ad-edit-status');
+      if (statusBanner) {
+        statusBanner.style.display = 'block';
+        statusBanner.classList.remove('hidden');
+        const msgEl = document.getElementById('bybit-ad-edit-status-message');
+        if (msgEl) msgEl.textContent = guidance;
+      }
+
+      const elAlert = document.getElementById('modal-ad-edit-alert');
+      if (elAlert) {
+        elAlert.style.display = 'block';
+        elAlert.classList.remove('hidden');
+        elAlert.innerHTML = `
+          <div class="d-flex align-items-start gap-2">
+            <i data-lucide="shield-alert" class="flex-shrink-0 text-warning mt-1"></i>
+            <div>
+              <strong>Merchant Permission Required (Code 10005)</strong>
+              <p class="small mb-2">${escapeHtml(guidance)}</p>
+              <a href="https://www.bybit.com/fiat/trade/otc/profile" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-outline">
+                <i data-lucide="external-link"></i> Bybit Merchant Portal
+              </a>
+            </div>
+          </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+      }
+    } else {
+      const errMsg = (result && (result.error || result.retMsg)) || 'Failed to update advertisement';
+      if (window.showToast) window.showToast(errMsg, 'error');
+      const elAlert = document.getElementById('modal-ad-edit-alert');
+      if (elAlert) {
+        elAlert.style.display = 'block';
+        elAlert.classList.remove('hidden');
+        elAlert.innerHTML = `<span class="text-danger small"><i data-lucide="alert-circle"></i> ${escapeHtml(errMsg)}</span>`;
+        if (window.lucide) window.lucide.createIcons();
+      }
+    }
+  } catch (err) {
+    if (window.showToast) window.showToast(err.message || 'Network error occurred', 'error');
+  } finally {
+    if (btnSubmit) {
+      btnSubmit.disabled = false;
+      btnSubmit.innerHTML = '<i data-lucide="send"></i> <span>Submit to Bybit</span>';
+      if (window.lucide) window.lucide.createIcons();
+    }
+  }
+}
+
+/**
+ * Copy suggested ad parameters to clipboard from limitation banner
+ */
+export function handleCopyAdFallback() {
+  const price = document.getElementById('pricing-suggested-buy')?.textContent.replace(/[₦,]/g, '').trim() || '0';
+  const settings = store.getSettings ? store.getSettings() : {};
+  const minLmt = settings.minTradeLimitNgn || 15000;
+  const maxLmt = settings.maxTradeLimitNgn || 40000;
+
+  const textToCopy = `Price: ₦${price} | Min: ₦${Number(minLmt).toLocaleString()} | Max: ₦${Number(maxLmt).toLocaleString()}`;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(textToCopy).catch(() => {});
+  }
+  if (window.showToast) window.showToast(`Copied Ad Parameters: ${textToCopy}`, 'info');
+}
+
+/**
+ * Copy ad parameters from modal to clipboard
+ */
+export function handleCopyAdModalParams() {
+  const price = document.getElementById('input-ad-price')?.value || '0';
+  const minLmt = document.getElementById('input-ad-min-limit')?.value || '0';
+  const maxLmt = document.getElementById('input-ad-max-limit')?.value || '0';
+
+  const textToCopy = `Price: ₦${price} | Min: ₦${Number(minLmt).toLocaleString()} | Max: ₦${Number(maxLmt).toLocaleString()}`;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(textToCopy).catch(() => {});
+  }
+  if (window.showToast) window.showToast('Copied parameters to clipboard for manual Bybit entry', 'info');
+}
+
+/**
+ * Helper to annotate competitor advertisement with immediate competitor class and badge
+ * @param {Object} ad
+ * @param {number} userMin
+ * @param {number} userMax
+ * @returns {Object}
+ */
+export function annotateCompetitorRow(ad, userMin, userMax) {
+  const isImm = isImmediateCompetitor(ad, userMin, userMax);
+  return {
+    ...ad,
+    isImmediate: isImm,
+    rowClass: isImm ? 'immediate-competitor' : 'regular-competitor',
+    badge: isImm ? '<span class="badge badge-warning tiny badge-immediate-competitor">Immediate</span>' : ''
+  };
 }
