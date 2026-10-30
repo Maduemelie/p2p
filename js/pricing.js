@@ -1361,21 +1361,33 @@ export function calculateMargins() {
     }
   }
 
-  // Render Market Guidance Diagnostics
-  if (elMarketGuidance && elMarketGuidanceText && buybackAnalysis.marketDiagnostics) {
-    const { buyMarketMessage, sellMarketMessage } = buybackAnalysis.marketDiagnostics;
-    const messages = [buyMarketMessage, sellMarketMessage].filter(Boolean);
-    if (messages.length > 0) {
-      elMarketGuidanceText.innerHTML = messages.map(m => `<div>${escapeHtml(m)}</div>`).join('');
+  // Resolve order-book grounded tier brackets
+  const ladderBrackets = (dualBuyAdvice && Array.isArray(dualBuyAdvice.brackets) && dualBuyAdvice.brackets.length > 0)
+    ? dualBuyAdvice.brackets
+    : buybackAnalysis.brackets;
+
+  // Render Real Order Book Market Guidance
+  if (elMarketGuidance && elMarketGuidanceText) {
+    if (dualBuyAdvice && dualBuyAdvice.taker.bestPrice > 0) {
+      const takerText = `Instant Taker Buy: <strong>₦${dualBuyAdvice.taker.bestPrice.toFixed(2)}</strong> (${escapeHtml(dualBuyAdvice.taker.advertiserName)}) drops FIFO by <strong>-₦${dualBuyAdvice.taker.fifoDropAmount.toFixed(2)}/USDT</strong> with 0% fee.`;
+      const makerText = `Buy Order Book Bids: <strong>₦${(ladderBrackets[2]?.targetPrice || dualBuyAdvice.maker.recommendedRate).toFixed(2)}</strong> (Live Ad) to <strong>₦${(ladderBrackets[1]?.targetPrice || dualBuyAdvice.maker.topBidPrice).toFixed(2)}</strong> drop FIFO by up to <strong>-₦${(ladderBrackets[2]?.fifoDrop || dualBuyAdvice.maker.fifoDropAmount).toFixed(2)}/USDT</strong> against your live ₦${dualBuyAdvice.exitAnchorPrice.toFixed(2)} sell ad.`;
+      elMarketGuidanceText.innerHTML = `<div>${takerText}</div><div class="mt-1">${makerText}</div>`;
       elMarketGuidance.style.display = 'block';
-    } else {
-      elMarketGuidance.style.display = 'none';
+    } else if (buybackAnalysis.marketDiagnostics) {
+      const { buyMarketMessage, sellMarketMessage } = buybackAnalysis.marketDiagnostics;
+      const messages = [buyMarketMessage, sellMarketMessage].filter(Boolean);
+      if (messages.length > 0) {
+        elMarketGuidanceText.innerHTML = messages.map(m => `<div>${escapeHtml(m)}</div>`).join('');
+        elMarketGuidance.style.display = 'block';
+      } else {
+        elMarketGuidance.style.display = 'none';
+      }
     }
   }
 
-  // Render Modern Mobile-Optimized Tier Ladder Cards
-  if (elTierLadder && Array.isArray(buybackAnalysis.brackets)) {
-    elTierLadder.innerHTML = buybackAnalysis.brackets.map(b => {
+  // Render Modern Mobile-Optimized Tier Ladder Cards (grounded in real order books)
+  if (elTierLadder && Array.isArray(ladderBrackets)) {
+    elTierLadder.innerHTML = ladderBrackets.map(b => {
       const tierBadgeClass = b.tier === 1 ? 'badge-primary' : (b.tier === 2 ? 'badge-warning' : 'badge-neutral');
       return `
         <div class="buyback-tier-card">

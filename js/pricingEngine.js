@@ -1454,31 +1454,84 @@ export function calculateDualBookBuyAdvice({
     ? Math.round((exitAnchorPrice - (recommendedMakerRate / Math.max(0.001, 1 - phiBuy)) - fiatFeePerUnit) * 100) / 100
     : 0;
 
-  // 4. Strategic 3-Tier FIFO Averaging Brackets
-  const tierBase = recommendedMakerRate > 0 ? recommendedMakerRate : (makerSafeCeiling > 0 ? makerSafeCeiling : 1365);
-  const tierStep = Math.max(1.0, Math.round(safeProfit * 0.4 * 100) / 100);
+  // 4. Order-Book Grounded 3-Tier FIFO Averaging Brackets
+  // Tiers are derived strictly from REAL order book prices (Sell Asks + Buy Bids + Live Ad)
+  
+  // Tier 1: Instant Taker Buy from cheapest ask in Sell Order Book
+  const p1 = takerPrice > 0 ? takerPrice : (recommendedMakerRate > 0 ? recommendedMakerRate : 1369.45);
+  const v1 = Math.round(safeVol * 0.40);
+  const tier1Spread = (exitAnchorPrice > 0 && p1 > 0) ? Math.round((exitAnchorPrice - p1) * 100) / 100 : 0;
+  const tier1FifoDrop = (currentFifoAvg > 0 && p1 > 0) ? Math.round((currentFifoAvg - p1) * 100) / 100 : 0;
+  const tier1Net = Math.round(takerNetMargin * 100) / 100;
+
+  // Tier 2: Competitive Maker Bid from top direct competitor in Buy Order Book
+  let p2 = 0;
+  let p2Adv = 'Buy Book';
+  const compBid = candidateBids.find(ad => {
+    const p = parseFloat(ad.price);
+    return p > 0 && (takerPrice <= 0 || p <= takerPrice) && (makerSafeCeiling <= 0 || p <= makerSafeCeiling + 2.0);
+  }) || (candidateBids.length > 0 ? candidateBids[0] : null);
+
+  if (compBid) {
+    p2 = parseFloat(compBid.price);
+    p2Adv = compBid.nickName || compBid.memberName || 'Direct Bid';
+  } else {
+    p2 = recommendedMakerRate > 0 ? recommendedMakerRate : 1369.70;
+  }
+  const v2 = Math.round(safeVol * 0.40);
+  const tier2Spread = (exitAnchorPrice > 0 && p2 > 0) ? Math.round((exitAnchorPrice - p2) * 100) / 100 : 0;
+  const tier2FifoDrop = (currentFifoAvg > 0 && p2 > 0) ? Math.round((currentFifoAvg - p2) * 100) / 100 : 0;
+  const tier2Net = (exitAnchorPrice > 0 && p2 > 0)
+    ? Math.round((exitAnchorPrice - (p2 / Math.max(0.001, 1 - phiBuy)) - fiatFeePerUnit) * 100) / 100
+    : 0;
+
+  // Tier 3: Passive / Live Buy Ad from user's live running Buy ad or deeper queue bid
+  const p3 = liveBuyPrice > 0
+    ? Number(liveBuyPrice)
+    : (candidateBids.length > 2 ? parseFloat(candidateBids[candidateBids.length - 1].price) : Math.round(Math.max(1.0, p2 - 3.5) * 100) / 100);
+  const v3 = Math.max(1, safeVol - v1 - v2);
+  const tier3Spread = (exitAnchorPrice > 0 && p3 > 0) ? Math.round((exitAnchorPrice - p3) * 100) / 100 : 0;
+  const tier3FifoDrop = (currentFifoAvg > 0 && p3 > 0) ? Math.round((currentFifoAvg - p3) * 100) / 100 : 0;
+  const tier3Net = (exitAnchorPrice > 0 && p3 > 0)
+    ? Math.round((exitAnchorPrice - (p3 / Math.max(0.001, 1 - phiBuy)) - fiatFeePerUnit) * 100) / 100
+    : 0;
 
   const brackets = [
     {
       tier: 1,
-      name: 'Tier 1: Fast Fill Limit',
-      targetPrice: Math.round(tierBase * 100) / 100,
-      fifoDrop: currentFifoAvg > 0 ? Math.round((currentFifoAvg - tierBase) * 100) / 100 : 0,
-      netMargin: makerNetMargin
+      name: `Tier 1: Instant Taker Buy (${takerAdvName})`,
+      targetPrice: Math.round(p1 * 100) / 100,
+      volumeUsdt: v1,
+      volumePct: 40,
+      totalNgn: Math.round(v1 * p1),
+      description: `Cheapest ask on Sell Order Book (${takerAdvName}). 0% taker fee, instant fill.`,
+      spreadCapture: tier1Spread,
+      fifoDrop: tier1FifoDrop,
+      netMargin: tier1Net
     },
     {
       tier: 2,
-      name: 'Tier 2: Mid-Discount Average',
-      targetPrice: Math.round(Math.max(1.0, tierBase - tierStep) * 100) / 100,
-      fifoDrop: currentFifoAvg > 0 ? Math.round((currentFifoAvg - (tierBase - tierStep)) * 100) / 100 : 0,
-      netMargin: Math.round((makerNetMargin + tierStep) * 100) / 100
+      name: `Tier 2: Competitive Maker Bid (${p2Adv})`,
+      targetPrice: Math.round(p2 * 100) / 100,
+      volumeUsdt: v2,
+      volumePct: 40,
+      totalNgn: Math.round(v2 * p2),
+      description: `Top direct bid on Buy Order Book (${p2Adv}). Fast queue fill.`,
+      spreadCapture: tier2Spread,
+      fifoDrop: tier2FifoDrop,
+      netMargin: tier2Net
     },
     {
       tier: 3,
-      name: 'Tier 3: Deep-Discount Spread',
-      targetPrice: Math.round(Math.max(1.0, tierBase - (tierStep * 2.5)) * 100) / 100,
-      fifoDrop: currentFifoAvg > 0 ? Math.round((currentFifoAvg - (tierBase - (tierStep * 2.5))) * 100) / 100 : 0,
-      netMargin: Math.round((makerNetMargin + (tierStep * 2.5)) * 100) / 100
+      name: liveBuyPrice > 0 ? 'Tier 3: Your Live Buy Ad (Bybit)' : 'Tier 3: Passive Limit Bid (Buy Book)',
+      targetPrice: Math.round(p3 * 100) / 100,
+      volumeUsdt: v3,
+      volumePct: 20,
+      totalNgn: Math.round(v3 * p3),
+      description: liveBuyPrice > 0 ? 'Your live running Buy Ad on Bybit. Deepest FIFO reduction.' : 'Deep limit bid on Buy Order Book.',
+      spreadCapture: tier3Spread,
+      fifoDrop: tier3FifoDrop,
+      netMargin: tier3Net
     }
   ];
 
