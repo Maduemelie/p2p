@@ -730,10 +730,25 @@ export function calculateSweetSpotPricing(params = {}) {
         ? params.buyItems
         : (Array.isArray(params.activeBuyAds) ? params.activeBuyAds : [])));
 
+  const sMin = params.userSellMin !== undefined ? params.userSellMin : (params.userMin !== undefined ? params.userMin : null);
+  const sMax = params.userSellMax !== undefined ? params.userSellMax : (params.userMax !== undefined ? params.userMax : null);
+
+  const bMin = params.userBuyMin !== undefined ? params.userBuyMin : (params.userMin !== undefined ? params.userMin : null);
+  const bMax = params.userBuyMax !== undefined ? params.userBuyMax : (params.userMax !== undefined ? params.userMax : null);
+
   // 1. Sell Sweet Spot: Filter competitor ads, sort ascending, find Rank 3–5 median ask
-  let filteredSell = filterCompetitorAds(rawSellAds, safeTradeVol, filterLimits);
-  if (filteredSell.length === 0 && rawSellAds.length > 0 && filterLimits) {
-    filteredSell = filterCompetitorAds(rawSellAds, safeTradeVol, false);
+  let filteredSell = null;
+  if (sMin !== null && sMax !== null && !isNaN(Number(sMin)) && !isNaN(Number(sMax)) && Number(sMin) > 0 && Number(sMax) >= Number(sMin)) {
+    const imm = filterImmediateCompetitors(rawSellAds, Number(sMin), Number(sMax));
+    if (imm.length > 0) {
+      filteredSell = imm;
+    }
+  }
+  if (!filteredSell) {
+    filteredSell = filterCompetitorAds(rawSellAds, safeTradeVol, filterLimits);
+    if (filteredSell.length === 0 && rawSellAds.length > 0 && filterLimits) {
+      filteredSell = filterCompetitorAds(rawSellAds, safeTradeVol, false);
+    }
   }
   filteredSell.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
   const sellPrices = filteredSell.map(ad => parseFloat(ad.price) || 0).filter(p => p > 0);
@@ -796,9 +811,18 @@ export function calculateSweetSpotPricing(params = {}) {
   }
 
   // 4. Market Buy Sweet Spot: Filter competitor buy ads, sort descending, find Rank 3–5 median bid + ₦0.10
-  let filteredBuy = filterCompetitorAds(rawBuyAds, safeTradeVol, filterLimits);
-  if (filteredBuy.length === 0 && rawBuyAds.length > 0 && filterLimits) {
-    filteredBuy = filterCompetitorAds(rawBuyAds, safeTradeVol, false);
+  let filteredBuy = null;
+  if (bMin !== null && bMax !== null && !isNaN(Number(bMin)) && !isNaN(Number(bMax)) && Number(bMin) > 0 && Number(bMax) >= Number(bMin)) {
+    const immBuy = filterImmediateCompetitors(rawBuyAds, Number(bMin), Number(bMax));
+    if (immBuy.length > 0) {
+      filteredBuy = immBuy;
+    }
+  }
+  if (!filteredBuy) {
+    filteredBuy = filterCompetitorAds(rawBuyAds, safeTradeVol, filterLimits);
+    if (filteredBuy.length === 0 && rawBuyAds.length > 0 && filterLimits) {
+      filteredBuy = filterCompetitorAds(rawBuyAds, safeTradeVol, false);
+    }
   }
   filteredBuy.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
   const buyPrices = filteredBuy.map(ad => parseFloat(ad.price) || 0).filter(p => p > 0);
