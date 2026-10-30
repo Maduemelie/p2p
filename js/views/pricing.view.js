@@ -68,23 +68,34 @@ export function renderAdUpdateModal() {
         <div id="modal-ad-edit-alert" class="alert alert-warning mb-3 hidden" style="display: none;"></div>
 
         <form id="form-update-ad">
-          <div class="p-2 mb-3 rounded" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08);">
+          <div id="modal-live-ad-detected-card" class="p-2 mb-3 rounded" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="badge badge-success tiny font-mono" id="modal-live-ad-status-badge"><i data-lucide="radio"></i> LIVE BYBIT AD LINKED</span>
+              <span class="text-muted tiny font-mono" id="modal-live-ad-id-display">ID: #—</span>
+            </div>
+            <div class="d-flex justify-content-between text-muted tiny font-mono mb-1">
+              <span>CURRENT LIVE AD RATE:</span>
+              <span class="text-white fw-bold font-mono" id="modal-current-ad-rate">—</span>
+            </div>
             <div class="d-flex justify-content-between text-muted tiny font-mono mb-1">
               <span>TARGET SWEET SPOT RATE:</span>
-              <span class="text-success fw-bold" id="modal-target-sweet-spot-rate">₦0.00</span>
+              <span class="text-success fw-bold font-mono" id="modal-target-sweet-spot-rate">₦0.00</span>
             </div>
             <div class="d-flex justify-content-between text-muted tiny font-mono">
-              <span>CURRENT AD RATE:</span>
-              <span id="modal-current-ad-rate">—</span>
+              <span>CURRENT AD LIMITS:</span>
+              <span class="text-secondary font-mono" id="modal-current-ad-limits">—</span>
             </div>
           </div>
 
           <div class="form-group mb-3">
-            <label for="input-ad-id" class="form-label">
-              <i data-lucide="hash"></i> Advertisement Item ID *
-            </label>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label for="input-ad-id" class="form-label mb-0">
+                <i data-lucide="hash"></i> Advertisement Item ID *
+              </label>
+              <span class="text-success tiny font-mono" id="ad-id-source-hint">Auto-linked from Bybit</span>
+            </div>
             <input id="input-ad-id" type="text" class="form-input font-mono" placeholder="e.g. 1859302749581029384" required />
-            <p class="form-helper">The Bybit Item ID of your active P2P ad</p>
+            <p class="form-helper" id="ad-id-helper-text">Automatically populated with your currently running Bybit ad.</p>
           </div>
 
           <div class="form-group mb-3">
@@ -270,6 +281,8 @@ export function renderPricingView() {
             <div class="text-muted tiny font-mono mt-2">
               Safe Ceiling: <span id="pricing-max-buy" class="fw-bold">₦0.00</span>
             </div>
+            <!-- Live Running Bybit Ad Container -->
+            <div id="pricing-buy-live-ad-container" class="my-2 text-start"></div>
             <!-- Queue Position & Fill Speed Container -->
             <div class="pricing-queue-position mt-2 pt-2 border-top border-secondary-subtle" id="pricing-buy-queue-position">
               <div class="d-flex justify-content-between align-items-center small font-mono">
@@ -319,6 +332,8 @@ export function renderPricingView() {
             <div class="text-muted tiny font-mono mt-2">
               Minimum Safe Sell: <span id="pricing-target-sell-price" class="fw-bold text-warning">₦0.00</span>
             </div>
+            <!-- Live Running Bybit Ad Container -->
+            <div id="pricing-sell-live-ad-container" class="my-2 text-start"></div>
             <!-- Queue Position & Fill Speed Container -->
             <div class="pricing-queue-position mt-2 pt-2 border-top border-secondary-subtle" id="pricing-sell-queue-position">
               <div class="d-flex justify-content-between align-items-center small font-mono">
@@ -508,8 +523,14 @@ export function renderPricingView() {
       <div class="form-grid mb-4">
         <!-- Buy Depth (Other Advertisers Buying - Takers Selling) -->
         <div class="col-12 col-md-6 card">
-          <h3 class="card-title mb-1">Buy Order Book (Market Bids)</h3>
-          <p class="card-subtitle mb-3">Other merchants buying USDT (matches Bybit P2P <strong>"Sell"</strong> tab for takers). Top bid wins.</p>
+          <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-2">
+            <h3 class="card-title mb-0">Buy Order Book (Market Bids)</h3>
+            <button type="button" class="btn btn-sm btn-outline orderbook-filter-toggle active" id="btn-toggle-buy-direct-competitors" title="Toggle between direct competitors and all Bybit market depth" style="font-size: 0.72rem; padding: 2px 8px;">
+              <i data-lucide="filter"></i>
+              <span id="buy-filter-toggle-label">Direct Competitors (₦15k - ₦40k)</span>
+            </button>
+          </div>
+          <p class="card-subtitle mb-3" id="buy-orderbook-subtitle">Showing merchants competing in your limit range (matches Bybit <strong>Sell</strong> tab). Top bid wins.</p>
           <div class="table-responsive">
             <table class="market-depth-table" id="pricing-buy-orderbook">
               <thead>
@@ -530,8 +551,14 @@ export function renderPricingView() {
 
         <!-- Sell Depth (Other Advertisers Selling - Takers Buying) -->
         <div class="col-12 col-md-6 card">
-          <h3 class="card-title mb-1">Sell Order Book (Market Asks)</h3>
-          <p class="card-subtitle mb-3">Other merchants selling USDT (matches Bybit P2P <strong>"Buy"</strong> tab for takers). Cheapest ask wins.</p>
+          <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-2">
+            <h3 class="card-title mb-0">Sell Order Book (Market Asks)</h3>
+            <button type="button" class="btn btn-sm btn-outline orderbook-filter-toggle active" id="btn-toggle-sell-direct-competitors" title="Toggle between direct competitors and all Bybit market depth" style="font-size: 0.72rem; padding: 2px 8px;">
+              <i data-lucide="filter"></i>
+              <span id="sell-filter-toggle-label">Direct Competitors (₦15k - ₦40k)</span>
+            </button>
+          </div>
+          <p class="card-subtitle mb-3" id="sell-orderbook-subtitle">Showing merchants competing in your limit range (matches Bybit <strong>Buy</strong> tab). Cheapest ask wins.</p>
           <div class="table-responsive">
             <table class="market-depth-table" id="pricing-sell-orderbook">
               <thead>

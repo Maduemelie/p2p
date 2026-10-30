@@ -23,6 +23,11 @@ import {
 
 // Cache for market depth to allow local calculation runs without API spam
 let cachedMarketDepth = null;
+export let userActiveBuyAd = null;
+export let userActiveSellAd = null;
+export let userAllActiveAds = [];
+export let buyOrderbookDirectOnly = true;
+export let sellOrderbookDirectOnly = true;
 
 export function initPricing() {
   loadSavedSettings();
@@ -383,6 +388,34 @@ function setupListeners() {
 }
 
 /**
+ * Initialize Direct Competitor filter toggles on order books
+ */
+export function initOrderbookFilterToggles() {
+  const btnBuyToggle = document.getElementById('btn-toggle-buy-direct-competitors');
+  const btnSellToggle = document.getElementById('btn-toggle-sell-direct-competitors');
+
+  btnBuyToggle?.addEventListener('click', () => {
+    buyOrderbookDirectOnly = !buyOrderbookDirectOnly;
+    btnBuyToggle.classList.toggle('active', buyOrderbookDirectOnly);
+    const label = document.getElementById('buy-filter-toggle-label');
+    if (label) {
+      label.textContent = buyOrderbookDirectOnly ? 'Direct Competitors (₦15k - ₦40k)' : 'All Market Depth';
+    }
+    if (cachedMarketDepth) renderOrderBooks(cachedMarketDepth);
+  });
+
+  btnSellToggle?.addEventListener('click', () => {
+    sellOrderbookDirectOnly = !sellOrderbookDirectOnly;
+    btnSellToggle.classList.toggle('active', sellOrderbookDirectOnly);
+    const label = document.getElementById('sell-filter-toggle-label');
+    if (label) {
+      label.textContent = sellOrderbookDirectOnly ? 'Direct Competitors (₦15k - ₦40k)' : 'All Market Depth';
+    }
+    if (cachedMarketDepth) renderOrderBooks(cachedMarketDepth);
+  });
+}
+
+/**
  * Query proxy server to fetch live order depth and trigger margin calculations
  */
 export async function refreshPricingData(showToast = false) {
@@ -394,11 +427,58 @@ export async function refreshPricingData(showToast = false) {
 
   try {
     const depthLimit = parseInt(localStorage.getItem('bybit_p2p_pricing_depth_limit'), 10) || 50;
-    const depth = await bybitService.fetchMarketDepth('USDT', 'NGN', depthLimit);
-    if (depth) {
-      cachedMarketDepth = depth;
-      renderOrderBooks(depth);
+
+    // Fetch both live order book depth and user's own active Bybit ads in parallel
+    const [depthResult, adsResult] = await Promise.allSettled([
+      bybitService.fetchMarketDepth('USDT', 'NGN', depthLimit),
+      bybitService.fetchActiveAds('', 'USDT')
+    ]);
+
+    // Process user's own live running ads
+    if (adsResult.status === 'fulfilled' && Array.isArray(adsResult.value)) {
+      userAllActiveAds = adsResult.value;
+
+      const isBuySide = (a) => {
+        if (!a) return false;
+        const raw = (a.side !== undefined && a.side !== null) ? a.side : (a.tradeType ?? a.sideName ?? a.type ?? a.action ?? '');
+        const s = String(raw).trim().toUpperCase();
+        return s === '0' || s === 'BUY';
+      };
+      const isSellSide = (a) => {
+        if (!a) return false;
+        const raw = (a.side !== undefined && a.side !== null) ? a.side : (a.tradeType ?? a.sideName ?? a.type ?? a.action ?? '');
+        const s = String(raw).trim().toUpperCase();
+        return s === '1' || s === 'SELL';
+      };
+      const isOnlineStatus = (s) => {
+        if (s === undefined || s === null || s === '') return true;
+        const str = String(s).trim().toUpperCase();
+        return str === '10' || str === '1' || str === 'ONLINE' || str === 'ACTIVE';
+      };
+      const isNotDeletedStatus = (s) => {
+        if (s === undefined || s === null || s === '') return true;
+        const str = String(s).trim().toUpperCase();
+        return str !== '30' && str !== 'CANCELLED' && str !== 'CANCELED' && str !== 'DELETED';
+      };
+
+      userActiveBuyAd = userAllActiveAds.find(a => isBuySide(a) && isOnlineStatus(a.status))
+                     || userAllActiveAds.find(a => isBuySide(a) && isNotDeletedStatus(a.status))
+                     || null;
+
+      userActiveSellAd = userAllActiveAds.find(a => isSellSide(a) && isOnlineStatus(a.status))
+                      || userAllActiveAds.find(a => isSellSide(a) && isNotDeletedStatus(a.status))
+                      || null;
+    } else {
+      userActiveBuyAd = null;
+      userActiveSellAd = null;
+      userAllActiveAds = [];
+    }
+
+    if (depthResult.status === 'fulfilled' && depthResult.value) {
+      cachedMarketDepth = depthResult.value;
+      renderOrderBooks(cachedMarketDepth);
       calculateMargins();
+      renderLiveAdBanners();
       if (showToast && window.showToast) {
         window.showToast('P2P order book sync completed.', 'success');
       }
@@ -445,6 +525,116 @@ export function resetBuybackSession() {
 /**
  * Build dynamic pricing suggestions combining local FIFO state & public ad depth
  */
+/**
+ * Render Live Running Bybit Ad Banners inside Sweet Spot cards
+ */
+export function renderLiveAdBanners() {
+  const buyContainer = document.getElementById('pricing-buy-live-ad-container');
+  const sellContainer = document.getElementById('pricing-sell-live-ad-container');
+
+  const storeSettings = store.getSettings ? store.getSettings() : {};
+  const elMinLimit = document.getElementById('input-user-min-limit') || document.getElementById('input-min-trade-limit');
+  const elMaxLimit = document.getElementById('input-user-max-limit') || document.getElementById('input-max-trade-limit');
+  const userMin = elMinLimit && !isNaN(Number(elMinLimit.value)) && Number(elMinLimit.value) > 0
+    ? Number(elMinLimit.value)
+    : (Number(storeSettings.minTradeLimitNgn) || 15000);
+  const userMax = elMaxLimit && !isNaN(Number(elMaxLimit.value)) && Number(elMaxLimit.value) >= userMin
+    ? Number(elMaxLimit.value)
+    : (Number(storeSettings.maxTradeLimitNgn) || 40000);
+
+  const rateBuyText = document.getElementById('pricing-suggested-buy')?.textContent || '';
+  const suggestedBuy = parseFloat(rateBuyText.replace(/[^\d.]/g, '').trim()) || 0;
+
+  const rateSellText = document.getElementById('pricing-suggested-sell')?.textContent || '';
+  const suggestedSell = parseFloat(rateSellText.replace(/[^\d.]/g, '').trim()) || 0;
+
+  // --- RENDER LIVE BUY AD BANNER ---
+  if (buyContainer) {
+    if (userActiveBuyAd) {
+      const price = parseFloat(userActiveBuyAd.price) || 0;
+      const minLmt = parseFloat(userActiveBuyAd.minAmount || userActiveBuyAd.minSingleTransAmount) || userMin;
+      const maxLmt = parseFloat(userActiveBuyAd.maxAmount || userActiveBuyAd.maxSingleTransAmount) || userMax;
+      const qty = parseFloat(userActiveBuyAd.lastQuantity || userActiveBuyAd.quantity) || 0;
+      const adId = userActiveBuyAd.id || userActiveBuyAd.itemId || userActiveBuyAd.advNo || '';
+      const diff = suggestedBuy > 0 && price > 0 ? (suggestedBuy - price) : 0;
+      const diffStr = diff === 0
+        ? '<span class="text-success fw-bold">✓ At Exact Sweet Spot</span>'
+        : diff > 0
+          ? `<span class="text-warning fw-semibold">+₦${diff.toFixed(2)} to Sweet Spot</span>`
+          : `<span class="text-primary fw-semibold">-₦${Math.abs(diff).toFixed(2)} vs Sweet Spot</span>`;
+
+      buyContainer.innerHTML = `
+        <div class="p-2 rounded mb-2" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="badge badge-success tiny font-mono live-ad-card-badge"><i data-lucide="radio"></i> LIVE BUY AD RUNNING</span>
+            <span class="text-muted tiny font-mono">ID: #${escapeHtml(String(adId))}</span>
+          </div>
+          <div class="d-flex justify-content-between font-mono small">
+            <span>Live Rate: <strong class="text-white">₦${price.toLocaleString('en-NG', { minimumFractionDigits: 2 })}</strong></span>
+            <span>Limits: <span class="text-secondary">₦${Math.round(minLmt).toLocaleString('en-NG')} - ₦${Math.round(maxLmt).toLocaleString('en-NG')}</span></span>
+          </div>
+          <div class="text-muted tiny font-mono mt-1 d-flex justify-content-between">
+            <span>Available: ${qty.toFixed(1)} USDT</span>
+            <div>${diffStr}</div>
+          </div>
+        </div>
+      `;
+    } else {
+      buyContainer.innerHTML = `
+        <div class="p-2 rounded mb-2 text-center" style="background: rgba(255, 255, 255, 0.03); border: 1px dashed rgba(255, 255, 255, 0.12);">
+          <div class="text-muted small"><i data-lucide="circle-slash"></i> No active Buy ad running on Bybit</div>
+          <div class="tiny text-secondary mt-1">Recommended target rate: <strong class="text-success">₦${suggestedBuy > 0 ? suggestedBuy.toLocaleString('en-NG', { minimumFractionDigits: 2 }) : '—'}</strong></div>
+        </div>
+      `;
+    }
+  }
+
+  // --- RENDER LIVE SELL AD BANNER ---
+  if (sellContainer) {
+    if (userActiveSellAd) {
+      const price = parseFloat(userActiveSellAd.price) || 0;
+      const minLmt = parseFloat(userActiveSellAd.minAmount || userActiveSellAd.minSingleTransAmount) || userMin;
+      const maxLmt = parseFloat(userActiveSellAd.maxAmount || userActiveSellAd.maxSingleTransAmount) || userMax;
+      const qty = parseFloat(userActiveSellAd.lastQuantity || userActiveSellAd.quantity) || 0;
+      const adId = userActiveSellAd.id || userActiveSellAd.itemId || userActiveSellAd.advNo || '';
+      const diff = suggestedSell > 0 && price > 0 ? (price - suggestedSell) : 0;
+      const diffStr = diff === 0
+        ? '<span class="text-success fw-bold">✓ At Exact Sweet Spot</span>'
+        : diff < 0
+          ? `<span class="text-warning fw-semibold">-₦${Math.abs(diff).toFixed(2)} under Sweet Spot</span>`
+          : `<span class="text-primary fw-semibold">+₦${diff.toFixed(2)} above Sweet Spot</span>`;
+
+      sellContainer.innerHTML = `
+        <div class="p-2 rounded mb-2" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="badge badge-success tiny font-mono live-ad-card-badge"><i data-lucide="radio"></i> LIVE SELL AD RUNNING</span>
+            <span class="text-muted tiny font-mono">ID: #${escapeHtml(String(adId))}</span>
+          </div>
+          <div class="d-flex justify-content-between font-mono small">
+            <span>Live Rate: <strong class="text-white">₦${price.toLocaleString('en-NG', { minimumFractionDigits: 2 })}</strong></span>
+            <span>Limits: <span class="text-secondary">₦${Math.round(minLmt).toLocaleString('en-NG')} - ₦${Math.round(maxLmt).toLocaleString('en-NG')}</span></span>
+          </div>
+          <div class="text-muted tiny font-mono mt-1 d-flex justify-content-between">
+            <span>Available: ${qty.toFixed(1)} USDT</span>
+            <div>${diffStr}</div>
+          </div>
+        </div>
+      `;
+    } else {
+      sellContainer.innerHTML = `
+        <div class="p-2 rounded mb-2 text-center" style="background: rgba(255, 255, 255, 0.03); border: 1px dashed rgba(255, 255, 255, 0.12);">
+          <div class="text-muted small"><i data-lucide="circle-slash"></i> No active Sell ad running on Bybit</div>
+          <div class="tiny text-secondary mt-1">Recommended target rate: <strong class="text-success">₦${suggestedSell > 0 ? suggestedSell.toLocaleString('en-NG', { minimumFractionDigits: 2 }) : '—'}</strong></div>
+        </div>
+      `;
+    }
+  }
+
+  if (window.lucide) window.lucide.createIcons();
+}
+
+
+
 export function calculateMargins() {
   const storeSettings = store.getSettings ? store.getSettings() : {};
 
@@ -988,13 +1178,13 @@ export function calculateMargins() {
   const buyFillSpeed = calculateFillSpeed(buyQueue.rank, buyQueue.volumeAhead, buyQueue.totalCompetitors);
   const sellFillSpeed = calculateFillSpeed(sellQueue.rank, sellQueue.volumeAhead, sellQueue.totalCompetitors);
 
-  // Update Sweet Spot Card Queue Rank Badges
+  // Update Sweet Spot Card Queue Rank Badges (Clear text to avoid 505 confusion)
   if (elSweetBuyRankBadge) {
-    elSweetBuyRankBadge.textContent = buyQueue.totalCompetitors === 1 ? 'Monopoly (100% Priority)' : `Rank #${buyQueue.rank} of ${buyQueue.totalCompetitors}`;
+    elSweetBuyRankBadge.textContent = buyQueue.totalCompetitors === 1 ? 'Monopoly' : `Queue: #${buyQueue.rank} of ${buyQueue.totalCompetitors}`;
     elSweetBuyRankBadge.className = buyQueue.rank === 1 ? 'badge badge-success tiny' : 'badge badge-primary tiny';
   }
   if (elSweetSellRankBadge) {
-    elSweetSellRankBadge.textContent = sellQueue.totalCompetitors === 1 ? 'Monopoly (100% Priority)' : `Rank #${sellQueue.rank} of ${sellQueue.totalCompetitors}`;
+    elSweetSellRankBadge.textContent = sellQueue.totalCompetitors === 1 ? 'Monopoly' : `Queue: #${sellQueue.rank} of ${sellQueue.totalCompetitors}`;
     elSweetSellRankBadge.className = sellQueue.rank === 1 ? 'badge badge-success tiny' : 'badge badge-primary tiny';
   }
 
@@ -1002,14 +1192,14 @@ export function calculateMargins() {
   const elBuyQueueRank = document.getElementById('pricing-buy-queue-rank');
   const elBuyVolAhead = document.getElementById('pricing-buy-volume-ahead');
   const elBuyImmCount = document.getElementById('pricing-buy-imm-count');
-  if (elBuyQueueRank) elBuyQueueRank.textContent = buyQueue.totalCompetitors === 1 ? 'Rank #1 of 1 (Monopoly)' : `Rank #${buyQueue.rank} of ${buyQueue.totalCompetitors}`;
+  if (elBuyQueueRank) elBuyQueueRank.textContent = buyQueue.totalCompetitors === 1 ? 'Position: #1 (Monopoly)' : `Position: #${buyQueue.rank} of ${buyQueue.totalCompetitors} in Queue`;
   if (elBuyVolAhead) elBuyVolAhead.textContent = `Ahead: ${buyQueue.volumeAhead.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} USDT`;
   if (elBuyImmCount) elBuyImmCount.textContent = `${immediateBuyCompetitors.length} Immediate Competitor${immediateBuyCompetitors.length === 1 ? '' : 's'}`;
 
   const elSellQueueRank = document.getElementById('pricing-sell-queue-rank');
   const elSellVolAhead = document.getElementById('pricing-sell-volume-ahead');
   const elSellImmCount = document.getElementById('pricing-sell-imm-count');
-  if (elSellQueueRank) elSellQueueRank.textContent = sellQueue.totalCompetitors === 1 ? 'Rank #1 of 1 (Monopoly)' : `Rank #${sellQueue.rank} of ${sellQueue.totalCompetitors}`;
+  if (elSellQueueRank) elSellQueueRank.textContent = sellQueue.totalCompetitors === 1 ? 'Position: #1 (Monopoly)' : `Position: #${sellQueue.rank} of ${sellQueue.totalCompetitors} in Queue`;
   if (elSellVolAhead) elSellVolAhead.textContent = `Ahead: ${sellQueue.volumeAhead.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} USDT`;
   if (elSellImmCount) elSellImmCount.textContent = `${immediateSellCompetitors.length} Immediate Competitor${immediateSellCompetitors.length === 1 ? '' : 's'}`;
 
@@ -1109,9 +1299,31 @@ export function renderOrderBooks(depth, uMinParam, uMaxParam) {
   const sortedBuyItems = [...buyItems].sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
   const sortedSellItems = [...sellItems].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
 
-  // Render top 10 rows to avoid extremely long tables
-  const displayBuyItems = sortedBuyItems.slice(0, 10);
-  const displaySellItems = sortedSellItems.slice(0, 10);
+  // Filter by direct competitors when toggle is active
+  const filteredDirectBuy = sortedBuyItems.filter(ad => isImmediateCompetitor(ad, userMin, userMax));
+  const filteredDirectSell = sortedSellItems.filter(ad => isImmediateCompetitor(ad, userMin, userMax));
+
+  const displayBuyItems = (buyOrderbookDirectOnly && filteredDirectBuy.length > 0)
+    ? filteredDirectBuy.slice(0, 15)
+    : sortedBuyItems.slice(0, 15);
+
+  const displaySellItems = (sellOrderbookDirectOnly && filteredDirectSell.length > 0)
+    ? filteredDirectSell.slice(0, 15)
+    : sortedSellItems.slice(0, 15);
+
+  // Update subtitles to show direct competitor count
+  const elBuySubtitle = document.getElementById('buy-orderbook-subtitle');
+  if (elBuySubtitle) {
+    elBuySubtitle.innerHTML = buyOrderbookDirectOnly
+      ? `Showing <strong>${filteredDirectBuy.length} Direct Competitors</strong> in your ₦${Math.round(userMin).toLocaleString('en-NG')} – ₦${Math.round(userMax).toLocaleString('en-NG')} limit range.`
+      : `Showing top ${displayBuyItems.length} Bybit Buy ads across all limits.`;
+  }
+  const elSellSubtitle = document.getElementById('sell-orderbook-subtitle');
+  if (elSellSubtitle) {
+    elSellSubtitle.innerHTML = sellOrderbookDirectOnly
+      ? `Showing <strong>${filteredDirectSell.length} Direct Competitors</strong> in your ₦${Math.round(userMin).toLocaleString('en-NG')} – ₦${Math.round(userMax).toLocaleString('en-NG')} limit range.`
+      : `Showing top ${displaySellItems.length} Bybit Sell ads across all limits.`;
+  }
 
   if (buyTbody) {
     if (displayBuyItems.length === 0) {
@@ -1125,12 +1337,15 @@ export function renderOrderBooks(depth, uMinParam, uMaxParam) {
 
         const isImm = isImmediateCompetitor(ad, userMin, userMax);
         const isSweetSpot = idx >= 2 && idx <= 4;
+        const isUserLiveAd = userActiveBuyAd && (ad.id === userActiveBuyAd.id || ad.itemId === userActiveBuyAd.itemId || (userActiveBuyAd.advNo && ad.advNo === userActiveBuyAd.advNo));
         const sweetClass = isSweetSpot ? 'orderbook-row-sweetspot' : '';
         const immClass = isImm ? 'immediate-competitor' : 'regular-competitor';
-        const rowClass = `orderbook-row cursor-pointer ${sweetClass} ${immClass}`.trim();
+        const userClass = isUserLiveAd ? 'user-live-ad' : '';
+        const rowClass = `orderbook-row cursor-pointer ${sweetClass} ${immClass} ${userClass}`.trim();
 
-        const sweetBadge = isSweetSpot ? ` <span class="badge badge-primary tiny">Rank #${idx + 1}</span>` : '';
-        const immBadge = isImm ? ` <span class="badge badge-warning tiny badge-immediate-competitor" title="Immediate Competitor">Immediate</span>` : '';
+        const userBadge = isUserLiveAd ? ` <span class="badge badge-user-live-ad tiny font-mono"><i data-lucide="radio"></i> YOUR LIVE AD</span>` : '';
+        const sweetBadge = isSweetSpot && !isUserLiveAd ? ` <span class="badge badge-primary tiny">Rank #${idx + 1}</span>` : '';
+        const immBadge = isImm && !isUserLiveAd ? ` <span class="badge badge-warning tiny badge-immediate-competitor" title="Immediate Competitor">Immediate</span>` : '';
 
         let limitStr = 'Lmt: No Limit';
         if (minLmt > 0 || Number.isFinite(maxLmt)) {
@@ -1143,7 +1358,7 @@ export function renderOrderBooks(depth, uMinParam, uMaxParam) {
           <tr class="${rowClass}" data-direction="SELL" data-rate="${price}" data-volume="${available}" data-counterparty="${escapeHtml(advName)}" title="Tap to record Sell trade at ₦${price}">
             <td>
               <div class="fw-semibold truncate" style="max-width: 140px;" title="${escapeHtml(advName)}">
-                <span>${idx + 1}. ${escapeHtml(advName)}</span>${sweetBadge}${immBadge}
+                <span>${idx + 1}. ${escapeHtml(advName)}</span>${userBadge}${sweetBadge}${immBadge}
               </div>
               <div class="text-muted tiny competitor-limits">${limitStr}</div>
             </td>
@@ -1171,12 +1386,15 @@ export function renderOrderBooks(depth, uMinParam, uMaxParam) {
 
         const isImm = isImmediateCompetitor(ad, userMin, userMax);
         const isSweetSpot = idx >= 2 && idx <= 4;
+        const isUserLiveAd = userActiveSellAd && (ad.id === userActiveSellAd.id || ad.itemId === userActiveSellAd.itemId || (userActiveSellAd.advNo && ad.advNo === userActiveSellAd.advNo));
         const sweetClass = isSweetSpot ? 'orderbook-row-sweetspot-sell' : '';
         const immClass = isImm ? 'immediate-competitor' : 'regular-competitor';
-        const rowClass = `orderbook-row cursor-pointer ${sweetClass} ${immClass}`.trim();
+        const userClass = isUserLiveAd ? 'user-live-ad' : '';
+        const rowClass = `orderbook-row cursor-pointer ${sweetClass} ${immClass} ${userClass}`.trim();
 
-        const sweetBadge = isSweetSpot ? ` <span class="badge badge-success tiny">Rank #${idx + 1}</span>` : '';
-        const immBadge = isImm ? ` <span class="badge badge-warning tiny badge-immediate-competitor" title="Immediate Competitor">Immediate</span>` : '';
+        const userBadge = isUserLiveAd ? ` <span class="badge badge-user-live-ad tiny font-mono"><i data-lucide="radio"></i> YOUR LIVE AD</span>` : '';
+        const sweetBadge = isSweetSpot && !isUserLiveAd ? ` <span class="badge badge-success tiny">Rank #${idx + 1}</span>` : '';
+        const immBadge = isImm && !isUserLiveAd ? ` <span class="badge badge-warning tiny badge-immediate-competitor" title="Immediate Competitor">Immediate</span>` : '';
 
         let limitStr = 'Lmt: No Limit';
         if (minLmt > 0 || Number.isFinite(maxLmt)) {
@@ -1189,7 +1407,7 @@ export function renderOrderBooks(depth, uMinParam, uMaxParam) {
           <tr class="${rowClass}" data-direction="BUY" data-rate="${price}" data-volume="${available}" data-counterparty="${escapeHtml(advName)}" title="Tap to record Buy trade at ₦${price}">
             <td>
               <div class="fw-semibold truncate" style="max-width: 140px;" title="${escapeHtml(advName)}">
-                <span>${idx + 1}. ${escapeHtml(advName)}</span>${sweetBadge}${immBadge}
+                <span>${idx + 1}. ${escapeHtml(advName)}</span>${userBadge}${sweetBadge}${immBadge}
               </div>
               <div class="text-muted tiny competitor-limits">${limitStr}</div>
             </td>
@@ -1272,13 +1490,14 @@ export function initAdModificationControls() {
  */
 export function openAdUpdateModal(side = 'buy') {
   const isBuy = side === 'buy';
+  const targetAd = isBuy ? userActiveBuyAd : userActiveSellAd;
   const modalBackdrop = document.getElementById('modal-update-ad-backdrop');
   if (!modalBackdrop) return;
 
   // 1. Determine recommended price from sweet spot rate
   const rateElemId = isBuy ? 'pricing-suggested-buy' : 'pricing-suggested-sell';
   const rateText = document.getElementById(rateElemId)?.textContent || '';
-  const recommendedPrice = parseFloat(rateText.replace(/[₦,]/g, '').trim()) || 0;
+  const recommendedPrice = parseFloat(rateText.replace(/[^\d.]/g, '').trim()) || 0;
 
   // 2. Read user trade limits from store settings or inputs
   const elMinLimit = document.getElementById('input-user-min-limit') || document.getElementById('input-min-trade-limit');
@@ -1292,20 +1511,87 @@ export function openAdUpdateModal(side = 'buy') {
     : (Number(settings.maxTradeLimitNgn) || 40000);
 
   // 3. Populate form fields
+  const elAdId = document.getElementById('input-ad-id');
   const elPrice = document.getElementById('input-ad-price');
   const elMin = document.getElementById('input-ad-min-limit');
   const elMax = document.getElementById('input-ad-max-limit');
+  const elQuantity = document.getElementById('input-ad-quantity');
   const elTargetRate = document.getElementById('modal-target-sweet-spot-rate');
   const elCurrentRate = document.getElementById('modal-current-ad-rate');
+  const elCurrentLimits = document.getElementById('modal-current-ad-limits');
   const elBadge = document.getElementById('modal-ad-side-badge');
   const elTitle = document.getElementById('modal-update-ad-title');
   const elAlert = document.getElementById('modal-ad-edit-alert');
+  const elDetectedCard = document.getElementById('modal-live-ad-detected-card');
+  const elDetectedBadge = document.getElementById('modal-live-ad-status-badge');
+  const elDetectedIdDisplay = document.getElementById('modal-live-ad-id-display');
+  const elAdIdHint = document.getElementById('ad-id-source-hint');
+  const elAdIdHelper = document.getElementById('ad-id-helper-text');
+
+  if (targetAd) {
+    const adId = targetAd.id || targetAd.itemId || targetAd.advNo || '';
+    const currentPrice = parseFloat(targetAd.price) || 0;
+    const currentMin = parseFloat(targetAd.minAmount || targetAd.minSingleTransAmount) || userMin;
+    const currentMax = parseFloat(targetAd.maxAmount || targetAd.maxSingleTransAmount) || userMax;
+    const currentQty = parseFloat(targetAd.lastQuantity || targetAd.quantity) || 0;
+
+    if (elAdId) {
+      elAdId.value = adId;
+    }
+    if (elCurrentRate) {
+      elCurrentRate.textContent = currentPrice > 0 ? `₦${currentPrice.toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : '—';
+    }
+    if (elCurrentLimits) {
+      elCurrentLimits.textContent = `₦${Math.round(currentMin).toLocaleString('en-NG')} – ₦${Math.round(currentMax).toLocaleString('en-NG')}`;
+    }
+    if (elMin) elMin.value = currentMin;
+    if (elMax) elMax.value = currentMax;
+    if (elQuantity && currentQty > 0) elQuantity.placeholder = `Current: ${currentQty.toFixed(1)} USDT`;
+    if (elDetectedBadge) {
+      elDetectedBadge.innerHTML = '<i data-lucide="radio"></i> LIVE BYBIT AD AUTO-LINKED';
+      elDetectedBadge.className = 'badge badge-success tiny font-mono';
+    }
+    if (elDetectedIdDisplay) elDetectedIdDisplay.textContent = `ID: #${adId}`;
+    if (elAdIdHint) {
+      elAdIdHint.textContent = 'Auto-linked from your running Bybit ad';
+      elAdIdHint.className = 'text-success tiny font-mono';
+    }
+    if (elAdIdHelper) {
+      elAdIdHelper.textContent = 'Auto-populated with your live Bybit ad ID. You can submit directly.';
+    }
+    if (elDetectedCard) {
+      elDetectedCard.style.display = 'block';
+      elDetectedCard.style.borderColor = 'rgba(16, 185, 129, 0.35)';
+      elDetectedCard.style.background = 'rgba(16, 185, 129, 0.08)';
+    }
+  } else {
+    // No live ad running on this side
+    if (elAdId) elAdId.value = '';
+    if (elCurrentRate) elCurrentRate.textContent = 'No Live Ad Running';
+    if (elCurrentLimits) elCurrentLimits.textContent = `Default: ₦${Math.round(userMin).toLocaleString('en-NG')} – ₦${Math.round(userMax).toLocaleString('en-NG')}`;
+    if (elMin) elMin.value = userMin;
+    if (elMax) elMax.value = userMax;
+    if (elDetectedBadge) {
+      elDetectedBadge.innerHTML = '<i data-lucide="circle-slash"></i> NO LIVE AD RUNNING';
+      elDetectedBadge.className = 'badge badge-neutral tiny font-mono';
+    }
+    if (elDetectedIdDisplay) elDetectedIdDisplay.textContent = 'Manual Entry';
+    if (elAdIdHint) {
+      elAdIdHint.textContent = 'Manual Item ID required';
+      elAdIdHint.className = 'text-warning tiny font-mono';
+    }
+    if (elAdIdHelper) {
+      elAdIdHelper.textContent = 'No running ad detected on Bybit. Enter Item ID manually if you have an unlisted ad.';
+    }
+    if (elDetectedCard) {
+      elDetectedCard.style.display = 'block';
+      elDetectedCard.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+      elDetectedCard.style.background = 'rgba(15, 23, 42, 0.6)';
+    }
+  }
 
   if (elPrice) elPrice.value = recommendedPrice > 0 ? recommendedPrice.toFixed(2) : '';
-  if (elMin) elMin.value = userMin;
-  if (elMax) elMax.value = userMax;
   if (elTargetRate) elTargetRate.textContent = recommendedPrice > 0 ? `₦${recommendedPrice.toFixed(2)}` : '—';
-  if (elCurrentRate) elCurrentRate.textContent = '—';
   if (elBadge) {
     elBadge.textContent = isBuy ? 'BUY AD' : 'SELL AD';
     elBadge.className = isBuy ? 'badge badge-primary tiny font-mono' : 'badge badge-success tiny font-mono';
