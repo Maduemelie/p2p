@@ -1490,18 +1490,17 @@ export function renderOrderBooks(depth, buyMinParam, buyMaxParam, sellMinParam, 
     const isLive = liveBuyMin > 0 && liveBuyMax > 0;
     const liveTag = isLive ? ' (Live Ad Limits)' : '';
     elBuySubtitle.innerHTML = buyOrderbookDirectOnly
-      ? Showing <strong> Direct Competitors</strong> in your ₦ – ₦ limit range.
-      : Showing top  Bybit Buy ads across all limits.;
+      ? `Showing <strong>${filteredDirectBuy.length} Direct Competitors</strong> in your ₦${Math.round(buyMin).toLocaleString("en-NG")} – ₦${Math.round(buyMax).toLocaleString("en-NG")}${liveTag} limit range.`
+      : `Showing top ${displayBuyItems.length} Bybit Buy ads across all limits.`;
   }
   const elSellSubtitle = document.getElementById('sell-orderbook-subtitle');
   if (elSellSubtitle) {
     const isLive = liveSellMin > 0 && liveSellMax > 0;
     const liveTag = isLive ? ' (Live Ad Limits)' : '';
     elSellSubtitle.innerHTML = sellOrderbookDirectOnly
-      ? Showing <strong> Direct Competitors</strong> in your ₦ – ₦ limit range.
-      : Showing top  Bybit Sell ads across all limits.;
+      ? `Showing <strong>${filteredDirectSell.length} Direct Competitors</strong> in your ₦${Math.round(sellMin).toLocaleString("en-NG")} – ₦${Math.round(sellMax).toLocaleString("en-NG")}${liveTag} limit range.`
+      : `Showing top ${displaySellItems.length} Bybit Sell ads across all limits.`;
   }
-
   if (buyTbody) {
     if (displayBuyItems.length === 0) {
       buyTbody.innerHTML = `<tr><td colspan="3" class="text-center py-3 text-muted">No Buy ads online</td></tr>`;
