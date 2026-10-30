@@ -527,7 +527,7 @@ export function renderPricingView() {
             <h3 class="card-title mb-0">Buy Order Book (Market Bids)</h3>
             <button type="button" class="btn btn-sm btn-outline orderbook-filter-toggle active" id="btn-toggle-buy-direct-competitors" title="Toggle between direct competitors and all Bybit market depth" style="font-size: 0.72rem; padding: 2px 8px;">
               <i data-lucide="filter"></i>
-              <span id="buy-filter-toggle-label">Direct Competitors (₦15k - ₦40k)</span>
+              <span id="buy-filter-toggle-label">Direct Competitors (Live Limits)</span>
             </button>
           </div>
           <p class="card-subtitle mb-3" id="buy-orderbook-subtitle">Showing merchants competing in your limit range (matches Bybit <strong>Sell</strong> tab). Top bid wins.</p>
@@ -555,7 +555,7 @@ export function renderPricingView() {
             <h3 class="card-title mb-0">Sell Order Book (Market Asks)</h3>
             <button type="button" class="btn btn-sm btn-outline orderbook-filter-toggle active" id="btn-toggle-sell-direct-competitors" title="Toggle between direct competitors and all Bybit market depth" style="font-size: 0.72rem; padding: 2px 8px;">
               <i data-lucide="filter"></i>
-              <span id="sell-filter-toggle-label">Direct Competitors (₦15k - ₦40k)</span>
+              <span id="sell-filter-toggle-label">Direct Competitors (Live Limits)</span>
             </button>
           </div>
           <p class="card-subtitle mb-3" id="sell-orderbook-subtitle">Showing merchants competing in your limit range (matches Bybit <strong>Buy</strong> tab). Cheapest ask wins.</p>

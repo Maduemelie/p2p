@@ -397,27 +397,16 @@ export function initOrderbookFilterToggles() {
   btnBuyToggle?.addEventListener('click', () => {
     buyOrderbookDirectOnly = !buyOrderbookDirectOnly;
     btnBuyToggle.classList.toggle('active', buyOrderbookDirectOnly);
-    const label = document.getElementById('buy-filter-toggle-label');
-    if (label) {
-      label.textContent = buyOrderbookDirectOnly ? 'Direct Competitors (₦15k - ₦40k)' : 'All Market Depth';
-    }
-    if (cachedMarketDepth) renderOrderBooks(cachedMarketDepth);
+    if (cachedMarketDepth) calculateMargins();
   });
 
   btnSellToggle?.addEventListener('click', () => {
     sellOrderbookDirectOnly = !sellOrderbookDirectOnly;
     btnSellToggle.classList.toggle('active', sellOrderbookDirectOnly);
-    const label = document.getElementById('sell-filter-toggle-label');
-    if (label) {
-      label.textContent = sellOrderbookDirectOnly ? 'Direct Competitors (₦15k - ₦40k)' : 'All Market Depth';
-    }
-    if (cachedMarketDepth) renderOrderBooks(cachedMarketDepth);
+    if (cachedMarketDepth) calculateMargins();
   });
 }
 
-/**
- * Query proxy server to fetch live order depth and trigger margin calculations
- */
 export async function refreshPricingData(showToast = false) {
   const btnRefresh = document.getElementById('btn-refresh-market-depth');
   if (btnRefresh) {
@@ -1500,6 +1489,25 @@ export function renderOrderBooks(depth, buyMinParam, buyMaxParam, sellMinParam, 
     elSellSubtitle.innerHTML = sellOrderbookDirectOnly
       ? `Showing <strong>${filteredDirectSell.length} Direct Competitors</strong> in your ₦${Math.round(sellMin).toLocaleString("en-NG")} – ₦${Math.round(sellMax).toLocaleString("en-NG")}${liveTag} limit range.`
       : `Showing top ${displaySellItems.length} Bybit Sell ads across all limits.`;
+  }
+
+  // Dynamically update filter toggle button labels to reflect exact live limits
+  const elBuyToggleLabel = document.getElementById('buy-filter-toggle-label');
+  if (elBuyToggleLabel) {
+    const minK = Math.round(buyMin / 1000);
+    const maxK = Math.round(buyMax / 1000);
+    elBuyToggleLabel.textContent = buyOrderbookDirectOnly
+      ? `Direct Competitors (₦${minK}k – ₦${maxK}k)`
+      : 'All Market Depth';
+  }
+
+  const elSellToggleLabel = document.getElementById('sell-filter-toggle-label');
+  if (elSellToggleLabel) {
+    const minK = Math.round(sellMin / 1000);
+    const maxK = Math.round(sellMax / 1000);
+    elSellToggleLabel.textContent = sellOrderbookDirectOnly
+      ? `Direct Competitors (₦${minK}k – ₦${maxK}k)`
+      : 'All Market Depth';
   }
   if (buyTbody) {
     if (displayBuyItems.length === 0) {
