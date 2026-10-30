@@ -427,11 +427,124 @@ export function renderPricingView() {
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
           <div class="d-flex align-items-center gap-2">
             <div class="action-icon-box bg-purple-glow">
-              <i data-lucide="activity"></i>
+              <i data-lucide="compass"></i>
             </div>
             <div>
-              <h3 class="card-title">Live Session Metrics & Tier Ladder</h3>
-              <p class="card-subtitle">Real-time tracking of executed buy volume and maker limit brackets</p>
+              <h3 class="card-title">Dual-Book Smart Buy Advisor & FIFO Averaging</h3>
+              <p class="card-subtitle">Optimal buy rates across both Order Books to safely drop your FIFO cost basis below your live exit order</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dual-Book Smart Buy Advisor: Taker vs Maker -->
+        <div id="dual-buy-advisor-container" class="mb-4">
+          <!-- Cost Basis & Exit Anchor Row -->
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 p-3 mb-3" style="background: rgba(15, 23, 42, 0.7); border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.25);">
+            <div class="d-flex flex-wrap align-items-center gap-3">
+              <div>
+                <span class="text-secondary tiny text-uppercase font-mono fw-bold">Current FIFO Basis</span>
+                <div class="h5 mb-0 font-mono fw-bold text-primary" id="advisor-fifo-cost-basis">₦0.00</div>
+              </div>
+              <div class="d-none d-sm-block" style="border-left: 1px solid rgba(255,255,255,0.1); height: 32px;"></div>
+              <div>
+                <span class="text-secondary tiny text-uppercase font-mono fw-bold">Live Sell Exit Anchor</span>
+                <div class="h5 mb-0 font-mono fw-bold text-success" id="advisor-live-sell-anchor">₦0.00</div>
+              </div>
+            </div>
+            <div class="text-muted tiny">
+              <span>Goal: </span>
+              <span class="text-warning fw-bold font-mono" id="advisor-target-fifo-label">Drop FIFO below anchor</span>
+            </div>
+          </div>
+
+          <!-- Dual Channel Comparison: Taker Buy vs Maker Buy -->
+          <div class="row g-3">
+            <!-- Channel A: Taker Buy (from Sell Order Book / Market Asks) -->
+            <div class="col-12 col-md-6">
+              <div class="p-3 h-100 d-flex flex-column justify-content-between" style="background: rgba(13, 20, 36, 0.85); border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.35);">
+                <div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge badge-success tiny font-mono fw-bold">
+                      <i data-lucide="zap"></i> CHANNEL A: TAKER BUY (INSTANT)
+                    </span>
+                    <span class="badge badge-outline tiny font-mono text-muted">0% Fee (Taker)</span>
+                  </div>
+                  <p class="text-secondary tiny mb-3" style="line-height: 1.4;">Buy directly from cheapest competitor in <strong>Sell Order Book</strong>. Instant execution drops your FIFO basis immediately with zero queue wait.</p>
+                  
+                  <div class="d-flex justify-content-between align-items-baseline mb-2">
+                    <div class="tiny text-muted">Cheapest Ask:</div>
+                    <div class="h4 mb-0 font-mono fw-bold text-success" id="taker-buy-best-rate">₦0.00</div>
+                  </div>
+
+                  <div class="d-flex justify-content-between text-muted tiny mb-1 font-mono">
+                    <span>Advertiser:</span>
+                    <span id="taker-buy-ask-advertiser" class="text-secondary fw-bold">—</span>
+                  </div>
+                  <div class="d-flex justify-content-between text-muted tiny mb-3 font-mono">
+                    <span>Available Qty:</span>
+                    <span id="taker-buy-available-qty" class="text-secondary">— USDT</span>
+                  </div>
+
+                  <div class="p-2 mb-3" style="background: rgba(16, 185, 129, 0.08); border-radius: 6px;">
+                    <div class="d-flex justify-content-between tiny font-mono">
+                      <span class="text-muted">FIFO Cost Impact:</span>
+                      <span id="taker-buy-fifo-impact" class="text-success fw-bold">—</span>
+                    </div>
+                    <div class="d-flex justify-content-between tiny font-mono mt-1">
+                      <span class="text-muted">Exit Margin vs Live Sell:</span>
+                      <span id="taker-buy-exit-margin" class="text-primary fw-bold">—</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button type="button" class="btn btn-sm btn-outline-success w-100 font-mono" id="btn-copy-taker-buy-rate">
+                  <i data-lucide="copy"></i> Copy Taker Buy Rate
+                </button>
+              </div>
+            </div>
+
+            <!-- Channel B: Maker Buy (from Buy Order Book / Market Bids) -->
+            <div class="col-12 col-md-6">
+              <div class="p-3 h-100 d-flex flex-column justify-content-between" style="background: rgba(13, 20, 36, 0.85); border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.35);">
+                <div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge badge-primary tiny font-mono fw-bold">
+                      <i data-lucide="layers"></i> CHANNEL B: MAKER BUY (PASSIVE)
+                    </span>
+                    <span class="badge badge-outline tiny font-mono text-muted">0.30% Fee Capped</span>
+                  </div>
+                  <p class="text-secondary tiny mb-3" style="line-height: 1.4;">Post a limit ad in <strong>Buy Order Book</strong> at optimal discount. Deeper FIFO basis reduction with safe profit ceiling guardrails.</p>
+
+                  <div class="d-flex justify-content-between align-items-baseline mb-2">
+                    <div class="tiny text-muted">Recommended Bid:</div>
+                    <div class="h4 mb-0 font-mono fw-bold text-primary" id="maker-buy-recommended-rate">₦0.00</div>
+                  </div>
+
+                  <div class="d-flex justify-content-between text-muted tiny mb-1 font-mono">
+                    <span>Top Competitor Bid:</span>
+                    <span id="maker-buy-queue-label" class="text-secondary fw-bold">—</span>
+                  </div>
+                  <div class="d-flex justify-content-between text-muted tiny mb-3 font-mono">
+                    <span>Safe Bid Ceiling:</span>
+                    <span id="maker-buy-safe-ceiling" class="text-secondary">—</span>
+                  </div>
+
+                  <div class="p-2 mb-3" style="background: rgba(59, 130, 246, 0.08); border-radius: 6px;">
+                    <div class="d-flex justify-content-between tiny font-mono">
+                      <span class="text-muted">FIFO Cost Impact:</span>
+                      <span id="maker-buy-fifo-impact" class="text-success fw-bold">—</span>
+                    </div>
+                    <div class="d-flex justify-content-between tiny font-mono mt-1">
+                      <span class="text-muted">Net Realized Spread:</span>
+                      <span id="maker-buy-net-margin" class="text-primary fw-bold">—</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button type="button" class="btn btn-sm btn-outline-primary w-100 font-mono" id="btn-copy-maker-buy-rate">
+                  <i data-lucide="copy"></i> Copy Maker Buy Rate
+                </button>
+              </div>
             </div>
           </div>
         </div>

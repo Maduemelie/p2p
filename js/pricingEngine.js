@@ -1379,5 +1379,132 @@ export function calculateFillSpeed(rank = 1, volumeAhead = 0, totalCompetitors =
   };
 }
 
+/**
+ * Calculate Dual-Book Buy Advisory comparing Taker Buy (Sell Book Asks) vs Maker Buy (Buy Book Bids)
+ * Anchored to current FIFO average cost basis and active Live Sell Ad exit price.
+ * 
+ * @param {Object} params
+ * @returns {Object} Dual-book smart buy advice
+ */
+export function calculateDualBookBuyAdvice({
+  costBasis = 0,
+  liveSellPrice = 0,
+  liveBuyPrice = 0,
+  sortedSellAds = [],
+  sortedBuyAds = [],
+  targetProfit = 7.0,
+  userMin = 30000,
+  userMax = 60000,
+  platformFeePct = 0.3,
+  inflowFee = 50.0,
+  tradeVolume = 100
+} = {}) {
+  const currentFifoAvg = Number(costBasis) > 0 ? Number(costBasis) : 0;
+  const safeVol = (!tradeVolume || isNaN(Number(tradeVolume)) || Number(tradeVolume) <= 0) ? 100 : Number(tradeVolume);
+  const safeProfit = (!targetProfit || isNaN(Number(targetProfit)) || Number(targetProfit) <= 0) ? 7.0 : Number(targetProfit);
+  const phiBuy = normalizeFeeRate(platformFeePct);
+  const fiatFeePerUnit = Number(inflowFee || 0) / safeVol;
 
+  // 1. Resolve Exit Anchor: Active Live Sell Ad > Top Market Ask > FIFO + Target
+  const sellAdsList = Array.isArray(sortedSellAds) ? sortedSellAds : [];
+  const buyAdsList = Array.isArray(sortedBuyAds) ? sortedBuyAds : [];
+
+  let exitAnchorPrice = 0;
+  if (liveSellPrice > 0) {
+    exitAnchorPrice = Number(liveSellPrice);
+  } else if (sellAdsList.length > 0 && parseFloat(sellAdsList[0].price) > 0) {
+    exitAnchorPrice = parseFloat(sellAdsList[0].price);
+  } else if (currentFifoAvg > 0) {
+    exitAnchorPrice = currentFifoAvg + safeProfit;
+  }
+
+  // 2. Channel A: Taker Buy from Sell Order Book (Market Asks)
+  // Direct competitor asks within user limits
+  const directAsks = sellAdsList.filter(ad => isImmediateCompetitor(ad, userMin, userMax));
+  const candidateAsks = directAsks.length > 0 ? directAsks : sellAdsList;
+  const cheapestAsk = candidateAsks.length > 0 ? candidateAsks[0] : null;
+
+  const takerPrice = cheapestAsk ? (parseFloat(cheapestAsk.price) || 0) : 0;
+  const takerQty = cheapestAsk ? (parseFloat(cheapestAsk.lastQuantity) || 0) : 0;
+  const takerAdvName = cheapestAsk ? (cheapestAsk.nickName || cheapestAsk.memberName || 'Seller') : 'None online';
+
+  const takerDropsFifo = currentFifoAvg > 0 && takerPrice > 0 && takerPrice < currentFifoAvg;
+  const takerFifoDropAmount = (currentFifoAvg > 0 && takerPrice > 0) ? Math.round((currentFifoAvg - takerPrice) * 100) / 100 : 0;
+  const takerGrossSpread = (exitAnchorPrice > 0 && takerPrice > 0) ? Math.round((exitAnchorPrice - takerPrice) * 100) / 100 : 0;
+  const takerNetMargin = takerGrossSpread - fiatFeePerUnit; // 0% taker fee on Bybit P2P!
+
+  // 3. Channel B: Maker Buy from Buy Order Book (Market Bids)
+  // Safe ceiling: maximum price user can bid as Maker while ensuring safe profit
+  const makerSafeCeiling = exitAnchorPrice > 0
+    ? Math.floor((1 - phiBuy) * (exitAnchorPrice - safeProfit - fiatFeePerUnit) * 100) / 100
+    : (currentFifoAvg > 0 ? Math.floor((currentFifoAvg - safeProfit) * 100) / 100 : 0);
+
+  const directBids = buyAdsList.filter(ad => isImmediateCompetitor(ad, userMin, userMax));
+  const candidateBids = directBids.length > 0 ? directBids : buyAdsList;
+  const topBidPrice = candidateBids.length > 0 ? (parseFloat(candidateBids[0].price) || 0) : 0;
+
+  // Maker buy recommendation: competitive bid clamped to safe ceiling
+  const recommendedMakerRate = makerSafeCeiling > 0
+    ? (topBidPrice > 0 ? Math.min(makerSafeCeiling, Math.round((topBidPrice + 0.10) * 100) / 100) : makerSafeCeiling)
+    : 0;
+
+  const makerDropsFifo = currentFifoAvg > 0 && recommendedMakerRate > 0 && recommendedMakerRate < currentFifoAvg;
+  const makerFifoDropAmount = (currentFifoAvg > 0 && recommendedMakerRate > 0) ? Math.round((currentFifoAvg - recommendedMakerRate) * 100) / 100 : 0;
+  const makerNetMargin = (exitAnchorPrice > 0 && recommendedMakerRate > 0)
+    ? Math.round((exitAnchorPrice - (recommendedMakerRate / Math.max(0.001, 1 - phiBuy)) - fiatFeePerUnit) * 100) / 100
+    : 0;
+
+  // 4. Strategic 3-Tier FIFO Averaging Brackets
+  const tierBase = recommendedMakerRate > 0 ? recommendedMakerRate : (makerSafeCeiling > 0 ? makerSafeCeiling : 1365);
+  const tierStep = Math.max(1.0, Math.round(safeProfit * 0.4 * 100) / 100);
+
+  const brackets = [
+    {
+      tier: 1,
+      name: 'Tier 1: Fast Fill Limit',
+      targetPrice: Math.round(tierBase * 100) / 100,
+      fifoDrop: currentFifoAvg > 0 ? Math.round((currentFifoAvg - tierBase) * 100) / 100 : 0,
+      netMargin: makerNetMargin
+    },
+    {
+      tier: 2,
+      name: 'Tier 2: Mid-Discount Average',
+      targetPrice: Math.round(Math.max(1.0, tierBase - tierStep) * 100) / 100,
+      fifoDrop: currentFifoAvg > 0 ? Math.round((currentFifoAvg - (tierBase - tierStep)) * 100) / 100 : 0,
+      netMargin: Math.round((makerNetMargin + tierStep) * 100) / 100
+    },
+    {
+      tier: 3,
+      name: 'Tier 3: Deep-Discount Spread',
+      targetPrice: Math.round(Math.max(1.0, tierBase - (tierStep * 2.5)) * 100) / 100,
+      fifoDrop: currentFifoAvg > 0 ? Math.round((currentFifoAvg - (tierBase - (tierStep * 2.5))) * 100) / 100 : 0,
+      netMargin: Math.round((makerNetMargin + (tierStep * 2.5)) * 100) / 100
+    }
+  ];
+
+  return {
+    currentFifoAvg,
+    exitAnchorPrice,
+    fifoDropCeiling: currentFifoAvg > 0 ? currentFifoAvg : exitAnchorPrice,
+    taker: {
+      bestPrice: takerPrice,
+      availableQty: takerQty,
+      advertiserName: takerAdvName,
+      dropsFifo: takerDropsFifo,
+      fifoDropAmount: takerFifoDropAmount,
+      grossSpread: takerGrossSpread,
+      netMargin: Math.round(takerNetMargin * 100) / 100,
+      isViable: takerPrice > 0 && (currentFifoAvg <= 0 || takerDropsFifo) && takerGrossSpread > 0
+    },
+    maker: {
+      recommendedRate: recommendedMakerRate,
+      safeCeiling: makerSafeCeiling,
+      dropsFifo: makerDropsFifo,
+      fifoDropAmount: makerFifoDropAmount,
+      netMargin: makerNetMargin,
+      topBidPrice
+    },
+    brackets
+  };
+}
 

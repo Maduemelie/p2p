@@ -1056,5 +1056,57 @@ describe('Tier 1 — Pricing & Arbitrage Engine Unit Tests', () => {
     assert.strictEqual(result.marketDiagnostics.sellMarketStatus, 'ABOVE_MARKET');
     assert.ok(result.marketDiagnostics.buyMarketMessage.includes('Top market bid is ₦1510.00'));
   });
+
+  // =========================================================================
+  // 17. Dual-Book Smart Buy Advisor (calculateDualBookBuyAdvice)
+  // =========================================================================
+
+  it('PE.DUAL.1: Evaluates Taker Buy from Sell Order Book and Maker Buy from Buy Order Book to drop FIFO basis', () => {
+    const sellAds = [
+      { price: '1369.45', lastQuantity: '39.0', minAmount: '5000', maxAmount: '23000', nickName: 'Pulse_Pay' },
+      { price: '1372.90', lastQuantity: '42.4', minAmount: '20000', maxAmount: '58166', nickName: 'Phemix' }
+    ];
+    const buyAds = [
+      { price: '1374.65', lastQuantity: '100.0', minAmount: '4500', maxAmount: '100000', nickName: 'MKMBUSINESS' },
+      { price: '1369.70', lastQuantity: '34.0', minAmount: '5000', maxAmount: '46512', nickName: 'Reliabletrader' }
+    ];
+
+    const advice = pricingEngine.calculateDualBookBuyAdvice({
+      costBasis: 1380.00,
+      liveSellPrice: 1380.00,
+      liveBuyPrice: 1366.00,
+      sortedSellAds: sellAds,
+      sortedBuyAds: buyAds,
+      targetProfit: 7.0,
+      userMin: 5000,
+      userMax: 40000,
+      platformFeePct: 0.3,
+      inflowFee: 50.0,
+      tradeVolume: 100
+    });
+
+    assert.strictEqual(advice.currentFifoAvg, 1380.00);
+    assert.strictEqual(advice.exitAnchorPrice, 1380.00);
+
+    // Channel A: Taker Buy from cheapest ask Pulse_Pay
+    assert.strictEqual(advice.taker.bestPrice, 1369.45);
+    assert.strictEqual(advice.taker.advertiserName, 'Pulse_Pay');
+    assert.strictEqual(advice.taker.availableQty, 39.0);
+    assert.strictEqual(advice.taker.dropsFifo, true);
+    assert.strictEqual(advice.taker.fifoDropAmount, 10.55);
+    assert.strictEqual(advice.taker.grossSpread, 10.55);
+    assert.ok(advice.taker.netMargin > 10.0);
+
+    // Channel B: Maker Buy from buy order book
+    assert.ok(advice.maker.safeCeiling <= 1368.50);
+    assert.strictEqual(advice.maker.dropsFifo, true);
+    assert.ok(advice.maker.fifoDropAmount > 11.0);
+
+    // 3-Tier Brackets
+    assert.strictEqual(advice.brackets.length, 3);
+    assert.ok(advice.brackets[0].fifoDrop > 0);
+    assert.ok(advice.brackets[1].fifoDrop > advice.brackets[0].fifoDrop);
+    assert.ok(advice.brackets[2].fifoDrop > advice.brackets[1].fifoDrop);
+  });
 }, { tier: 1, category: 'Pricing Engine' });
 

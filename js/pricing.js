@@ -18,7 +18,8 @@ import {
   isImmediateCompetitor,
   filterImmediateCompetitors,
   calculateQueuePosition,
-  calculateFillSpeed
+  calculateFillSpeed,
+  calculateDualBookBuyAdvice
 } from './pricingEngine.js';
 
 // Cache for market depth to allow local calculation runs without API spam
@@ -151,12 +152,19 @@ function loadSavedSettings() {
     ? String(storeSettings.maxTradeLimitNgn)
     : '40000';
 
-  const userMin = localStorage.getItem('bybit_p2p_user_min_limit')
-    || localStorage.getItem('bybit_p2p_pricing_min_limit')
-    || defaultMin;
-  const userMax = localStorage.getItem('bybit_p2p_user_max_limit')
-    || localStorage.getItem('bybit_p2p_pricing_max_limit')
-    || defaultMax;
+  const liveAdMin = userActiveBuyAd ? (parseFloat(userActiveBuyAd.minAmount || userActiveBuyAd.minSingleTransAmount) || 0) : 0;
+  const liveAdMax = userActiveBuyAd ? (parseFloat(userActiveBuyAd.maxAmount || userActiveBuyAd.maxSingleTransAmount) || 0) : 0;
+
+  const userMin = liveAdMin > 0
+    ? String(Math.round(liveAdMin))
+    : (localStorage.getItem('bybit_p2p_user_min_limit')
+      || localStorage.getItem('bybit_p2p_pricing_min_limit')
+      || defaultMin);
+  const userMax = liveAdMax > 0
+    ? String(Math.round(liveAdMax))
+    : (localStorage.getItem('bybit_p2p_user_max_limit')
+      || localStorage.getItem('bybit_p2p_pricing_max_limit')
+      || defaultMax);
 
   const elMinLimit = document.getElementById('input-user-min-limit') || document.getElementById('input-min-trade-limit');
   const elMaxLimit = document.getElementById('input-user-max-limit') || document.getElementById('input-max-trade-limit');
@@ -383,6 +391,25 @@ function setupListeners() {
       const numericText = el.textContent.replace(/[₦,]/g, '').trim();
       navigator.clipboard.writeText(numericText);
       if (window.showToast) window.showToast(`Copied Sell Price: ₦${numericText}`, 'success');
+    }
+  });
+
+  // Dual-Book Smart Advisor copy handlers
+  document.getElementById('btn-copy-taker-buy-rate')?.addEventListener('click', () => {
+    const el = document.getElementById('taker-buy-best-rate');
+    if (el && el.textContent !== '₦0.00' && el.textContent !== '—') {
+      const numericText = el.textContent.replace(/[₦,]/g, '').trim();
+      navigator.clipboard?.writeText(numericText).catch(() => {});
+      if (window.showToast) window.showToast(`Copied Taker Buy Rate: ₦${numericText}`, 'success');
+    }
+  });
+
+  document.getElementById('btn-copy-maker-buy-rate')?.addEventListener('click', () => {
+    const el = document.getElementById('maker-buy-recommended-rate');
+    if (el && el.textContent !== '₦0.00' && el.textContent !== '—') {
+      const numericText = el.textContent.replace(/[₦,]/g, '').trim();
+      navigator.clipboard?.writeText(numericText).catch(() => {});
+      if (window.showToast) window.showToast(`Copied Maker Buy Rate: ₦${numericText}`, 'success');
     }
   });
 }
@@ -1143,6 +1170,109 @@ export function calculateMargins() {
     elSweetSellRankBadge.textContent = sweetSpotResult.markers.sellTargetRank > 0 ? `Rank #${sweetSpotResult.markers.sellTargetRank}` : 'Rank #—';
   }
 
+  // E2. DUAL-BOOK SMART BUY ADVISOR (Taker vs Maker FIFO Reduction)
+  const dualBuyAdvice = calculateDualBookBuyAdvice({
+    costBasis,
+    liveSellPrice: userActiveSellAd ? (parseFloat(userActiveSellAd.price) || 0) : 0,
+    liveBuyPrice: userActiveBuyAd ? (parseFloat(userActiveBuyAd.price) || 0) : 0,
+    sortedSellAds: sortedSellAds,
+    sortedBuyAds: sortedBuyAds,
+    targetProfit: primaryProfitTarget,
+    userMin: buyMin,
+    userMax: buyMax,
+    platformFeePct,
+    inflowFee,
+    tradeVolume: avgVolume
+  });
+
+  const elAdvFifoCost = document.getElementById('advisor-fifo-cost-basis');
+  const elAdvSellAnchor = document.getElementById('advisor-live-sell-anchor');
+  const elAdvTargetLabel = document.getElementById('advisor-target-fifo-label');
+
+  if (elAdvFifoCost) {
+    elAdvFifoCost.textContent = costBasis > 0 ? formatNGN(costBasis) : '₦0.00 (No open position)';
+  }
+  if (elAdvSellAnchor) {
+    elAdvSellAnchor.textContent = dualBuyAdvice.exitAnchorPrice > 0 ? formatNGN(dualBuyAdvice.exitAnchorPrice) : '—';
+  }
+  if (elAdvTargetLabel) {
+    if (costBasis > 0) {
+      elAdvTargetLabel.textContent = `Drop FIFO below ₦${costBasis.toFixed(2)}`;
+    } else if (dualBuyAdvice.exitAnchorPrice > 0) {
+      elAdvTargetLabel.textContent = `Target profit vs ₦${dualBuyAdvice.exitAnchorPrice.toFixed(2)} exit`;
+    } else {
+      elAdvTargetLabel.textContent = 'Acquire at optimal discount';
+    }
+  }
+
+  // Channel A: Taker Buy from Sell Order Book (Market Asks)
+  const elTakerRate = document.getElementById('taker-buy-best-rate');
+  const elTakerAdv = document.getElementById('taker-buy-ask-advertiser');
+  const elTakerQty = document.getElementById('taker-buy-available-qty');
+  const elTakerFifoImpact = document.getElementById('taker-buy-fifo-impact');
+  const elTakerExitMargin = document.getElementById('taker-buy-exit-margin');
+
+  if (elTakerRate) {
+    elTakerRate.textContent = dualBuyAdvice.taker.bestPrice > 0 ? formatNGN(dualBuyAdvice.taker.bestPrice) : '—';
+  }
+  if (elTakerAdv) {
+    elTakerAdv.textContent = dualBuyAdvice.taker.advertiserName || '—';
+  }
+  if (elTakerQty) {
+    elTakerQty.textContent = dualBuyAdvice.taker.availableQty > 0
+      ? `${dualBuyAdvice.taker.availableQty.toLocaleString('en-NG', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} USDT`
+      : '—';
+  }
+  if (elTakerFifoImpact) {
+    if (costBasis > 0 && dualBuyAdvice.taker.bestPrice > 0) {
+      if (dualBuyAdvice.taker.dropsFifo) {
+        elTakerFifoImpact.innerHTML = `<span class="text-success fw-bold font-mono">↓ Drops FIFO by -₦${dualBuyAdvice.taker.fifoDropAmount.toFixed(2)}/USDT</span>`;
+      } else {
+        elTakerFifoImpact.innerHTML = `<span class="text-warning fw-bold font-mono">↑ Above basis (+₦${(dualBuyAdvice.taker.bestPrice - costBasis).toFixed(2)})</span>`;
+      }
+    } else {
+      elTakerFifoImpact.textContent = 'Awaiting inventory baseline';
+    }
+  }
+  if (elTakerExitMargin) {
+    if (dualBuyAdvice.taker.grossSpread > 0) {
+      elTakerExitMargin.innerHTML = `<span class="text-primary font-mono fw-bold">+₦${dualBuyAdvice.taker.netMargin.toFixed(2)}/USDT</span> <span class="text-muted tiny">(${dualBuyAdvice.taker.grossSpread >= 0 ? '+' : ''}₦${dualBuyAdvice.taker.grossSpread.toFixed(2)} gross)</span>`;
+    } else {
+      elTakerExitMargin.textContent = 'Spread compressed';
+    }
+  }
+
+  // Channel B: Maker Buy from Buy Order Book (Market Bids)
+  const elMakerRate = document.getElementById('maker-buy-recommended-rate');
+  const elMakerQueue = document.getElementById('maker-buy-queue-label');
+  const elMakerCeiling = document.getElementById('maker-buy-safe-ceiling');
+  const elMakerFifoImpact = document.getElementById('maker-buy-fifo-impact');
+  const elMakerNetMargin = document.getElementById('maker-buy-net-margin');
+
+  if (elMakerRate) {
+    elMakerRate.textContent = dualBuyAdvice.maker.recommendedRate > 0 ? formatNGN(dualBuyAdvice.maker.recommendedRate) : '—';
+  }
+  if (elMakerQueue) {
+    elMakerQueue.textContent = dualBuyAdvice.maker.topBidPrice > 0 ? `₦${dualBuyAdvice.maker.topBidPrice.toLocaleString('en-NG', { minimumFractionDigits: 2 })} (Bid Top)` : '—';
+  }
+  if (elMakerCeiling) {
+    elMakerCeiling.textContent = dualBuyAdvice.maker.safeCeiling > 0 ? formatNGN(dualBuyAdvice.maker.safeCeiling) : '—';
+  }
+  if (elMakerFifoImpact) {
+    if (costBasis > 0 && dualBuyAdvice.maker.recommendedRate > 0) {
+      if (dualBuyAdvice.maker.dropsFifo) {
+        elMakerFifoImpact.innerHTML = `<span class="text-success fw-bold font-mono">↓ Drops FIFO by -₦${dualBuyAdvice.maker.fifoDropAmount.toFixed(2)}/USDT</span>`;
+      } else {
+        elMakerFifoImpact.innerHTML = `<span class="text-warning fw-bold font-mono">At or above basis</span>`;
+      }
+    } else {
+      elMakerFifoImpact.textContent = 'Awaiting inventory baseline';
+    }
+  }
+  if (elMakerNetMargin) {
+    elMakerNetMargin.textContent = `+₦${dualBuyAdvice.maker.netMargin.toFixed(2)}/USDT net`;
+  }
+
   // F. UPDATE 6-CARD METRICS using sweet spot result (overriding buyback values with sweet spot anchors)
   const elBbAvgBuy = document.getElementById('buyback-res-avg-buy');
   const elBbSellRate = document.getElementById('buyback-res-sell-rate');
@@ -1268,8 +1398,11 @@ export function calculateMargins() {
               <span class="font-mono text-secondary fw-bold small">₦${b.totalNgn.toLocaleString('en-NG', { maximumFractionDigits: 0 })}</span>
             </div>
           </div>
-          <div class="buyback-tier-footer">
-            <span class="text-muted tiny">${escapeHtml(b.description)}</span>
+          <div class="buyback-tier-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+              <span class="text-muted tiny">${escapeHtml(b.description)}</span>
+              ${costBasis > 0 && (costBasis - b.targetPrice) > 0 ? `<span class="badge badge-success tiny font-mono">Drops FIFO: -₦${(costBasis - b.targetPrice).toFixed(2)}</span>` : ''}
+            </div>
             <span class="text-success tiny font-mono fw-bold">+₦${b.spreadCapture.toFixed(2)}/USDT spread</span>
           </div>
         </div>
