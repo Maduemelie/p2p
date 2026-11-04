@@ -49,6 +49,7 @@ export function initDashboard() {
 
   renderDashboardMetrics();
   renderRecentTradesList();
+  initDashboardTabs();
   initDashboardChart();
   setupPeriodFilters();
   syncAndRenderActiveAd();
@@ -535,6 +536,10 @@ export function renderDashboardMetrics() {
   if (statInventoryHolding) {
     statInventoryHolding.textContent = formatUSDT(displayInventoryUSDT);
   }
+  const metricUsdt = document.getElementById('metric-nw-bybit-usdt');
+  if (metricUsdt) {
+    metricUsdt.textContent = formatUSDT(displayInventoryUSDT);
+  }
   if (statInventoryCost) {
     if (displayInventoryUSDT > 0) {
       statInventoryCost.textContent = `Cost: ${formatNGN(displayInventoryCostNGN)} • Avg: ₦${displayAvgCostPerUSDT.toFixed(2)}`;
@@ -562,6 +567,11 @@ export function renderDashboardMetrics() {
     statTotalBankCash.textContent = formatNGN(totalBankCash);
     statTotalBankCash.className = `portfolio-value font-mono ${totalBankCash >= 0 ? 'text-success' : 'text-danger'}`;
   }
+  const metricBank = document.getElementById('metric-nw-bank-cash');
+  if (metricBank) {
+    metricBank.textContent = formatNGN(totalBankCash);
+    metricBank.className = `nw-cell-value font-mono ${totalBankCash >= 0 ? 'text-success' : 'text-danger'}`;
+  }
   if (statBankCashSubtext) {
     statBankCashSubtext.textContent = `Across ${activeBanksCount} linked ${activeBanksCount === 1 ? 'account' : 'accounts'}`;
   }
@@ -574,6 +584,41 @@ export function renderDashboardMetrics() {
   renderSnapshotHistoryTable();
 
   if (window.lucide) window.lucide.createIcons();
+}
+
+/**
+ * Tab switching handler for Dashboard sub-tabs (Overview vs Trends & Analytics)
+ */
+export function initDashboardTabs() {
+  const tabBtns = document.querySelectorAll('.dashboard-tab-btn');
+  const tabPanels = document.querySelectorAll('.dashboard-tab-panel');
+
+  if (!tabBtns.length || !tabPanels.length) return;
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.getAttribute('data-dashboard-tab');
+      tabBtns.forEach(b => {
+        const isActive = b === btn;
+        b.classList.toggle('active', isActive);
+        b.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
+      tabPanels.forEach(p => {
+        const isTarget = p.getAttribute('data-dashboard-panel') === target;
+        p.classList.toggle('active', isTarget);
+      });
+
+      if (window.lucide) window.lucide.createIcons();
+
+      // When switching to the trends tab, re-render/resize both charts
+      if (target === 'trends') {
+        setTimeout(() => {
+          renderNetWorthTrendChart();
+          updateDashboardChart();
+        }, 50);
+      }
+    });
+  });
 }
 
 /**

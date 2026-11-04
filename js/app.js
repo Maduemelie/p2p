@@ -181,6 +181,12 @@ function initNavigation() {
   // Hash routing
   function handleHashRoute() {
     const hash = window.location.hash.replace('#', '');
+    if (hash === 'trends' || hash === 'analytics' || hash === 'dashboard-trends') {
+      switchTab('dashboard', false);
+      const trendsBtn = document.querySelector('[data-dashboard-tab="trends"]');
+      if (trendsBtn) trendsBtn.click();
+      return;
+    }
     const validViews = ['dashboard', 'add-trade', 'pricing', 'history', 'settings'];
     switchTab(validViews.includes(hash) ? hash : 'dashboard', false);
   }

@@ -1181,6 +1181,62 @@ img { max-width: 100%; display: block; }
 .settings-tab-panel { display: none; }
 .settings-tab-panel.active { display: block; }
 
+/* Dashboard Sub-Tabs */
+.dashboard-tabs {
+  display: inline-flex;
+  gap: var(--sp-1);
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 4px;
+}
+
+[data-theme="light"] .dashboard-tabs {
+  background: rgba(241, 245, 249, 0.85);
+  border-color: var(--border-card);
+}
+
+.dashboard-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 8px 18px;
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--radius-md) - 3px);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-supporting);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.dashboard-tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.dashboard-tab-btn.active {
+  background: var(--primary);
+  color: #FFFFFF;
+  box-shadow: 0 2px 8px var(--primary-glow);
+}
+
+.dashboard-tab-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.dashboard-tab-panel {
+  display: none;
+}
+
+.dashboard-tab-panel.active {
+  display: block;
+}
+
 .data-actions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-3); }
 @media (max-width: 600px) { .data-actions-grid { grid-template-columns: 1fr; } }
 
@@ -1860,6 +1916,23 @@ img { max-width: 100%; display: block; }
   gap: var(--sp-3);
 }
 
+/* Combined Portfolio Breakdown Grid */
+.combined-portfolio-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 900px) {
+  .combined-portfolio-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .combined-portfolio-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .net-worth-breakdown-cell {
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
@@ -2213,6 +2286,61 @@ img { max-width: 100%; display: block; }
   background: var(--primary);
   color: #FFFFFF;
   box-shadow: 0 2px 6px var(--primary-glow);
+}
+
+/* Side-by-Side Analytics Grid for Net Worth Growth Trend */
+.trend-side-by-side-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: var(--sp-4);
+  align-items: stretch;
+}
+
+.trend-grid-chart-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.trend-grid-chart-col .net-worth-chart-container {
+  height: 380px;
+  min-height: 380px;
+  flex: 1;
+}
+
+.trend-grid-details-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.trend-grid-details-col .snapshot-history-section {
+  border-top: none;
+  padding-top: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.trend-grid-details-col .snapshot-table-wrapper {
+  max-height: 340px;
+  overflow-y: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+}
+
+@media (max-width: 992px) {
+  .trend-side-by-side-grid {
+    grid-template-columns: 1fr;
+  }
+  .trend-grid-chart-col .net-worth-chart-container {
+    height: 280px;
+    min-height: 280px;
+  }
+  .trend-grid-details-col .snapshot-history-section {
+    border-top: 1px solid var(--border-default);
+    padding-top: var(--sp-3);
+  }
 }
 
 /* Chart Canvas Container */
