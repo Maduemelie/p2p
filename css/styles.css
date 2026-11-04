@@ -2987,3 +2987,215 @@ img { max-width: 100%; display: block; }
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+/* ==========================================================================
+   TRADE FLOW ANALYSIS: BOUGHT VS SOLD (SIDE-BY-SIDE)
+   ========================================================================== */
+
+.trade-flow-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(18, 28, 47, 0.85) 0%, rgba(14, 22, 38, 0.92) 100%);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="light"] .trade-flow-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.9) 100%);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.flow-side-by-side-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
+  align-items: stretch;
+}
+
+@media (max-width: 768px) {
+  .flow-side-by-side-grid {
+    grid-template-columns: 1fr;
+    gap: var(--sp-3);
+  }
+}
+
+.flow-column {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.flow-col-buy {
+  border-left: 3px solid #10b981;
+}
+
+.flow-col-sell {
+  border-left: 3px solid #06b6d4;
+}
+
+.flow-col-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--sp-3);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.flow-col-title {
+  font-size: var(--text-supporting);
+  font-weight: 700;
+  margin: 0;
+}
+
+.flow-hero-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flow-metric-label {
+  font-size: var(--text-tiny);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.flow-metric-val {
+  font-size: clamp(1.4rem, 2.5vw, 1.85rem);
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.flow-metric-sub {
+  font-size: var(--text-supporting);
+}
+
+.flow-metrics-subgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.flow-sub-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flow-sub-label {
+  font-size: var(--text-tiny);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.flow-sub-val {
+  font-size: var(--text-supporting);
+  font-weight: 700;
+}
+
+.flow-orders-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.flow-preview-header {
+  margin-bottom: 4px;
+}
+
+.flow-orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.flow-order-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-elevated);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+}
+
+.flow-order-left,
+.flow-order-right {
+  display: flex;
+  flex-direction: column;
+}
+
+.flow-order-vol {
+  font-size: var(--text-caption);
+  line-height: 1.2;
+}
+
+.flow-order-fiat {
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+
+/* Bottom Flow Summary Banner */
+.flow-summary-banner {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-elevated);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.flow-summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-width: 130px;
+}
+
+.flow-summary-divider {
+  width: 1px;
+  height: 36px;
+  background: var(--border-elevated);
+}
+
+@media (max-width: 600px) {
+  .flow-summary-divider {
+    display: none;
+  }
+}
+
+.flow-summary-label {
+  font-size: var(--text-tiny);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.flow-summary-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.flow-summary-sub {
+  font-size: var(--text-tiny);
+  margin-top: 2px;
+}
+
+

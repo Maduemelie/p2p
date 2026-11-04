@@ -52,6 +52,8 @@ export function initDashboard() {
   initDashboardTabs();
   initDashboardChart();
   setupPeriodFilters();
+  renderTradeFlowComparison();
+  setupTradeFlowFilters();
   syncAndRenderActiveAd();
   syncBybitLiveInventory();
   setupSnapshotModalEvents();
@@ -85,6 +87,7 @@ export function initDashboard() {
     if (!type || handledTypes.includes(type)) {
       renderDashboardMetrics();
       renderRecentTradesList();
+      renderTradeFlowComparison();
       updateDashboardChart();
       syncAndRenderActiveAd();
       syncBybitLiveInventory();
@@ -584,6 +587,9 @@ export function renderDashboardMetrics() {
   renderNetWorthTrendChart();
   renderSnapshotHistoryTable();
 
+  // 6. Bought vs Sold Side-by-Side Trade Flow
+  renderTradeFlowComparison();
+
   if (window.lucide) window.lucide.createIcons();
 }
 
@@ -611,13 +617,201 @@ export function initDashboardTabs() {
 
       if (window.lucide) window.lucide.createIcons();
 
-      // When switching to the trends tab, re-render/resize both charts
+      // When switching to the trends tab, re-render/resize charts and trade flow
       if (target === 'trends') {
         setTimeout(() => {
+          renderTradeFlowComparison();
           renderNetWorthTrendChart();
           updateDashboardChart();
         }, 50);
       }
+    });
+  });
+}
+
+let currentFlowPeriod = 'daily';
+
+/**
+ * Filter trades based on selected flow period ('daily', 'weekly', 'monthly')
+ */
+function getTradesForFlowPeriod(trades, period) {
+  if (!Array.isArray(trades) || trades.length === 0) return [];
+  const now = new Date();
+
+  if (period === 'daily') {
+    // Trades logged today (since 00:00:00 local time)
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return trades.filter(t => {
+      const time = new Date(t.date).getTime();
+      return !isNaN(time) && time >= startOfToday;
+    });
+  } else if (period === 'weekly') {
+    // Rolling 7 days
+    const cutoff = now.getTime() - (7 * 24 * 60 * 60 * 1000);
+    return trades.filter(t => {
+      const time = new Date(t.date).getTime();
+      return !isNaN(time) && time >= cutoff;
+    });
+  } else if (period === 'monthly') {
+    // Rolling 30 days
+    const cutoff = now.getTime() - (30 * 24 * 60 * 60 * 1000);
+    return trades.filter(t => {
+      const time = new Date(t.date).getTime();
+      return !isNaN(time) && time >= cutoff;
+    });
+  }
+  return trades;
+}
+
+/**
+ * Render Bought vs Sold Side-by-Side Trade Flow Analysis
+ */
+export function renderTradeFlowComparison() {
+  const container = document.getElementById('card-trade-flow');
+  if (!container) return;
+
+  const trades = store.getTrades ? store.getTrades() : [];
+  const periodTrades = getTradesForFlowPeriod(trades, currentFlowPeriod);
+
+  const elBuyUsdt = document.getElementById('flow-buy-usdt');
+  const elBuyNgn = document.getElementById('flow-buy-ngn');
+  const elBuyAvgRate = document.getElementById('flow-buy-avg-rate');
+  const elBuyCount = document.getElementById('flow-buy-orders-count');
+  const elBuyCountBadge = document.getElementById('flow-buy-count-badge');
+  const elBuyList = document.getElementById('flow-buy-orders-list');
+
+  const elSellUsdt = document.getElementById('flow-sell-usdt');
+  const elSellNgn = document.getElementById('flow-sell-ngn');
+  const elSellAvgRate = document.getElementById('flow-sell-avg-rate');
+  const elSellCount = document.getElementById('flow-sell-orders-count');
+  const elSellCountBadge = document.getElementById('flow-sell-count-badge');
+  const elSellList = document.getElementById('flow-sell-orders-list');
+
+  const elNetInventory = document.getElementById('flow-net-inventory');
+  const elNetInventorySub = document.getElementById('flow-net-inventory-sub');
+  const elSpreadVal = document.getElementById('flow-spread-val');
+  const elSpreadPct = document.getElementById('flow-spread-pct');
+  const elNetFiat = document.getElementById('flow-net-fiat');
+  const elTotalTurnover = document.getElementById('flow-total-turnover');
+
+  const buys = periodTrades.filter(t => (t.type || '').toUpperCase() === 'BUY');
+  const sells = periodTrades.filter(t => (t.type || '').toUpperCase() === 'SELL');
+
+  const buyTotalUsdt = buys.reduce((acc, t) => acc + (Number(t.usdtAmount) || 0), 0);
+  const buyTotalNgn = buys.reduce((acc, t) => acc + (Number(t.ngnAmount) || 0), 0);
+  const buyAvgRate = buyTotalUsdt > 0 ? (buyTotalNgn / buyTotalUsdt) : 0;
+
+  const sellTotalUsdt = sells.reduce((acc, t) => acc + (Number(t.usdtAmount) || 0), 0);
+  const sellTotalNgn = sells.reduce((acc, t) => acc + (Number(t.ngnAmount) || 0), 0);
+  const sellAvgRate = sellTotalUsdt > 0 ? (sellTotalNgn / sellTotalUsdt) : 0;
+
+  // Update Buy metrics
+  if (elBuyUsdt) elBuyUsdt.textContent = formatUSDT(buyTotalUsdt);
+  if (elBuyNgn) elBuyNgn.textContent = `${formatNGN(buyTotalNgn)} spent`;
+  if (elBuyAvgRate) elBuyAvgRate.textContent = buyAvgRate > 0 ? `₦${buyAvgRate.toFixed(2)}` : '₦0.00';
+  if (elBuyCount) elBuyCount.textContent = buys.length;
+  if (elBuyCountBadge) elBuyCountBadge.textContent = `${buys.length} Buy ${buys.length === 1 ? 'Trade' : 'Trades'}`;
+
+  // Update Sell metrics
+  if (elSellUsdt) elSellUsdt.textContent = formatUSDT(sellTotalUsdt);
+  if (elSellNgn) elSellNgn.textContent = `${formatNGN(sellTotalNgn)} received`;
+  if (elSellAvgRate) elSellAvgRate.textContent = sellAvgRate > 0 ? `₦${sellAvgRate.toFixed(2)}` : '₦0.00';
+  if (elSellCount) elSellCount.textContent = sells.length;
+  if (elSellCountBadge) elSellCountBadge.textContent = `${sells.length} Sell ${sells.length === 1 ? 'Trade' : 'Trades'}`;
+
+  // Net inventory flow (Buys - Sells)
+  const netUsdt = buyTotalUsdt - sellTotalUsdt;
+  if (elNetInventory) {
+    elNetInventory.textContent = `${netUsdt > 0 ? '+' : ''}${formatUSDT(netUsdt)}`;
+    elNetInventory.className = `flow-summary-value font-mono ${netUsdt > 0 ? 'text-success' : netUsdt < 0 ? 'text-accent' : ''}`;
+  }
+  if (elNetInventorySub) {
+    if (netUsdt > 0) elNetInventorySub.textContent = 'Net Accumulating';
+    else if (netUsdt < 0) elNetInventorySub.textContent = 'Net Distributing';
+    else elNetInventorySub.textContent = 'Even Turnover';
+  }
+
+  // Spread Differential
+  if (buyAvgRate > 0 && sellAvgRate > 0) {
+    const spread = sellAvgRate - buyAvgRate;
+    const spreadPct = (spread / buyAvgRate) * 100;
+    if (elSpreadVal) {
+      elSpreadVal.textContent = `${spread >= 0 ? '+' : ''}₦${spread.toFixed(2)} / USDT`;
+      elSpreadVal.className = `flow-summary-value font-mono ${spread >= 0 ? 'text-success' : 'text-danger'}`;
+    }
+    if (elSpreadPct) {
+      elSpreadPct.textContent = `${spreadPct >= 0 ? '+' : ''}${spreadPct.toFixed(2)}% margin`;
+      elSpreadPct.className = `flow-summary-sub ${spread >= 0 ? 'text-success' : 'text-danger'}`;
+    }
+  } else {
+    if (elSpreadVal) {
+      elSpreadVal.textContent = '—';
+      elSpreadVal.className = 'flow-summary-value font-mono text-muted';
+    }
+    if (elSpreadPct) {
+      elSpreadPct.textContent = 'Needs both buy & sell';
+      elSpreadPct.className = 'flow-summary-sub text-muted';
+    }
+  }
+
+  // Net Fiat Turnover
+  const netFiat = sellTotalNgn - buyTotalNgn;
+  const totalTurnoverUsdt = buyTotalUsdt + sellTotalUsdt;
+  if (elNetFiat) {
+    elNetFiat.textContent = `${netFiat >= 0 ? '+' : ''}${formatNGN(netFiat)}`;
+    elNetFiat.className = `flow-summary-value font-mono ${netFiat >= 0 ? 'text-success' : 'text-danger'}`;
+  }
+  if (elTotalTurnover) {
+    elTotalTurnover.textContent = `${formatUSDT(totalTurnoverUsdt)} gross volume`;
+  }
+
+  // Render recent orders in period for each column (up to 4 newest)
+  const renderOrdersList = (targetEl, list, isBuy) => {
+    if (!targetEl) return;
+    if (list.length === 0) {
+      targetEl.innerHTML = `<div class="flow-order-empty text-muted small py-2 text-center">No ${isBuy ? 'buys' : 'sells'} recorded in this period</div>`;
+      return;
+    }
+    const recent = [...list].reverse().slice(0, 4);
+    targetEl.innerHTML = recent.map(t => {
+      const d = t.date ? new Date(t.date) : null;
+      const timeStr = d && !isNaN(d.getTime()) ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+      const rate = Number(t.exchangeRate) || (Number(t.usdtAmount) > 0 ? (Number(t.ngnAmount) / Number(t.usdtAmount)) : 0);
+      return `
+        <div class="flow-order-item">
+          <div class="flow-order-left">
+            <span class="flow-order-vol font-mono font-bold ${isBuy ? 'text-success' : 'text-accent'}">${formatUSDT(t.usdtAmount)}</span>
+            <span class="flow-order-rate text-muted small">@ ₦${rate.toFixed(2)}</span>
+          </div>
+          <div class="flow-order-right text-right">
+            <span class="flow-order-fiat font-mono">${formatNGN(t.ngnAmount)}</span>
+            <span class="flow-order-time text-muted small">${timeStr}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  };
+
+  renderOrdersList(elBuyList, buys, true);
+  renderOrdersList(elSellList, sells, false);
+
+  if (window.lucide) window.lucide.createIcons();
+}
+
+/**
+ * Setup period filter controls for Trade Flow Analysis ('daily', 'weekly', 'monthly')
+ */
+export function setupTradeFlowFilters() {
+  const filterContainer = document.getElementById('trade-flow-time-filter');
+  if (!filterContainer) return;
+
+  const buttons = filterContainer.querySelectorAll('.seg-btn');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      buttons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFlowPeriod = btn.getAttribute('data-flow-period') || 'daily';
+      renderTradeFlowComparison();
     });
   });
 }

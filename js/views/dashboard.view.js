@@ -251,6 +251,137 @@ export function renderDashboardView() {
            =================================================================== -->
       <div class="dashboard-tab-panel" data-dashboard-panel="trends" id="panel-dash-trends" role="tabpanel">
 
+        <!-- ③ Trade Flow Analysis: Bought vs Sold Side-by-Side Card -->
+        <div class="card mb-4 trade-flow-card" id="card-trade-flow" role="region" aria-label="Trade Flow Analysis: Bought vs Sold">
+          <div class="card-header-flex mb-3">
+            <div>
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge badge-primary tiny">Flow Analytics</span>
+              </div>
+              <h3 class="card-title mt-1">Bought vs. Sold Trade Flow</h3>
+              <p class="card-subtitle">Side-by-side volume, rates, and capital turnover analysis</p>
+            </div>
+            
+            <!-- Timeframe Filter Toggle: Daily | Weekly | Monthly -->
+            <div class="segmented-control segmented-sm" id="trade-flow-time-filter" role="group" aria-label="Trade Flow Timeframe">
+              <button type="button" class="seg-btn active" data-flow-period="daily" id="btn-flow-daily">Daily</button>
+              <button type="button" class="seg-btn" data-flow-period="weekly" id="btn-flow-weekly">Weekly</button>
+              <button type="button" class="seg-btn" data-flow-period="monthly" id="btn-flow-monthly">Monthly</button>
+            </div>
+          </div>
+
+          <!-- Side-by-Side Flow Comparison Grid -->
+          <div class="flow-side-by-side-grid" id="flow-grid-container">
+            
+            <!-- Column 1: BOUGHT (Inflow) -->
+            <div class="flow-column flow-col-buy">
+              <div class="flow-col-header">
+                <div class="d-flex align-items-center gap-2">
+                  <div class="metric-icon-box success-tint nw-icon-sm">
+                    <i data-lucide="arrow-down-left"></i>
+                  </div>
+                  <div>
+                    <h4 class="flow-col-title text-success">Bought (Capital Inflow)</h4>
+                    <span class="flow-col-badge badge badge-success tiny" id="flow-buy-count-badge">0 Buy Trades</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flow-hero-metric mb-3">
+                <span class="flow-metric-label">Total USDT Acquired</span>
+                <div class="flow-metric-val font-mono text-success" id="flow-buy-usdt">0.00 USDT</div>
+                <div class="flow-metric-sub text-muted font-mono" id="flow-buy-ngn">₦0.00 spent</div>
+              </div>
+
+              <div class="flow-metrics-subgrid">
+                <div class="flow-sub-cell">
+                  <span class="flow-sub-label">Weighted Avg Buy Rate</span>
+                  <span class="flow-sub-val font-mono text-success" id="flow-buy-avg-rate">₦0.00</span>
+                </div>
+                <div class="flow-sub-cell">
+                  <span class="flow-sub-label">Completed Orders</span>
+                  <span class="flow-sub-val font-mono" id="flow-buy-orders-count">0</span>
+                </div>
+              </div>
+
+              <!-- Mini orders list preview -->
+              <div class="flow-orders-preview mt-3">
+                <div class="flow-preview-header">
+                  <span class="text-muted small font-bold">Recent Buys in Period</span>
+                </div>
+                <div class="flow-orders-list" id="flow-buy-orders-list">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Column 2: SOLD (Outflow) -->
+            <div class="flow-column flow-col-sell">
+              <div class="flow-col-header">
+                <div class="d-flex align-items-center gap-2">
+                  <div class="metric-icon-box danger-tint nw-icon-sm">
+                    <i data-lucide="arrow-up-right"></i>
+                  </div>
+                  <div>
+                    <h4 class="flow-col-title text-accent">Sold (Capital Outflow)</h4>
+                    <span class="flow-col-badge badge badge-primary tiny" id="flow-sell-count-badge">0 Sell Trades</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flow-hero-metric mb-3">
+                <span class="flow-metric-label">Total USDT Liquidated</span>
+                <div class="flow-metric-val font-mono text-accent" id="flow-sell-usdt">0.00 USDT</div>
+                <div class="flow-metric-sub text-muted font-mono" id="flow-sell-ngn">₦0.00 received</div>
+              </div>
+
+              <div class="flow-metrics-subgrid">
+                <div class="flow-sub-cell">
+                  <span class="flow-sub-label">Weighted Avg Sell Rate</span>
+                  <span class="flow-sub-val font-mono text-accent" id="flow-sell-avg-rate">₦0.00</span>
+                </div>
+                <div class="flow-sub-cell">
+                  <span class="flow-sub-label">Completed Orders</span>
+                  <span class="flow-sub-val font-mono" id="flow-sell-orders-count">0</span>
+                </div>
+              </div>
+
+              <!-- Mini orders list preview -->
+              <div class="flow-orders-preview mt-3">
+                <div class="flow-preview-header">
+                  <span class="text-muted small font-bold">Recent Sells in Period</span>
+                </div>
+                <div class="flow-orders-list" id="flow-sell-orders-list">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Bottom Flow & Spread Summary Banner -->
+          <div class="flow-summary-banner mt-3" id="flow-summary-banner">
+            <div class="flow-summary-item">
+              <span class="flow-summary-label">Net Inventory Flow</span>
+              <span class="flow-summary-value font-mono" id="flow-net-inventory">+0.00 USDT</span>
+              <span class="flow-summary-sub text-muted" id="flow-net-inventory-sub">Neutral</span>
+            </div>
+            <div class="flow-summary-divider"></div>
+            <div class="flow-summary-item">
+              <span class="flow-summary-label">Spread Differential</span>
+              <span class="flow-summary-value font-mono" id="flow-spread-val">+₦0.00 / USDT</span>
+              <span class="flow-summary-sub text-muted" id="flow-spread-pct">+0.00%</span>
+            </div>
+            <div class="flow-summary-divider"></div>
+            <div class="flow-summary-item">
+              <span class="flow-summary-label">Net Fiat Turnover</span>
+              <span class="flow-summary-value font-mono" id="flow-net-fiat">₦0.00</span>
+              <span class="flow-summary-sub text-muted" id="flow-total-turnover">0.00 USDT total</span>
+            </div>
+          </div>
+
+        </div>
+
         <!-- ⓪.5 Net Worth Growth Trend & Snapshot History Card (Milestone 4) -->
         <div class="card mb-4 net-worth-trend-card" id="card-net-worth-trend" role="region" aria-label="Net Worth Growth Trend and History">
           
