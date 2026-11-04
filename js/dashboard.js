@@ -535,6 +535,7 @@ export function renderDashboardMetrics() {
   // 2. USDT Inventory
   if (statInventoryHolding) {
     statInventoryHolding.textContent = formatUSDT(displayInventoryUSDT);
+    statInventoryHolding.style.display = 'none';
   }
   const metricUsdt = document.getElementById('metric-nw-bybit-usdt');
   if (metricUsdt) {
@@ -565,7 +566,7 @@ export function renderDashboardMetrics() {
 
   if (statTotalBankCash) {
     statTotalBankCash.textContent = formatNGN(totalBankCash);
-    statTotalBankCash.className = `portfolio-value font-mono ${totalBankCash >= 0 ? 'text-success' : 'text-danger'}`;
+    statTotalBankCash.style.display = 'none';
   }
   const metricBank = document.getElementById('metric-nw-bank-cash');
   if (metricBank) {

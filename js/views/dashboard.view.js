@@ -89,8 +89,8 @@ export function renderDashboardView() {
               </div>
               <div class="nw-cell-value font-mono text-success" id="metric-nw-bank-cash">₦0.00</div>
               <div class="nw-cell-sub text-muted" id="stat-bank-cash-subtext">Across linked accounts</div>
-              <span id="stat-total-bank-cash" class="hidden">₦0.00</span>
-              <span id="metric-nw-bank-sub" class="hidden">Reactive bank ledger</span>
+              <span id="stat-total-bank-cash" style="display: none !important;">₦0.00</span>
+              <span id="metric-nw-bank-sub" style="display: none !important;">Reactive bank ledger</span>
             </div>
 
             <!-- Pillar 2: USDT Inventory & Bybit Assets -->
@@ -103,8 +103,8 @@ export function renderDashboardView() {
               </div>
               <div class="nw-cell-value font-mono text-accent" id="metric-nw-bybit-usdt">0.00 USDT</div>
               <div class="nw-cell-sub font-mono text-muted" id="stat-inventory-cost">Avg: ₦0.00 / USDT</div>
-              <span id="stat-inventory-holding" class="hidden">0.00 USDT</span>
-              <span id="metric-nw-bybit-sub" class="hidden">Ad stock + Free balance</span>
+              <span id="stat-inventory-holding" style="display: none !important;">0.00 USDT</span>
+              <span id="metric-nw-bybit-sub" style="display: none !important;">Ad stock + Free balance</span>
             </div>
 
             <!-- Pillar 3: Realized P&L -->

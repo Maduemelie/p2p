@@ -125,14 +125,18 @@ export function renderNetWorthWidget() {
   const elStatTotalBank = document.getElementById('stat-total-bank-cash');
   if (elStatTotalBank) {
     elStatTotalBank.textContent = formatNGN(totalBankCash);
+    elStatTotalBank.style.display = 'none';
   }
 
   if (elNwBybitUsdt) {
     elNwBybitUsdt.textContent = formatUSDT(totalUsdt);
   }
   const elStatInventoryHolding = document.getElementById('stat-inventory-holding');
-  if (elStatInventoryHolding && (!elStatInventoryHolding.textContent || elStatInventoryHolding.textContent === '0.00 USDT')) {
-    elStatInventoryHolding.textContent = formatUSDT(totalUsdt);
+  if (elStatInventoryHolding) {
+    elStatInventoryHolding.style.display = 'none';
+    if (!elStatInventoryHolding.textContent || elStatInventoryHolding.textContent === '0.00 USDT') {
+      elStatInventoryHolding.textContent = formatUSDT(totalUsdt);
+    }
   }
 
   if (elNwRefRate) {
